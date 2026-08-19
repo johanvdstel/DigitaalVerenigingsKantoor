@@ -1,23 +1,43 @@
-# Ledenadministratie
+Ledenadministratie
 
-**Werkstroom:** LA  
-**Status:** Concept  
-**Versie:** 0.1  
-**Laatste wijziging:** 2026-08-06  
-**Auteur:** ChatGPT & Johan van der Stel
+Werkstroom: LA
+Sprint: 0.5 – Procesontwerp
+Status: Concept
+Versie: 0.1
+Datum: 2026-08-19
 
----
-Digitaal Verenigingskantoor
+⸻
 
-Sprint 0.5 – Procesontwerp Ledenadministratie
+Inhoud
 
-Versie 0.1 – Fundament en werkstroom Nieuw lid
+1. Doel van de werkstroom
+2. Positionering van Sportlink
+3. Afbakening van Ledenadministratie
+4. Centrale procesobjecten
+5. Rollen en verantwoordelijkheden
+6. Universeel statusmodel
+7. Hoofdproces LA-01 – Nieuw lid aanmelden
+8. Procesfasen Nieuw lid
+9. Beslismomenten Nieuw lid
+10. Uitzonderingen
+11. Termijnen en herinneringen
+12. Menselijke controlemomenten
+13. Audittrail
+14. Communicatieprincipes
+15. Eerste functionele procesregels
+16. Voorlopig toestandsmodel Nieuw lid
+17. Werkvoorraad voor de ledenadministrateur
+18. Prestatie- en kwaliteitsmetingen
+19. Ontwerpbesluiten voor Sprint 0.5
+20. Definitie van gereed voor proces LA-01
+
+⸻
 
 1. Doel van de werkstroom
 
 De werkstroom Ledenadministratie ondersteunt de volledige levenscyclus van een persoon binnen CKC:
 
-van eerste aanmelding tot en met beëindiging en archivering van het lidmaatschap.
+Van eerste aanmelding tot en met beëindiging en archivering van het lidmaatschap.
 
 Het Digitaal Verenigingskantoor:
 
@@ -74,7 +94,7 @@ Communicatiehistorie	Digitaal Verenigingskantoor
 Contributiestatus	Financieel systeem, nader te bepalen
 Vrijwilligersverplichtingen	Vrijwilligersadministratie, nader te koppelen
 
-Bij tegenstrijdige gegevens maakt het systeem niet zelfstandig een willekeurige keuze. Het opent een controleactie.
+Principe: bij tegenstrijdige gegevens maakt het systeem niet zelfstandig een willekeurige keuze. Het opent een controleactie.
 
 ⸻
 
@@ -271,58 +291,20 @@ Is een extern kernsysteem, geen menselijke actor. Handelingen in Sportlink worde
 
 Iedere zaak binnen de ledenadministratie gebruikt zoveel mogelijk dezelfde hoofdstatussen.
 
-1. Ontvangen
+Status	Betekenis
+Ontvangen	Een verzoek, formulier, signaal of wijziging is binnengekomen.
+In controle	Het systeem controleert volledigheid, formaat, plausibiliteit, duplicaten en regels.
+Wacht op aanvrager	Er ontbreken gegevens of documenten die de aanvrager moet leveren.
+Wacht op interne beoordeling	Een commissie, administrateur, penningmeester of bestuurder moet een oordeel geven.
+Gereed voor verwerking	Alle vereiste gegevens, controles en besluiten zijn aanwezig.
+In verwerking	De wijziging wordt in Sportlink of een ander bronsysteem uitgevoerd.
+Controle na verwerking	Het systeem controleert of de verwerking correct en volledig is doorgevoerd.
+Afgerond	De zaak is correct verwerkt en de betrokkenen zijn geïnformeerd.
+Afgewezen	Het verzoek wordt niet uitgevoerd. De reden en beslisser zijn vastgelegd.
+Geannuleerd	De aanvrager of vereniging heeft het proces ingetrokken voordat het was afgerond.
+Geblokkeerd	Het proces kan niet verder door een technisch probleem, conflicterende registratie of afhankelijkheid.
 
-Een verzoek, formulier, signaal of wijziging is binnengekomen.
-
-2. In controle
-
-Het systeem controleert:
-
-* volledigheid;
-* formaat;
-* plausibiliteit;
-* mogelijke duplicaten;
-* toepasselijke regels;
-* benodigde documenten.
-
-3. Wacht op aanvrager
-
-Er ontbreken gegevens of documenten die de aanvrager moet leveren.
-
-4. Wacht op interne beoordeling
-
-Een commissie, administrateur, penningmeester of bestuurder moet een oordeel geven.
-
-5. Gereed voor verwerking
-
-Alle vereiste gegevens, controles en besluiten zijn aanwezig.
-
-6. In verwerking
-
-De wijziging wordt in Sportlink of een ander bronsysteem uitgevoerd.
-
-7. Controle na verwerking
-
-Het systeem controleert of de verwerking correct en volledig is doorgevoerd.
-
-8. Afgerond
-
-De zaak is correct verwerkt en de betrokkenen zijn geïnformeerd.
-
-9. Afgewezen
-
-Het verzoek wordt niet uitgevoerd. De reden en beslisser zijn vastgelegd.
-
-10. Geannuleerd
-
-De aanvrager of vereniging heeft het proces ingetrokken voordat het was afgerond.
-
-11. Geblokkeerd
-
-Het proces kan niet verder door een technisch probleem, een conflicterende registratie of een niet-oplosbare afhankelijkheid.
-
-Niet iedere overgang tussen deze statussen is toegestaan. Die toegestane overgangen worden later in de procesmachine vastgelegd.
+Niet iedere overgang tussen deze statussen is toegestaan. De toegestane overgangen worden later in de procesmachine vastgelegd.
 
 ⸻
 
@@ -422,7 +404,7 @@ Onvoldoende om contact op te nemen: taak voor de ledenadministrateur.
 
 Automatische communicatie
 
-De aanvrager ontvangt geen algemene melding als “formulier incompleet”, maar een concrete lijst:
+De aanvrager ontvangt geen algemene melding als formulier incompleet, maar een concrete lijst:
 
 * wat ontbreekt;
 * waarom dit nodig is;
@@ -468,9 +450,7 @@ Meerdere mogelijke overeenkomsten
 
 De zaak wordt geblokkeerd voor automatische verwerking.
 
-Belangrijk principe
-
-Het systeem mag bij twijfel nooit automatisch twee personen samenvoegen en evenmin zonder controle een tweede persoon aanmaken.
+Belangrijk principe: het systeem mag bij twijfel nooit automatisch twee personen samenvoegen en evenmin zonder controle een tweede persoon aanmaken.
 
 ⸻
 
@@ -651,57 +631,16 @@ Deze vervolgprocessen zijn afzonderlijke werkstromen. Het proces Nieuw lid geeft
 
 9. Beslismomenten Nieuw lid
 
-De werkstroom kent minimaal de volgende beslispunten.
-
-D1 – Is de aanmelding voldoende identificeerbaar?
-
-* Ja: verder.
-* Nee, herstelbaar: informatie opvragen.
-* Nee, niet herstelbaar: handmatige beoordeling.
-
-D2 – Zijn alle verplichte gegevens aanwezig?
-
-* Ja: verder.
-* Nee: aanvulverzoek.
-
-D3 – Bestaat de persoon al?
-
-* Nee: nieuwe persoon.
-* Ja: bestaande persoon gebruiken.
-* Misschien: menselijke controle.
-
-D4 – Is sprake van een bestaand of oud lidmaatschap?
-
-* Nee: normale nieuwe inschrijving.
-* Ja: herinschrijving of wijziging in plaats van nieuw persoonrecord.
-
-D5 – Is een overschrijving van toepassing?
-
-* Nee: normale route.
-* Ja: start gekoppelde overschrijvingswerkstroom.
-
-D6 – Is plaatsing mogelijk?
-
-* Ja: verder.
-* Nee, tijdelijk: wachtlijst.
-* Nee, definitief: afwijzingsbesluit.
-
-D7 – Zijn bijzondere goedkeuringen vereist?
-
-* Nee: verder.
-* Ja: taak naar bevoegde rol.
-
-D8 – Mag deze zaak automatisch worden verwerkt?
-
-* Ja: geautomatiseerde verwerking.
-* Alleen na bevestiging: menselijke akkoordstap.
-* Nee: begeleide handmatige verwerking.
-
-D9 – Is de Sportlink-verwerking correct uitgevoerd?
-
-* Ja: afronden.
-* Nee, herstelbaar: corrigeren.
-* Nee, materieel: blokkeren en escaleren.
+ID	Beslissing	Mogelijke uitkomsten
+D1	Is de aanmelding voldoende identificeerbaar?	Ja / herstelbaar / handmatige beoordeling
+D2	Zijn alle verplichte gegevens aanwezig?	Ja / aanvulverzoek
+D3	Bestaat de persoon al?	Nee / ja / misschien
+D4	Is sprake van een bestaand of oud lidmaatschap?	Nee / herinschrijving of wijziging
+D5	Is een overschrijving van toepassing?	Nee / start overschrijvingswerkstroom
+D6	Is plaatsing mogelijk?	Ja / wachtlijst / afwijzing
+D7	Zijn bijzondere goedkeuringen vereist?	Nee / taak naar bevoegde rol
+D8	Mag deze zaak automatisch worden verwerkt?	Ja / na bevestiging / nee
+D9	Is de Sportlink-verwerking correct uitgevoerd?	Ja / herstelbaar / blokkeren
 
 ⸻
 
@@ -746,15 +685,16 @@ Iedere uitzondering krijgt later:
 
 Voor elke wachtstatus wordt een termijn ingesteld.
 
-Voorbeeld voor ontbrekende informatie:
+Voorbeeld: ontbrekende informatie
 
-* dag 0: verzoek om aanvulling;
-* dag 7: eerste herinnering;
-* dag 14: tweede herinnering;
-* dag 21: taak voor ledenadministrateur;
-* dag 30: voorstel om dossier te annuleren.
+Moment	Actie
+Dag 0	Verzoek om aanvulling
+Dag 7	Eerste herinnering
+Dag 14	Tweede herinnering
+Dag 21	Taak voor ledenadministrateur
+Dag 30	Voorstel om dossier te annuleren
 
-Dit zijn nog geen definitieve CKC-beleidsregels. Ze moeten door de proceseigenaar worden vastgesteld.
+Let op: dit zijn nog geen definitieve CKC-beleidsregels. Ze moeten door de proceseigenaar worden vastgesteld.
 
 Het systeem sluit een dossier niet definitief zonder dat de toegepaste regel en reden worden vastgelegd.
 
@@ -776,13 +716,13 @@ Menselijke beoordeling is minimaal verplicht bij:
 
 Voor standaardgevallen kan het systeem na bewezen betrouwbaarheid meer handelingen automatisch uitvoeren.
 
-De autonomie wordt dus stapsgewijs opgebouwd:
+De autonomie wordt stapsgewijs opgebouwd:
 
-1. signaleren;
-2. voorstellen;
-3. voorbereiden;
-4. uitvoeren na goedkeuring;
-5. zelfstandig uitvoeren met controle achteraf.
+1. Signaleren
+2. Voorstellen
+3. Voorbereiden
+4. Uitvoeren na goedkeuring
+5. Zelfstandig uitvoeren met controle achteraf
 
 ⸻
 
@@ -790,7 +730,7 @@ De autonomie wordt dus stapsgewijs opgebouwd:
 
 Iedere relevante gebeurtenis wordt onveranderbaar vastgelegd.
 
-Minimale auditgegevens:
+Minimale auditgegevens
 
 * datum en tijd;
 * procesnummer;
@@ -825,7 +765,7 @@ Iedere boodschap heeft:
 * eventuele bijlage;
 * relatie met een processtap.
 
-Voorbeelden:
+Voorbeelden
 
 * ontvangstbevestiging;
 * verzoek om aanvullende gegevens;
@@ -1009,9 +949,20 @@ Het procesontwerp Nieuw lid is pas definitief wanneer:
 
 Pas daarna vertalen we het ontwerp naar:
 
-* statemachine;
-* YAML-regels;
-* gegevensmodel;
-* schermen;
-* integraties;
-* programmacode.
+1. statemachine;
+2. YAML-regels;
+3. gegevensmodel;
+4. schermen;
+5. integraties;
+6. programmacode.
+
+⸻
+
+Versiehistorie
+
+Versie	Datum	Status	Wijziging
+0.1	2026-08-19	Concept	Eerste volledige procesbeschrijving Ledenadministratie
+
+⸻
+
+Dit document is de canonieke procesbeschrijving voor de werkstroom Ledenadministratie binnen het Digitaal Verenigingskantoor.
