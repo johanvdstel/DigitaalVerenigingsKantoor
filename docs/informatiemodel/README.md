@@ -1,137 +1,274 @@
 # CKC Informatiemodel
 
-Deze map bevat de functionele informatie-architectuur voor het **Digitaal Verenigingskantoor** van CKC.
+Deze map bevat de samenhangende ontwerpdocumenten voor het informatiemodel van het **Digitaal Verenigingskantoor (DVK)** van CKC.
 
-De documenten beschrijven vanuit verschillende perspectieven dezelfde werkelijkheid. Samen vormen zij de ontwerpbaseline tussen het procesontwerp en de latere technische implementatie.
+De documenten zijn iteratief ontstaan. Daardoor vertegenwoordigen zij **niet allemaal exact hetzelfde moment in het voortschrijdend inzicht**. Dat is bewust geen probleem: oudere deelmodellen en analyses blijven waardevol als onderbouwing en ontwerpgeschiedenis.
 
-## Documenten
+Voor de actuele richting geldt het **Canoniek Informatiemodel v0.5.1** als leidend. Waar oudere documenten daarvan afwijken, prevaleert het Canoniek Informatiemodel, tenzij expliciet anders vermeld.
 
-| Document | Centrale vraag | Huidige versie |
-|---|---|---:|
-| [Personenmodel](personenmodel.md) | Welke personen, organisaties en relaties bestaan er voor CKC? | 0.2.1 |
-| [Logisch Informatiemodel](logisch-informatiemodel.md) | Welke informatieobjecten moet CKC logisch kunnen vastleggen en hoe hangen die samen? | 0.2 |
-| [Gegevenswoordenboek & Bronnenmapping](gegevenswoordenboek-bronnenmapping.md) | Wat betekenen de gegevens precies en in welke systemen komen ze voor? | 0.1 |
+---
 
-## Samenhang
+## Inhoudsopgave
 
-De documenten bouwen op elkaar voort:
+1. [Documenten in deze map](#1-documenten-in-deze-map)
+2. [Onderlinge samenhang](#2-onderlinge-samenhang)
+3. [Welke documenten zijn leidend?](#3-welke-documenten-zijn-leidend)
+4. [Voortschrijdend inzicht](#4-voortschrijdend-inzicht)
+5. [Belangrijkste ontwerpprincipes](#5-belangrijkste-ontwerpprincipes)
+6. [Bronnen en DVK-datalaag](#6-bronnen-en-dvk-datalaag)
+7. [Huidige stand](#7-huidige-stand)
+8. [Vervolg](#8-vervolg)
+9. [Versiebeheer](#9-versiebeheer)
+
+---
+
+## 1. Documenten in deze map
+
+| Bestand | Versie | Rol | Status ten opzichte van actuele model |
+|---|---:|---|---|
+| [`Canoniek_Informatiemodel.md`](./Canoniek_Informatiemodel.md) | v0.5.1 | Overkoepelend canoniek begrippen- en relatiemodel | **Leidend** |
+| [`gegevenswoordenboek-bronnenmapping.md`](./gegevenswoordenboek-bronnenmapping.md) | v0.2 | Logische begrippen, gegevensbetekenis en mapping naar bronnen | **Actuele uitwerking van v0.5.1** |
+| [`gap-analyse.md`](./gap-analyse.md) | v0.1 | Analyse van verschillen tussen gewenste situatie en huidige bronnen/registraties | Onderbouwend; deels ingehaald door latere keuzes |
+| [`logisch-informatiemodel.md`](./logisch-informatiemodel.md) | v0.2 | Eerdere logische structurering van entiteiten en relaties | Onderbouwend; nog niet volledig bijgewerkt naar v0.5.1 |
+| [`personenmodel.md`](./personenmodel.md) | v0.2.1 | Verdieping van persoon, relaties, rollen en CKC-context | Onderbouwend; belangrijke basis voor het canonieke model |
+| [`README.md`](./README.md) | huidig | Wegwijzer, samenhang en status van de documentset | **Leidend voor navigatie** |
+
+---
+
+## 2. Onderlinge samenhang
+
+De ontwikkeling van het informatiemodel kan globaal als volgt worden gelezen:
 
 ```text
-CKC-werkelijkheid
-      │
-      ▼
 Personenmodel
-begrippen en relaties
-      │
-      ▼
+     │
+     │ onderzoekt personen, relaties en rollen
+     ▼
 Logisch Informatiemodel
-informatieobjecten en samenhang
-      │
-      ▼
+     │
+     │ structureert begrippen en relaties breder
+     ▼
+Gap-analyse
+     │
+     │ vergelijkt gewenste werkelijkheid met
+     │ huidige CKC-registraties en bronsystemen
+     ▼
+Canoniek Informatiemodel
+     │
+     │ consolideert het voortschrijdend inzicht
+     │ en bepaalt de actuele semantische richting
+     ▼
 Gegevenswoordenboek & Bronnenmapping
-definities, brongegevens en bronhouderschap
-      │
-      ▼
-Technisch gegevensmodel / integratielaag
-(toekomstige stap)
+     │
+     │ vertaalt het canonieke model naar
+     │ logische gegevensobjecten en bronnen
+     ▼
+DVK-ontwerp en prototypes
 ```
 
-Het [Personenmodel](personenmodel.md) is dus het meest conceptuele niveau. Het [Logisch Informatiemodel](logisch-informatiemodel.md) structureert die begrippen tot informatieobjecten. Het [Gegevenswoordenboek & Bronnenmapping](gegevenswoordenboek-bronnenmapping.md) verbindt die objecten vervolgens met de feitelijke CKC-administratie en bronsystemen.
+Deze volgorde betekent niet dat ieder document simpelweg een nieuwe versie van het vorige is. De documenten hebben verschillende functies.
 
-## Relatie met het procesontwerp
+Het **Personenmodel**, **Logisch Informatiemodel** en de **Gap-analyse** vormen vooral de analyse- en ontwerpgeschiedenis. Het **Canoniek Informatiemodel** consolideert de huidige begrippen en ontwerpregels. Het **Gegevenswoordenboek & Bronnenmapping** vertaalt die vervolgens richting gegevensvoorziening en implementatie.
 
-Het informatiemodel staat niet op zichzelf.
+---
 
-Het bestaande procesontwerp:
+## 3. Welke documenten zijn leidend?
 
-`../procesontwerp/ledenadministratie.md`
+Bij interpretatie of eventuele tegenstrijdigheid geldt voorlopig de volgende prioriteitsvolgorde:
 
-beschrijft **wat er in de ledenadministratie gebeurt**.
+```text
+1. Canoniek_Informatiemodel.md
+          ↓
+2. gegevenswoordenboek-bronnenmapping.md
+          ↓
+3. logisch-informatiemodel.md
+          ↓
+4. personenmodel.md
+          ↓
+5. gap-analyse.md
+```
 
-De documenten in deze map beschrijven **welke informatie daarvoor nodig is en wat die informatie betekent**.
+Deze volgorde zegt niets over de kwaliteit of historische waarde van een document. Zij geeft alleen aan welk document bij verschillen de **meest actuele ontwerpbeslissing** bevat.
 
-Proces en informatie moeten elkaar uiteindelijk wederzijds valideren:
+Het Canoniek Informatiemodel beschrijft de actuele CKC-begrippen en hun betekenis onafhankelijk van de beperkingen van bestaande systemen. Het Gegevenswoordenboek & Bronnenmapping operationaliseert dit model richting gegevensobjecten, bronnen, gaps en eigen DVK-registers.
 
-- iedere processtap moet kunnen beschikken over de benodigde informatie;
-- ieder belangrijk informatieobject moet een duidelijke reden hebben om in een proces of beleidsregel te worden gebruikt;
-- invoer, wijziging en afleiding moeten herleidbaar zijn;
-- uitzonderingen mogen het kernmodel niet onnodig vervuilen.
+De overige documenten blijven belangrijke onderbouwing en ontwerpgeschiedenis. Zij worden niet automatisch herschreven wanneer het canonieke model verandert.
 
-## Kernprincipes
+---
 
-### Eén identiteit, meerdere relaties
+## 4. Voortschrijdend inzicht
 
-Een Persoon of Organisatie wordt één keer als identiteit beschouwd en kan meerdere gelijktijdige of historische relaties met CKC hebben.
+Het informatiemodel wordt bewust iteratief ontwikkeld.
 
-### Bronfeiten zijn iets anders dan afleidingen
+In plaats van alle documenten bij iedere nieuwe ontdekking direct volledig te synchroniseren, hanteren we voorlopig het volgende principe:
+
+> **Het Canoniek Informatiemodel bevat de actuele semantische waarheid; oudere documenten mogen de redeneer- en ontwerpgeschiedenis blijven tonen.**
+
+Een verschil tussen documenten is daarom niet automatisch een fout.
+
+Wel geldt:
+
+> Een verschil dat tot ambiguïteit bij ontwerp of implementatie kan leiden, moet expliciet worden opgelost voordat daarop software wordt gebouwd.
+
+Wanneer een ouder document inhoudelijk sterk achterloopt of verwarrend wordt, kan een nieuwe versie daarvan worden gemaakt.
+
+---
+
+## 5. Belangrijkste ontwerpprincipes
+
+De huidige documentset heeft geleid tot de volgende centrale principes:
+
+1. **Persoon is niet hetzelfde als rol of functie.** Een persoon kan gelijktijdig meerdere relaties met CKC hebben en meerdere functies vervullen.
+2. **Lidmaatschap en voetbaldeelname zijn afzonderlijke feiten.**
+3. **Functie en functievervulling zijn afzonderlijke begrippen.**
+4. **Bronfeit, afgeleide kwalificatie en beleidsgevolg blijven gescheiden.**
+5. **Ledendienstverplichting en Ledendienstuitvoering zijn niet hetzelfde.**
+6. **Bestuurlijke verantwoordelijkheid en gedelegeerde uitvoering worden onderscheiden.**
+7. **Bevoegdheid, autorisatie en feitelijke toegang zijn verschillende begrippen.**
+8. **Resources zijn breder dan informatiesystemen:** ook gegevens, fysieke objecten en installaties kunnen resources zijn.
+9. **Tijd is onderdeel van de betekenis:** veranderlijke relaties moeten waar relevant een geldigheidsperiode hebben.
+
+De actuele governance-keten is conceptueel:
+
+```text
+Bestuurlijke verantwoordelijkheid
+        ↓
+Delegatie
+        ↓
+Bevoegdheid
+        ↓
+Functie
+        ↓
+Functievervulling
+        ↓
+Persoon
+        ↓
+Gewenste autorisatie
+        ↓
+Aanwezige autorisatie
+        ↓
+Feitelijke toegang
+```
+
+Het DVK moet afwijkingen tussen deze niveaus uiteindelijk kunnen signaleren.
+
+---
+
+## 6. Bronnen en DVK-datalaag
+
+Het model wordt niet ontworpen als afspiegeling van één bestaand systeem.
+
+Bekende bronnen zijn onder meer:
+
+```text
+Sportlink
+├── leden
+├── voetbaldeelname
+├── teams en functies
+├── vrijwilligersmodule
+├── bardiensten
+└── taakuren
+
+Sponsit
+├── sponsors
+├── sponsorcontacten
+├── contracten
+├── facturen
+├── taken
+└── afspraken
+
+Overige operationele systemen
+├── TapKey
+├── camerasysteem
+├── kassasysteem
+└── veldverlichting
+
+Historische / aanvullende bronnen
+└── bestaande CKC Access-database
+```
+
+Niet alle canonieke CKC-feiten bestaan in deze systemen. Daarom voorziet het ontwerp in een eigen **DVK-datalaag**, met onder meer:
+
+- canonieke persoons- en organisatie-identificatie;
+- functiecatalogus;
+- governance-register;
+- resource- en handelingencatalogus;
+- autorisatie-mapping;
+- beleidsregister;
+- audit- en signaleringsregister.
+
+Het DVK vervangt daarmee niet automatisch de operationele bronsystemen. Het voegt gegevens samen, geeft er canonieke betekenis aan en registreert CKC-specifieke feiten waarvoor elders geen geschikte bron bestaat.
+
+---
+
+## 7. Huidige stand
+
+### Relatief volwassen
+
+- personen en organisaties;
+- lidmaatschap;
+- voetbaldeelname;
+- functies en functievervulling;
+- vrijwilligerswerk;
+- Ledendienst;
+- onderscheid bronfeit / afleiding / beleidsgevolg.
+
+### Recent toegevoegd en nog verder te toetsen
+
+- bestuurlijke verantwoordelijkheid;
+- delegatie;
+- bevoegdheid;
+- resources en handelingen;
+- autorisatie;
+- feitelijke toegang;
+- generieke temporaliteit;
+- automatische signalering van afwijkingen.
+
+Deze nieuwe governance- en autorisatielaag is opgenomen in:
+
+- `Canoniek_Informatiemodel.md` v0.5.1;
+- `gegevenswoordenboek-bronnenmapping.md` v0.2.
+
+De oudere documenten zijn hier nog niet volledig op aangepast.
+
+---
+
+## 8. Vervolg
+
+De documentset is inmiddels voldoende volwassen om naast verdere modellering ook een eerste kleine softwarematige toets uit te voeren.
+
+De beoogde vervolgrichting is een **DVK Prototype v0.1 – Persoon & Bevoegdheden**.
+
+Een eerste prototype kan voor een testpersoon zichtbaar maken:
+
+```text
+Persoon
+  ├── relaties
+  ├── functies
+  ├── bevoegdheden
+  ├── gewenste autorisaties
+  ├── aanwezige autorisaties / toegang
+  └── signaleringen
+```
+
+Het prototype gebruikt in eerste instantie een kleine testdataset en hoeft nog niet live met Sportlink, TapKey of andere operationele systemen te integreren.
+
+Doel is eerst vast te stellen of het canonieke en logische model zich daadwerkelijk goed laat vertalen naar begrijpelijke software. De uitkomsten van die praktijktest kunnen vervolgens terugvloeien naar het informatiemodel.
+
+---
+
+## 9. Versiebeheer
+
+De bestanden in deze map behouden bij voorkeur een **stabiele bestandsnaam**. Het versienummer wordt in het document zelf bijgehouden.
 
 Bijvoorbeeld:
 
-- “trainer” kan een geregistreerde functionele rol zijn;
-- “voetballer” volgt uit voetbaldeelname;
-- “spelend trainer” kan vervolgens uit beide feiten worden afgeleid.
+```text
+Canoniek_Informatiemodel.md
+```
 
-### Beleid is geen bronfeit
+kan achtereenvolgens v0.5, v0.5.1, v0.6 enzovoort bevatten.
 
-Een contributiecategorie of vrijstelling is een beleidsgevolg. De feiten waarop dat gevolg is gebaseerd moeten afzonderlijk beschikbaar blijven.
+Git bewaart via de commitgeschiedenis de eerdere versies. Daardoor blijven interne Markdown-links stabiel en hoeft andere documentatie niet bij iedere versie te worden aangepast.
 
-### Bronsysteem is geen begrippenmodel
-
-Sportlink, Access en Sponsit hebben ieder hun eigen gegevensstructuur en doel. Het CKC-informatiemodel wordt niet rechtstreeks afgeleid uit de tabellen, velden of categorieën van één van die systemen.
-
-### Historie hoort bij het model
-
-Waar een relatie in de tijd kan veranderen, moet het model die historie kunnen bewaren. Dat geldt in het bijzonder voor lidmaatschap, voetbaldeelname en functionele rollen.
-
-## Belangrijkste bronsystemen
-
-De huidige analyse omvat ten minste:
-
-- **Sportlink Club** – leden, KNVB-relaties, functies en voetbalgerelateerde registratie;
-- **CKC Access-database** – lokale en historische aanvullende ledeninformatie;
-- **Sponsit** – CRM voor sponsorgerelateerde gegevens, contracten, facturen, taken en afspraken;
-- **KNVB/CKC-inschrijfformulier (`club_aanmelden`)** – initiële gegevens bij nieuwe aanmeldingen;
-- **toekomstige CKC-kernregistratie** – de nog te ontwerpen geïntegreerde informatievoorziening van het Digitaal Verenigingskantoor.
-
-## Status en versiebeheer
-
-De bestanden in deze map bevatten bovenaan hun eigen:
-
-- versienummer;
-- status;
-- datum.
-
-De bestandsnamen bevatten bewust **geen versienummer**. Git bewaart de documenthistorie. Daardoor blijft bijvoorbeeld `personenmodel.md` de vaste verwijzing naar de actuele versie, terwijl oudere versies via de Git-history terug te vinden zijn.
-
-Bij een betekenisvolle nieuwe ontwerpversie wordt:
-
-1. het versienummer in het document verhoogd;
-2. de wijziging via Git vastgelegd;
-3. waar nodig deze README bijgewerkt;
-4. bij belangrijke baselines eventueel later een Git-tag/release gebruikt.
-
-## Huidige ontwerpbaseline
-
-Per 29 augustus 2026 bestaat de baseline uit:
-
-- Personenmodel v0.2.1;
-- Logisch Informatiemodel v0.2;
-- Gegevenswoordenboek & Bronnenmapping v0.1;
-- het afzonderlijk opgeslagen Procesontwerp Ledenadministratie.
-
-Deze baseline is nog geen definitief technisch ontwerp. Zij is bedoeld als stabiel vertrekpunt voor verdere detaillering, bronanalyse en technische architectuur.
-
-## Logische vervolgstappen
-
-Vanuit deze baseline zijn de belangrijkste vervolgstappen:
-
-1. bronhouderschap per gegeven vaststellen;
-2. de mapping naar Sportlink, Access en Sponsit op veldniveau verdiepen;
-3. historie- en synchronisatieregels vastleggen;
-4. beleidsregels expliciet modelleren;
-5. het logisch model vertalen naar een technisch gegevensmodel;
-6. het geheel opnieuw toetsen aan concrete CKC-processen en persona’s.
-
-Zo ontstaat uiteindelijk een traceerbare keten van:
-
-**proces → begrip → informatieobject → gegeven → bron → regel → technische implementatie**.
+Bij iedere relevante modelwijziging wordt in de commit message kort aangegeven welk voortschrijdend inzicht of welke ontwerpbeslissing is verwerkt.
