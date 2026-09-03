@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dvk-prototype"
+version = "0.2.0"
+description = "Deterministisch prototype voor het Digitaal Verenigingskantoor"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dvk*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
