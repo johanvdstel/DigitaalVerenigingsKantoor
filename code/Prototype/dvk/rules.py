@@ -31,11 +31,22 @@ def evaluate_membership(case: PrototypeCase, today: date) -> Decision:
 def evaluate_relationships(case: PrototypeCase, today: date) -> Decision:
     if _age(case.person.birth_date, today) is None or _age(case.person.birth_date, today) >= 18:
         return Decision("relationships", "not_applicable", "Geen minderjarigheidscontrole nodig.")
-    parents = [r.from_person_id for r in case.relationships if r.to_person_id == case.person.person_id and r.relationship_type == "parent_guardian" and r.active]
+    links = [
+        {"parent_guardian": r.from_person_id, "child": r.to_person_id}
+        for r in case.relationships
+        if r.relationship_type == "parent_guardian" and r.active
+    ]
+    parents = [link["parent_guardian"] for link in links if link["child"] == case.person.person_id]
     if not parents:
         sig = Signal("missing_parent_guardian", "Minderjarig lid heeft geen geregistreerde ouder/verzorger.", "error", case.person.person_id)
-        return Decision("relationships", "error", sig.message, {"parent_guardians": []}, (sig,))
-    return Decision("relationships", "ok", "Ouder/verzorgerrelatie geregistreerd.", {"parent_guardians": parents})
+        action = Action(
+            "investigate_parent_guardian",
+            case.person.person_id,
+            "ledenadministrateur",
+            "Onderzoek en registreer de ontbrekende ouder/verzorgerrelatie; verzin geen relatie zonder bronfeit.",
+        )
+        return Decision("relationships", "error", sig.message, {"parent_guardians": [], "parent_guardian_links": links}, (sig,), (action,))
+    return Decision("relationships", "ok", "Ouder/verzorgerrelatie geregistreerd.", {"parent_guardians": parents, "parent_guardian_links": links})
 
 
 def evaluate_ledendienst(case: PrototypeCase, today: date) -> Decision:
@@ -62,7 +73,8 @@ def evaluate_ledendienst(case: PrototypeCase, today: date) -> Decision:
                 if rel.relationship_type == "parent_guardian" and rel.active and rel.from_person_id in parents and rel.to_person_id != case.person.person_id:
                     p = next((x for x in case.all_persons if x.person_id == rel.to_person_id), None)
                     mm = next((x for x in case.all_memberships if x.person_id == rel.to_person_id and x.status == "active"), None)
-                    if p and mm and (_age(p.birth_date, today) or 99) < 18:
+                    sibling_age = _age(p.birth_date, today) if p else None
+                    if p and mm and sibling_age is not None and sibling_age < 18:
                         siblings.append(p)
             older = [p for p in siblings if p.birth_date and case.person.birth_date and p.birth_date < case.person.birth_date]
             if older:
@@ -77,7 +89,19 @@ def evaluate_ledendienst(case: PrototypeCase, today: date) -> Decision:
     completed = case.duty.completed_hours if case.duty else 0
     remaining = max(0, LEDENDIENST_HOURS - completed)
     status = "ok" if remaining == 0 else "attention"
-    return Decision("ledendienst", status, "Ledendienstplicht voldaan." if remaining == 0 else f"Nog {remaining} uur ledendienst te vervullen.", {"required_hours": LEDENDIENST_HOURS, "completed_hours": completed, "remaining_hours": remaining, "actor": actor})
+    actions = ()
+    # De verantwoordelijkheid blijft bij het volwassen lid; DVK kan de Vrijwilligerscommissie wel een planningsvoorstel doen.
+    if remaining > 0 and age is not None and age >= 18 and actor == case.person.person_id and case.duty is not None:
+        actions = (
+            Action(
+                "propose_duty_scheduling",
+                case.person.person_id,
+                "vrijwilligerscommissie",
+                f"Stel voor het lid in te roosteren voor de resterende {remaining} uur ledendienst; de verantwoordelijkheid voor vervulling blijft bij het lid.",
+                facts={"remaining_hours": remaining},
+            ),
+        )
+    return Decision("ledendienst", status, "Ledendienstplicht voldaan." if remaining == 0 else f"Nog {remaining} uur ledendienst te vervullen.", {"required_hours": LEDENDIENST_HOURS, "completed_hours": completed, "remaining_hours": remaining, "actor": actor}, actions=actions)
 
 
 def evaluate_clothing(case: PrototypeCase, today: date) -> Decision:
