@@ -66,7 +66,13 @@ def evaluate_ledendienst(case: PrototypeCase, today: date) -> Decision:
                         siblings.append(p)
             older = [p for p in siblings if p.birth_date and case.person.birth_date and p.birth_date < case.person.birth_date]
             if older:
-                return Decision("ledendienst", "ok", "Geen tweede gezinsverplichting; verplichting rust op ouder/verzorger namens ouder minderjarig kind.", {"exempt_reason": "gezinsverplichting", "actor": actor})
+                family_subject = sorted(older, key=lambda p: p.birth_date)[0]
+                return Decision(
+                    "ledendienst",
+                    "ok",
+                    f"Geen tweede gezinsverplichting; verplichting rust op ouder/verzorger namens ouder minderjarig kind {family_subject.person_id}.",
+                    {"exempt_reason": "gezinsverplichting", "actor": actor, "family_duty_subject": family_subject.person_id},
+                )
 
     completed = case.duty.completed_hours if case.duty else 0
     remaining = max(0, LEDENDIENST_HOURS - completed)
@@ -81,7 +87,12 @@ def evaluate_clothing(case: PrototypeCase, today: date) -> Decision:
     if case.membership.status == "ended":
         sig = Signal("outstanding_clothing", "Uitgeschreven lid heeft CKC-kleding nog niet ingeleverd of financieel afgehandeld.", "error", case.person.person_id, {"outstanding": outstanding})
         actions = (
-            Action("send_email", case.person.person_id, "ledenadministrateur", "Verzoek kleding in te leveren of restwaarde te betalen."),
+            Action(
+                "send_email",
+                case.person.person_id,
+                "ledenadministrateur",
+                "Verzoek kleding in te leveren of restwaarde te betalen en melden dat geen vrijgave voor overschrijving plaatsvindt zolang de kledingkwestie niet is afgehandeld.",
+            ),
             Action("block_transfer_release", case.person.person_id, "ledenadministrateur", "Kledingkwestie is nog niet afgehandeld.", "active"),
         )
         return Decision("clothing", "blocked", sig.message, {"outstanding": outstanding, "transfer_release_blocked": True}, (sig,), actions)
@@ -92,6 +103,7 @@ def evaluate_authorization(case: PrototypeCase, today: date) -> Decision:
     actual: dict[str, set[str]] = {}
     for grant in case.access:
         actual.setdefault(grant.resource_id, set()).update(grant.levels)
+
     required: dict[str, set[str]] = {}
     authority_ids: dict[str, list[str]] = {}
     active_roles = {r.role for r in case.roles if r.person_id == case.person.person_id and r.active and (r.start_date is None or r.start_date <= today) and (r.end_date is None or r.end_date >= today)}
@@ -101,19 +113,45 @@ def evaluate_authorization(case: PrototypeCase, today: date) -> Decision:
         if valid and applies:
             required.setdefault(auth.resource_id, set()).update(auth.actions)
             authority_ids.setdefault(auth.resource_id, []).append(auth.authority_id)
+
     missing = {res: sorted(req - actual.get(res, set())) for res, req in required.items() if req - actual.get(res, set())}
-    excess = {res: sorted(act - required.get(res, set())) for res, act in actual.items() if act - required.get(res, set())}
-    facts = {"required": {k: sorted(v) for k, v in required.items()}, "actual": {k: sorted(v) for k, v in actual.items()}, "missing": missing, "excess": excess, "authority_ids": authority_ids}
+    unexplained: dict[str, list[str]] = {}
+    excess: dict[str, list[str]] = {}
+    for res, act in actual.items():
+        extra = act - required.get(res, set())
+        if not extra:
+            continue
+        has_known_context = bool(case.authorities or case.roles)
+        if res not in required and not has_known_context:
+            unexplained[res] = sorted(extra)
+        else:
+            excess[res] = sorted(extra)
+
+    facts = {
+        "required": {k: sorted(v) for k, v in required.items()},
+        "actual": {k: sorted(v) for k, v in actual.items()},
+        "missing": missing,
+        "excess": excess,
+        "unexplained": unexplained,
+        "authority_ids": authority_ids,
+    }
     signals = []
     actions = []
+
     if missing:
         signals.append(Signal("missing_authorization", "Benodigde feitelijke toegang ontbreekt.", "error", case.person.person_id, missing))
         actions.append(Action("grant_access", case.person.person_id, "toegangsbeheerder", "Feitelijke toegang in overeenstemming brengen met geldige bevoegdheid.", facts=missing))
     if excess:
-        signals.append(Signal("excess_authorization", "Feitelijke toegang heeft geen geldige bevoegdheidsgrond.", "error", case.person.person_id, excess))
+        signals.append(Signal("excess_authorization", "Feitelijke toegang is ruimer dan de bekende geldige bevoegdheid.", "error", case.person.person_id, excess))
         actions.append(Action("revoke_access", case.person.person_id, "toegangsbeheerder", "Onbevoegde of achtergebleven toegang intrekken.", facts=excess))
-    if signals:
+    if unexplained:
+        signals.append(Signal("unexplained_authorization", "Feitelijke toegang heeft geen bekende actuele bevoegdheidsgrond en moet worden onderzocht.", "attention", case.person.person_id, unexplained))
+        actions.append(Action("investigate_authorization", case.person.person_id, "toegangsbeheerder", "Onderzoek de bevoegdheidsgrond; trek toegang alleen in als geen geldige grond blijkt te bestaan.", facts=unexplained))
+
+    if missing or excess:
         return Decision("authorization", "blocked", "Feitelijke en gewenste autorisatie wijken af.", facts, tuple(signals), tuple(actions))
+    if unexplained:
+        return Decision("authorization", "attention", "Feitelijke toegang is onverklaard en vereist onderzoek.", facts, tuple(signals), tuple(actions))
     if not actual and not required:
         return Decision("authorization", "not_applicable", "Geen autorisatiecontrole van toepassing.", facts)
     return Decision("authorization", "ok", "Feitelijke toegang komt overeen met geldige bevoegdheid.", facts)
