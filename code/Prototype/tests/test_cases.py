@@ -20,11 +20,16 @@ def test_masterset_has_22_cases():
     assert [c.case_id for c in CASES] == [f"C{i:02d}" for i in range(1, 23)]
 
 
-def test_c01_open_hours():
+def test_c01_open_hours_and_scheduling_proposal():
     assert result("C01", "membership").status == "ok"
     r = result("C01", "ledendienst")
     assert r.status == "attention"
     assert r.facts == {"required_hours": 10, "completed_hours": 4, "remaining_hours": 6, "actor": "P01"}
+    assert action_types(r) == {"propose_duty_scheduling"}
+    action = r.actions[0]
+    assert action.responsible_role == "vrijwilligerscommissie"
+    assert action.facts == {"remaining_hours": 6}
+    assert "verantwoordelijkheid" in (action.reason or "")
 
 
 def test_c02_completed():
@@ -60,9 +65,13 @@ def test_c06_committee_exempt():
     assert "commissielid" in result("C06", "ledendienst").facts["exempt_roles"]
 
 
-def test_c07_not_member():
-    assert result("C07", "membership").status == "not_applicable"
-    assert result("C07", "ledendienst").status == "not_applicable"
+def test_c07_not_member_and_no_own_duty():
+    membership = result("C07", "membership")
+    duty = result("C07", "ledendienst")
+    assert membership.status == "not_applicable"
+    assert membership.message == "Persoon heeft geen CKC-lidmaatschap."
+    assert duty.status == "not_applicable"
+    assert duty.message == "Geen urenplicht bij niet-actief lidmaatschap."
 
 
 def test_c08_honorary_exempt():
@@ -166,11 +175,13 @@ def test_c19_bar_update_is_excess():
     assert "revoke_access" in action_types(r)
 
 
-def test_c20_minor_without_parent():
+def test_c20_minor_without_parent_requires_member_admin_followup():
     r = result("C20", "relationships")
     assert r.status == "error"
     assert r.facts["parent_guardians"] == []
     assert "missing_parent_guardian" in signal_codes(r)
+    assert action_types(r) == {"investigate_parent_guardian"}
+    assert r.actions[0].responsible_role == "ledenadministrateur"
     duty = result("C20", "ledendienst")
     assert duty.facts["actor"] is None
 
@@ -182,8 +193,13 @@ def test_c21_nine_digit_mobile_invalid():
     assert "request_data_correction" in action_types(r)
 
 
-def test_c22_different_addresses_not_error():
-    assert result("C22", "relationships").facts["parent_guardians"] == ["P22O"]
+def test_c22_same_parent_two_children_different_addresses_not_error():
+    relationships = result("C22", "relationships")
+    assert relationships.facts["parent_guardians"] == ["P22O"]
+    assert relationships.facts["parent_guardian_links"] == [
+        {"parent_guardian": "P22O", "child": "P22A"},
+        {"parent_guardian": "P22O", "child": "P22B"},
+    ]
     r = result("C22", "data_quality")
     assert r.status == "ok"
     assert r.facts["address_difference_possible"] is True
