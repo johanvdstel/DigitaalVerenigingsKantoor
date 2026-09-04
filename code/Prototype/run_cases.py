@@ -5,6 +5,12 @@ from dvk.engine import RuleEngine
 
 engine = RuleEngine()
 
+# Sommige mastercases bewijzen juist dat iets niet van toepassing is. Die besluiten
+# moeten in de menselijke acceptatierapportage zichtbaar blijven.
+ACCEPTANCE_NOT_APPLICABLE = {
+    "C07": {"membership", "ledendienst"},
+}
+
 
 def print_mapping(label, value, indent="    "):
     if not value:
@@ -16,6 +22,10 @@ def print_mapping(label, value, indent="    "):
         print(f"{indent}{' ' * (len(label) + 2)}{line}")
 
 
+def is_relevant(case_id, decision):
+    return decision.status != "not_applicable" or decision.code in ACCEPTANCE_NOT_APPLICABLE.get(case_id, set())
+
+
 print("DVK Prototype v0.2 — functionele acceptatierapportage")
 print(f"Peildatum: {TODAY.isoformat()}")
 print(f"Aantal mastercases: {len(CASES)}")
@@ -23,7 +33,7 @@ print("=" * 78)
 
 for case in CASES:
     decisions = engine.evaluate(case, TODAY)
-    relevant = [d for d in decisions if d.status != "not_applicable"]
+    relevant = [d for d in decisions if is_relevant(case.case_id, d)]
     signal_count = sum(len(d.signals) for d in relevant)
     action_count = sum(len(d.actions) for d in relevant)
 
