@@ -1,0 +1,54 @@
+Ieder spelend lid is verplicht een Ledendienst te vervullen. Ledendienst is Taak of Functie
+
+A Bepalen welke leden Taakplichtig zijn
+1. Spelende leden
+2. Recreanten vooralsnog vrijgesteld 
+3. Indien 14 of jonger, dan ouders 
+4. Tussen 14 en 18 ouders of kinderen. Let op: onder 16 wettelijk geen bardienst toegestaan (alcohol)
+5. Vrijgesteld indien oudere broer of zus (Broederdienst)
+6. Niet taakplichtig  indien actief in een functie
+7. 10 taakuren per seizoen is norm 
+
+B Losse Opmerkingen
+1. Taakplicht impliciet vastgelegd in Sportlink door verplichte uren op te voeren: A Verplicht. 
+2. Systeem houdt vervolgens ook bij: B Correctie, C Voldaan, D Nog ingedeeld, E Niet ingedeeld. 
+3. Formule: E=A-B-C-D
+4. Identificatie van ouders minderjarige kinderen slechts summier opgeslagen in Sportlink. Vaak alleen een voornaam van 1e ouder/verzorger. Optioneel kan een 2e ouder/verzorger worden opgevoerd. E-Mail en telefoon. 
+5. Omdat namen van ouders niet/summier bekend zijn wordt een dienst op naam van het kind geschreven NB: dit is ook de praktijk wanneer een ouder zich inplant voor een dienst; gaat op lidmaatschap en naam van het kind 
+6. Teamindeling staat in Sportlink
+
+C Voorgestelde kandidaten 
+1. Beschikbare taken staan in Vrijwilligersmodule van Sportlink
+2. Bij voorkeur kandidaten voorstellen uit thuisspelende teams 
+3. Bij jeugdleden (ouders) indelen in shift die (deels) overlapt met de wedstrijd 
+4. Bij senioren indelen in shift voor of na de wedstrijd 
+5. Prioriteit bij indelen omgekeerd evenredig met nog te vervullen taakuren (E in formule)
+6. In nood ook kijken naar uitspelende teams, mits niet overlappend met hun wedstrijd. 
+7. Gedurende eerste 1/4 seizoen (zeg 1 december) weegt nog te vervullen uren van vorige seizoen mee
+8. NB: Prioriteitstelling is daarmee generieker dan de eerder gegeven “minder als 5 uur in vorige seizoen”
+
+D Reminders en Communicatie
+1. E-Mail en Whatsapp en voetbal.nl
+2. Rooster wekelijks gepubliceerd door vrijwilligers commissie, gebruik makend van CKC Rooster Generator (zie ChatGPT en GitHub)
+3. Gegevens in Sportlink
+4. Vaak onjuiste gegevens (diverse oorzaken)
+5. Dus regelmatige controle nodig
+6. Privacy instelling in Sportlink vaak op Afgeschermd. Dit is de default bij aanmelding. Gevolg: naam niet zichtbaar in teamoverzichten en niet in voetbal.nl app. 
+7. Regelmatige controle en follow-up nodig
+
+E Nog te nemen CKC-beleidsbesluiten in parafgraaf 5. Beleidsregels versus open beleidskeuzes
+Hier zie ik vóór codering zes wezenlijke beslispunten:
+1. Prioritering binnen de <5 uur-groep. Gaat degene met 0 uur vóór 2,5 uur? Daarna degene met de meeste resterende uren? Of behandelen we iedereen binnen deze groep gelijk?
+    * Zie opmerking C5-8
+2. Rol van reeds ingeplande uren. Mijn voorstel is dat die zwaar meewegen: iemand met 0 gerealiseerd maar al 10 uur ingepland hoort normaliter niet opnieuw bovenaan te staan. Maar dit moet CKC expliciet bevestigen.
+    * Zie opmerking C5-8
+3. Praktische koppeling met aanwezigheid. De README noemt aanwezigheid van lid/kind als voorstel. Moet “team speelt thuis” daadwerkelijk een formeel voorkeurscriterium worden?
+    * Zie C2 en C6
+4. Wat betekent ‘geschikt’? Voor een bardienst en CommissieKamerdienst kunnen verschillende eisen gelden. We moeten bepalen welke harde uitsluitings- of geschiktheidsregels er werkelijk bestaan.
+    * Geschikt voor bar: Zie opmerking A4. Verder geen beperking
+    * Geschikt voor Gastheer/vrouw in CommissieKamer: Geen beperking
+5. Meerdere ouders/verzorgers. V0.2 bewijst dat een ouder kan uitvoeren, maar kiest technisch bij meerdere ouders feitelijk de eerste gevonden relatie. Dat was voldoende voor de v0.2-cases, maar is niet voldoende voor operationele planning. CKC moet bepalen of beide ouders gelijkwaardige kandidaten zijn, één voorkeursuitvoerder wordt geregistreerd, of de verplichting op gezinsniveau wordt behandeld.
+    * Zie opmerking B4-5. Naam ouders summier bekend (alleen voornaam). Daarom vastlegging via lidgegevens kind.
+    * NB: Tenzij DVK een oplossing biedt voor betrouwbare registratie van ouder/kind relatie en met name de gegevens
+6. Afwijzing door Vrijwilligerscommissie. Moet een reden verplicht worden vastgelegd? Mijn voorstel: ja, al is het maar uit een kleine categorie (persoonlijke omstandigheid, ongeschikt voor dienst, planning, brondata onjuist, anders). Dat maakt latere evaluatie van DVK-voorstellen mogelijk zonder van één afwijzing meteen nieuw beleid te maken.
+    * Eens.
