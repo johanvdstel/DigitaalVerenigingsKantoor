@@ -44,3 +44,6 @@ jobs:
 
       - name: Show v0.3 W-case acceptance output
         run: python run_workstream_cases.py
+
+      - name: Show v0.3 I01 import acceptance output
+        run: python run_import_cases.py
