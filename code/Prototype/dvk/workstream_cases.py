@@ -21,6 +21,12 @@ W_CASES = (
         sportlink_duty=SportlinkDutyRegistration("W02P", required_hours=None),
     ),
     PrototypeCase(
+        "W03",
+        "Senior taakplichtig lid met thuiswedstrijd op dienstdag",
+        Person("W03P", "Senior Thuiswedstrijd", date(1992, 3, 1)),
+        Membership("W03P", "active", "bondslid", plays_football=True),
+    ),
+    PrototypeCase(
         "W04",
         "Minderjarig jeugdlid: ouder/verzorger is uitvoerdercategorie",
         Person("W04P", "Jeugdlid Thuis", date(2012, 4, 10)),
@@ -46,6 +52,12 @@ W_CASES = (
         sportlink_duty=SportlinkDutyRegistration(
             "W07P", required_hours=10, correction_hours=0, completed_hours=4, scheduled_hours=3
         ),
+    ),
+    PrototypeCase(
+        "W10",
+        "Senior taakplichtig lid met uitwedstrijd op dienstdag",
+        Person("W10P", "Senior Uitwedstrijd", date(1993, 8, 1)),
+        Membership("W10P", "active", "bondslid", plays_football=True),
     ),
     PrototypeCase(
         "W13",
