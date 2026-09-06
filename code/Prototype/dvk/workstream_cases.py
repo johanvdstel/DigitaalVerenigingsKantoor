@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from .model import Membership, Person, PrototypeCase, SportlinkDutyRegistration
+from .model import Membership, Person, PersonRelationship, PrototypeCase, SportlinkDutyRegistration
 
 TODAY = date(2026, 9, 4)
 
@@ -21,12 +21,45 @@ W_CASES = (
         sportlink_duty=SportlinkDutyRegistration("W02P", required_hours=None),
     ),
     PrototypeCase(
+        "W04",
+        "Minderjarig jeugdlid: ouder/verzorger is uitvoerdercategorie",
+        Person("W04P", "Jeugdlid Thuis", date(2012, 4, 10)),
+        Membership("W04P", "active", "bondslid", plays_football=True),
+    ),
+    PrototypeCase(
+        "W05",
+        "Vijftienjarig jeugdlid",
+        Person("W05P", "Jeugdlid Vijftien", date(2011, 2, 1)),
+        Membership("W05P", "active", "bondslid", plays_football=True),
+    ),
+    PrototypeCase(
+        "W06",
+        "Zeventienjarig jeugdlid en overgang naar meerderjarigheid",
+        Person("W06P", "Jeugdlid Zeventien", date(2008, 10, 1)),
+        Membership("W06P", "active", "bondslid", plays_football=True),
+    ),
+    PrototypeCase(
         "W07",
         "Urenpositie A=10 B=0 C=4 D=3",
         Person("W07P", "Senior Urenpositie", date(1989, 7, 1)),
         Membership("W07P", "active", "bondslid", plays_football=True),
         sportlink_duty=SportlinkDutyRegistration(
             "W07P", required_hours=10, correction_hours=0, completed_hours=4, scheduled_hours=3
+        ),
+    ),
+    PrototypeCase(
+        "W13",
+        "Familieverplichting: jonger minderjarig kind veroorzaakt geen tweede verplichting",
+        Person("W13Y", "Jonger Kind", date(2013, 6, 1)),
+        Membership("W13Y", "active", "bondslid", plays_football=True),
+        persons=(
+            Person("W13O", "Ouder", date(1980, 1, 1)),
+            Person("W13E", "Ouder Kind", date(2010, 5, 1)),
+        ),
+        memberships=(Membership("W13E", "active", "bondslid", plays_football=True),),
+        relationships=(
+            PersonRelationship("W13O", "W13E", "parent_guardian"),
+            PersonRelationship("W13O", "W13Y", "parent_guardian"),
         ),
     ),
 )
