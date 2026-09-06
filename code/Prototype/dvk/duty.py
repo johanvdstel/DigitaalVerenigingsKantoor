@@ -29,6 +29,18 @@ def _age(birth_date: date | None, today: date) -> int | None:
     return today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
 
 
+def derive_executor_category(case: PrototypeCase, today: date) -> str | None:
+    """Derive the v0.3 executor category from age only.
+
+    The task-liable playing member remains the administrative subject. Missing
+    birth date yields no category instead of inventing one.
+    """
+    age = _age(case.person.birth_date, today)
+    if age is None:
+        return None
+    return "parent_guardian" if age < 18 else "member"
+
+
 def _role_is_active(role, today: date) -> bool:
     return role.active and (role.start_date is None or role.start_date <= today) and (role.end_date is None or role.end_date >= today)
 
@@ -147,6 +159,7 @@ def evaluate_duty_foundation(
         "duty_required": qualification.duty_required,
         "qualification_reason": qualification.reason,
         "administrative_subject": qualification.administrative_subject_id,
+        "executor_category": derive_executor_category(case, today),
         "policy_required_hours": policy.required_hours,
         "expected_required_hours": expected,
         "sportlink_required_hours": registered,
