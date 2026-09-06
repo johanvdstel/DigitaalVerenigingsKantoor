@@ -36,8 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e '.[test]'
 
-      - name: Run C01-C22 tests
+      - name: Run all regression tests
         run: pytest -q
 
-      - name: Show C01-C22 case output
+      - name: Show C01-C22 acceptance output
         run: python run_cases.py
+
+      - name: Show v0.3 W-case acceptance output
+        run: python run_workstream_cases.py
