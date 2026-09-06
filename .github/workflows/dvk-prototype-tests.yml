@@ -47,3 +47,6 @@ jobs:
 
       - name: Show v0.3 I01 import acceptance output
         run: python run_import_cases.py
+
+      - name: Show v0.3 step 4 candidate selection output
+        run: python run_candidate_cases.py
