@@ -1,0 +1,3 @@
+person_id,name,birth_date,membership_status,membership_kind,plays_football,recreational,honorary,roles
+I01P,Import Senior,1990-05-01,active,bondslid,true,false,false,
+I02P,Import Vrijgesteld,1988-03-12,active,bondslid,true,false,false,trainer
