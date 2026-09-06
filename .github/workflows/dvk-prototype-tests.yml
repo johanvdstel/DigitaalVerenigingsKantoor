@@ -50,3 +50,6 @@ jobs:
 
       - name: Show v0.3 step 4 candidate selection output
         run: python run_candidate_cases.py
+
+      - name: Show v0.3 step 5 prioritization output
+        run: python run_priority_cases.py
