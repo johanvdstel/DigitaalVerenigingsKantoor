@@ -23,6 +23,7 @@ def main():
         print(f"  taakplichtig: {_format_value(facts.get('duty_required'))}")
         print(f"  reden: {_format_value(facts.get('qualification_reason'))}")
         print(f"  administratief subject: {_format_value(facts.get('administrative_subject'))}")
+        print(f"  uitvoerdercategorie: {_format_value(facts.get('executor_category'))}")
         print(f"  beleidsnorm uren: {_format_value(facts.get('policy_required_hours'))}")
         print(f"  verwacht A: {_format_value(facts.get('expected_required_hours'))}")
 
