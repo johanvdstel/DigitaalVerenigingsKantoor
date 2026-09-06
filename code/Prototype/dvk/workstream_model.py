@@ -51,3 +51,15 @@ class CandidateAssessment:
     match_relation: str
     preference: str
     exclusion_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class CandidatePriority:
+    person_id: str
+    service_id: str
+    rank: int
+    remaining_hours: int
+    previous_season_backlog: int
+    previous_season_considered: bool
+    match_preference: str
+    explanation: tuple[str, ...]
