@@ -88,9 +88,53 @@ class AccessGrant:
 
 @dataclass(frozen=True)
 class DutyRegistration:
+    """v0.2 compatibility representation used by the C01-C22 fixtures."""
+
     person_id: str
     required_hours: int | None = None
     completed_hours: int = 0
+
+
+@dataclass(frozen=True)
+class SportlinkDutyRegistration:
+    """Administrative A/B/C/D values as registered in Sportlink."""
+
+    person_id: str
+    required_hours: int | None = None
+    correction_hours: int = 0
+    completed_hours: int = 0
+    scheduled_hours: int = 0
+
+
+@dataclass(frozen=True)
+class DutyPolicy:
+    """Explicit CKC policy; the norm is not a source fact or duty qualification."""
+
+    required_hours: int = 10
+
+
+@dataclass(frozen=True)
+class DutyQualification:
+    """Pure derived qualification from source facts and CKC exemption rules."""
+
+    person_id: str
+    duty_required: bool
+    reason: str
+    administrative_subject_id: str
+
+
+@dataclass(frozen=True)
+class DutyPosition:
+    """A/B/C/D/E duty-hours position. E is always derived from A-B-C-D."""
+
+    A: int
+    B: int = 0
+    C: int = 0
+    D: int = 0
+
+    @property
+    def E(self) -> int:
+        return self.A - self.B - self.C - self.D
 
 
 @dataclass(frozen=True)
@@ -159,6 +203,7 @@ class PrototypeCase:
     access: tuple[AccessGrant, ...] = ()
     duty: DutyRegistration | None = None
     duties: tuple[DutyRegistration, ...] = ()
+    sportlink_duty: SportlinkDutyRegistration | None = None
     clothing: tuple[ClothingIssue, ...] = ()
     compliance: tuple[ComplianceFact, ...] = ()
     context_date: date | None = None
