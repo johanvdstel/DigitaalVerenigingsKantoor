@@ -14,9 +14,13 @@ Waar v0.2 vooral antwoord gaf op de vraag wie volgens de CKC-regels een Ledendie
 
 De functionele keten is:
 
-**bronfeiten → taakplicht afleiden → urenpositie bepalen → openstaande dienst → geschikte kandidaten → prioritering → verklaarbaar DVK-voorstel → menselijke beoordeling → goedkeuring of afwijzing**
+**bronfeiten → import/normalisatie → taakplicht afleiden → urenpositie bepalen → openstaande dienst → geschikte kandidaten → prioritering → verklaarbaar DVK-voorstel → menselijke beoordeling → goedkeuring of afwijzing**
 
-Buiten scope blijven automatische communicatie, reminders, no-show-opvolging, escalatie na niet verschijnen, volledig autonome inroostering en autonome beleidsvorming.
+Prototype v0.3 moet deze keten niet uitsluitend met handmatig geconstrueerde testobjecten bewijzen. Zo vroeg mogelijk worden leden, urenposities, teams, wedstrijden en diensten aangeboden via downloadbestanden met een structuur alsof deze uit Sportlink komen. Een aparte importlaag vertaalt deze bronrepresentatie naar canonieke DVK-objecten.
+
+Daarnaast wordt zo vroeg mogelijk een eenvoudig operationeel dashboard toegevoegd waarmee de Vrijwilligerscommissie urenposities, openstaande diensten en kandidaatselecties kan bekijken en beoordelen. Het dashboard bevat geen eigen businesslogica, maar gebruikt uitsluitend de onderliggende DVK-regels en modellen.
+
+Buiten scope blijven automatische communicatie, reminders, no-show-opvolging, escalatie na niet verschijnen, volledig autonome inroostering, autonome beleidsvorming en een rechtstreekse productie-API-koppeling met Sportlink.
 
 ## 2. Hoofdprincipe
 
@@ -25,15 +29,19 @@ DVK bepaalt en verklaart wat uit feiten en vastgesteld CKC-beleid kan worden afg
 Steeds worden onderscheiden:
 
 1. **bronfeit** — gegeven uit een gezaghebbende bron;
-2. **afgeleide kwalificatie** — reproduceerbare conclusie uit bronfeiten;
-3. **CKC-beleidsregel** — expliciet door CKC vastgesteld;
-4. **DVK-besluit** — deterministische toepassing van feiten en regels;
-5. **signalering** — constatering die menselijke aandacht vraagt;
-6. **voorstel** — door DVK berekende voorkeursoptie;
-7. **menselijke beslissing** — goedkeuring of afwijzing door de Vrijwilligerscommissie;
-8. **vervolgactie** — handeling die uit die beslissing volgt.
+2. **bronrepresentatie** — bijvoorbeeld een Sportlink-downloadbestand waarin bronfeiten administratief zijn vastgelegd;
+3. **canoniek DVK-object** — genormaliseerde representatie binnen DVK;
+4. **afgeleide kwalificatie** — reproduceerbare conclusie uit bronfeiten;
+5. **CKC-beleidsregel** — expliciet door CKC vastgesteld;
+6. **DVK-besluit** — deterministische toepassing van feiten en regels;
+7. **signalering** — constatering die menselijke aandacht vraagt;
+8. **voorstel** — door DVK berekende voorkeursoptie;
+9. **menselijke beslissing** — goedkeuring of afwijzing door de Vrijwilligerscommissie;
+10. **vervolgactie** — handeling die uit die beslissing volgt.
 
 DVK mag ontbrekende feiten of ontbrekend beleid nooit zelf invullen.
+
+De regels mogen niet afhankelijk zijn van CSV-kolomnamen, een dashboard of een specifieke Sportlink-exportvorm. Alleen de importlaag kent de vorm van de bronbestanden; de functionele regels werken op canonieke DVK-objecten.
 
 ## 3. Actoren en verantwoordelijkheden
 
@@ -43,11 +51,20 @@ De Vrijwilligerscommissie is operationeel proceseigenaar. Zij beoordeelt DVK-ind
 
 ### 3.2 DVK
 
-DVK leest en combineert bronfeiten, leidt taakplicht af, controleert de administratieve vastlegging in Sportlink, bepaalt de urenpositie, zoekt beschikbare diensten, bepaalt geschikte kandidaten, prioriteert kandidaten, maakt verklaarbare voorstellen en legt gebruikte feiten, regels en afleidingen vast. DVK stelt geen nieuw beleid vast.
+DVK leest en combineert bronfeiten, normaliseert brondata, leidt taakplicht af, controleert de administratieve vastlegging in Sportlink, bepaalt de urenpositie, zoekt beschikbare diensten, bepaalt geschikte kandidaten, prioriteert kandidaten, maakt verklaarbare voorstellen en legt gebruikte feiten, regels en afleidingen vast. DVK stelt geen nieuw beleid vast.
 
 ### 3.3 Lid / jeugdlid / ouder of verzorger
 
-Het taakplichtige lid is het administratieve subject van de Ledendienstverplichting. De feitelijke uitvoerder kan daarvan verschillen. Bij minderjarigen kan de dienst, afhankelijk van leeftijd en diensttype, worden uitgevoerd door een ouder/verzorger of door het lid zelf. De dienst blijft administratief gekoppeld aan het lidmaatschap van het jeugdlid.
+Het taakplichtige lid is steeds het administratieve subject van de Ledendienstverplichting.
+
+Voor de operationele kandidaatselectie in v0.3 geldt een eenvoudige uitvoerdersregel:
+
+- bij een taakplichtig lid **jonger dan 18 jaar** is de uitvoerdercategorie `parent_guardian`;
+- bij een taakplichtig lid **van 18 jaar of ouder** is de uitvoerdercategorie `member`.
+
+De dienst blijft in alle gevallen administratief gekoppeld aan het taakplichtige spelende lid.
+
+In communicatie over Ledendienstbeleid kan CKC minderjarige leden de mogelijkheid bieden om een daarvoor toegestane dienst zelf uit te voeren. Eventuele leeftijds- en dienstspecifieke beperkingen, zoals geen bardienst onder 16 jaar, behoren daarmee niet tot de kern van kandidaatselectie in Prototype v0.3.
 
 ### 3.4 Bronsystemen
 
@@ -55,7 +72,25 @@ Sportlink is een belangrijke bron voor lidmaatschap, voetbaldeelname, functies, 
 
 Een bronsysteem levert feiten of administratieve registraties. DVK bepaalt daaruit, met expliciete CKC-regels, kwalificaties, beleidsgevolgen, signaleringen en voorstellen.
 
+Voor Prototype v0.3 mag Sportlink-data eerst via bestanden worden aangeboden. Deze bestanden vormen een realistische simulatie van de toekomstige bronkoppeling en worden via een expliciete import-/adapterlaag verwerkt.
+
 ## 4. Functioneel proces
+
+### Stap 0 – Brondata importeren en normaliseren
+
+DVK moet leden, urenposities, teamindelingen, wedstrijden en openstaande diensten kunnen inlezen uit bronbestanden die functioneel representatief zijn voor Sportlink-downloads.
+
+Voor v0.3 is CSV de voorkeursvorm voor deze eerste importgrens, omdat deze eenvoudig te inspecteren, te testen en later door echte Sportlink-downloads te vervangen is.
+
+Minimaal worden voorzien:
+
+- leden;
+- geregistreerde taakuren A/B/C/D;
+- teamlidmaatschappen;
+- wedstrijden;
+- beschikbare Ledendiensten.
+
+De importlaag vertaalt bronkolommen naar canonieke DVK-objecten. De functionele regels mogen geen kennis hebben van CSV-bestandsnamen of Sportlink-specifieke kolomnamen.
 
 ### Stap 1 – Taakplicht bepalen
 
@@ -93,15 +128,19 @@ V0.3 onderscheidt minimaal bardienst en gastheer/gastvrouw CommissieKamer.
 
 DVK selecteert leden die taakplichtig zijn, nog niet alle uren hebben afgedekt en volgens de regels kandidaat voor de dienst kunnen zijn.
 
-Bij jeugdleden blijft het jeugdlid administratief subject. Een ouder/verzorger kan feitelijk uitvoeren zonder dat daarvoor een afzonderlijke taakplicht ontstaat.
+Het taakplichtige lid blijft altijd het administratieve subject. Voor minderjarige taakplichtige leden gebruikt v0.3 bij de kandidaatselectie de uitvoerdercategorie `parent_guardian`. Vanaf 18 jaar gebruikt v0.3 `member`.
+
+Een ouder/verzorger krijgt door het uitvoeren van een dienst namens een minderjarig lid geen afzonderlijke taakplicht.
 
 ### Stap 5 – Geschiktheid bepalen
 
-Voor CommissieKamer geldt voor v0.3 geen aanvullende harde geschiktheidsbeperking.
+Voor Prototype v0.3 wordt geschiktheid bewust eenvoudig gehouden. De kandidaatselectie werkt primair met het taakplichtige lid als administratief subject en de uitvoerdercategorie die uit de leeftijd volgt.
 
-Voor bardienst geldt dat een uitvoerder jonger dan 16 jaar niet wordt voorgesteld.
+Voor CommissieKamer geldt geen aanvullende harde geschiktheidsbeperking.
 
-DVK verzint geen ontbrekende geschiktheidsgegevens. Als geschiktheid niet betrouwbaar kan worden vastgesteld, ontstaat een signalering of onzekerheidsstatus.
+Leeftijds- en dienstspecifieke mogelijkheden voor het minderjarige lid om een dienst eventueel zelf uit te voeren — waaronder de beleidscommunicatie dat onder 16 jaar geen bardienst wordt uitgevoerd — worden niet als afzonderlijke kandidaatselectieregel in de kernengine gemodelleerd.
+
+DVK verzint geen ontbrekende geschiktheidsgegevens. Als een werkelijk noodzakelijke geschiktheid niet betrouwbaar kan worden vastgesteld, ontstaat een signalering of onzekerheidsstatus.
 
 ### Stap 6 – Wedstrijdcontext meenemen
 
@@ -127,7 +166,7 @@ De prioritering combineert actuele achterstand, relevante achterstand vorig seiz
 
 ### Stap 8 – Indelingsvoorstel genereren
 
-Een voorstel bevat minimaal: openstaande dienst, taakplichtig lid, eventuele uitvoerderscategorie, A/B/C/D/E, relevante positie vorig seizoen, team, thuis/uit, relatie wedstrijdtijd-diensttijd, geschiktheid, toegepaste prioriteitsregels en eventuele onzekerheden.
+Een voorstel bevat minimaal: openstaande dienst, taakplichtig lid, uitvoerdercategorie, A/B/C/D/E, relevante positie vorig seizoen, team, thuis/uit, relatie wedstrijdtijd-diensttijd, geschiktheid, toegepaste prioriteitsregels en eventuele onzekerheden.
 
 Het voorstel is expliciet een **DVK-voorstel**, geen indeling.
 
@@ -141,6 +180,20 @@ De Vrijwilligerscommissie beoordeelt het voorstel.
 
 Een afwijzing doet taakplicht, geschiktheid of resterende uren niet automatisch vervallen. De dienst blijft open en DVK kan een volgend voorstel doen.
 
+### Stap 10 – Operationeel dashboard
+
+Zodra taakplicht, urenpositie, wedstrijdcontext en kandidaatselectie beschikbaar zijn, moet een eenvoudig dashboard deze resultaten zichtbaar en hanteerbaar maken voor de Vrijwilligerscommissie.
+
+Het eerste dashboard toont minimaal:
+
+1. **Taakplichtigen en urenpositie** — lid, team, taakplicht/vrijstelling, A/B/C/D/E en eventuele afwijking tussen DVK-afleiding en Sportlink-registratie;
+2. **Openstaande diensten** — datum, diensttype, tijden, benodigde bezetting en resterende bezetting;
+3. **Kandidaatselectie per dienst** — gerangschikte kandidaten met team, E, wedstrijdcontext, uitvoerdercategorie, prioriteit, uitsluitingsredenen en verklaring.
+
+Het dashboard is een gebruikerslaag bovenop de DVK-engine. Selectie-, prioriterings- en beleidsregels worden niet in het dashboard geïmplementeerd.
+
+In een latere stap binnen v0.3 kan het dashboard worden uitgebreid met goedkeuren en afwijzen van voorstellen, inclusief verplichte reden bij afwijzing.
+
 ## 5. CKC-beleidsregels
 
 Voor v0.3 gelden:
@@ -152,17 +205,17 @@ Voor v0.3 gelden:
 5. Voor een gezin ontstaat niet voor ieder minderjarig kind afzonderlijk een volledige verplichting; de familielogica uit v0.2 blijft gelden.
 6. De huidige norm is **10 taakuren per seizoen**. Dit aantal is een CKC-beleidskeuze.
 7. Het taakplichtige jeugdlid blijft administratief subject, ook wanneer ouder/verzorger uitvoert.
-8. Tot en met 14 jaar wordt de Ledendienst door ouder/verzorger uitgevoerd.
-9. Van 15 tot en met 17 jaar kan ouder/verzorger of het jeugdlid zelf uitvoeren.
-10. Een uitvoerder jonger dan 16 jaar wordt niet voorgesteld voor bardienst.
-11. Hoe groter E, hoe hoger de prioriteit.
-12. Tot 1 december wordt relevante achterstand uit het vorige seizoen meegewogen.
-13. Kandidaten uit thuisspelende teams hebben praktisch de voorkeur.
-14. Bij jeugd wordt bij voorkeur een met de thuiswedstrijd overlappende dienst gebruikt.
-15. Bij senioren wordt bij voorkeur vóór of na de eigen thuiswedstrijd gepland.
-16. Uitspelende teams worden alleen aanvullend gebruikt en niet bij tijdsoverlap.
-17. Een DVK-indelingsvoorstel vereist menselijke goedkeuring.
-18. Een afwijzing vereist een reden.
+8. Voor kandidaatselectie en planning geldt: **jonger dan 18 jaar → uitvoerdercategorie ouder/verzorger; vanaf 18 jaar → uitvoerdercategorie lid zelf**.
+9. De mogelijkheid dat een minderjarig lid in de praktijk zelf een toegestane dienst uitvoert, wordt niet als afzonderlijke kandidaatselectieregel in v0.3 gemodelleerd.
+10. Hoe groter E, hoe hoger de prioriteit.
+11. Tot 1 december wordt relevante achterstand uit het vorige seizoen meegewogen.
+12. Kandidaten uit thuisspelende teams hebben praktisch de voorkeur.
+13. Bij jeugd wordt bij voorkeur een met de thuiswedstrijd overlappende dienst gebruikt.
+14. Bij senioren wordt bij voorkeur vóór of na de eigen thuiswedstrijd gepland.
+15. Uitspelende teams worden alleen aanvullend gebruikt en niet bij tijdsoverlap.
+16. Een DVK-indelingsvoorstel vereist menselijke goedkeuring.
+17. Een afwijzing vereist een reden.
+18. De C-cases en W-cases vormen permanente functionele regressietests en blijven ook bij operationele doorontwikkeling automatisch meelopen.
 
 ## 6. Bronfeiten, kwalificaties en beleidsgevolgen
 
@@ -170,13 +223,15 @@ Voor v0.3 gelden:
 
 Voor zover betrouwbaar beschikbaar: persoon, geboortedatum, lidmaatschapsstatus, spelend/niet spelend, recreatief, erelidstatus, actieve functies, ouder-kindrelaties, gezinsrelaties, teamindeling, seizoen, geregistreerde A/B/C/D-waarden, beschikbare diensten, wedstrijdinformatie, datum/tijd en thuis/uit.
 
+Bronfeiten mogen in Prototype v0.3 via Sportlink-achtige downloadbestanden worden aangeleverd. De bestandsvorm is geen onderdeel van de beleidslogica.
+
 ### Afgeleide kwalificaties
 
-DVK leidt onder andere af: taakplichtig/niet taakplichtig, vrijstellingsgrond, administratief subject, mogelijke uitvoerderscategorie, geschikt/ongeschikt/onzeker, tijdsconflict, thuis-/uitvoorkeur, prioriteit en kandidaatstatus.
+DVK leidt onder andere af: taakplichtig/niet taakplichtig, vrijstellingsgrond, administratief subject, uitvoerdercategorie, geschikt/ongeschikt/onzeker, tijdsconflict, thuis-/uitvoorkeur, prioriteit en kandidaatstatus.
 
 ### Beleidsgevolgen
 
-Uit kwalificaties plus CKC-beleid volgen onder andere: het aantal verplichte uren A (momenteel 10), familievrijstelling, leeftijdsregels voor uitvoering en prioriteringsregels.
+Uit kwalificaties plus CKC-beleid volgen onder andere: het aantal verplichte uren A (momenteel 10), familievrijstelling, uitvoerdercategorie op basis van meerderjarigheid en prioriteringsregels.
 
 Een afgeleid gegeven of beleidsgevolg moet herleidbaar zijn naar gebruikte bronfeiten en beleidsregels.
 
@@ -188,7 +243,7 @@ Huidige werkwijze:
 
 Doelbeeld v0.3:
 
-**bronfeiten → DVK bepaalt taakplicht → DVK past CKC-beleidsnorm toe → DVK vergelijkt met Sportlink → mens behandelt afwijkingen**
+**bronfeiten → DVK importeert/normaliseert → DVK bepaalt taakplicht → DVK past CKC-beleidsnorm toe → DVK vergelijkt met Sportlink → mens behandelt afwijkingen**
 
 Dit levert twee resultaten:
 
@@ -205,7 +260,7 @@ Een voorstel kan `proposed`, `approved` of `rejected` zijn. Alleen goedkeuring m
 
 Auditketen:
 
-**bronfeiten → afleidingen → beleidsregels → kandidaatselectie → DVK-voorstel → menselijke beslissing → indeling**
+**bronfeiten → import/normalisatie → afleidingen → beleidsregels → kandidaatselectie → DVK-voorstel → menselijke beslissing → indeling**
 
 ## 9. Verklaarbaarheid
 
@@ -215,7 +270,7 @@ Voor ieder voorstel moet DVK minimaal kunnen verklaren:
 2. welke bronfeiten en beleidsregels dat bepalen;
 3. hoe de verplichte urennorm uit beleid volgt;
 4. wat de actuele A/B/C/D/E-positie is;
-5. waarom uitvoerder/categorie geschikt is;
+5. welke uitvoerdercategorie geldt;
 6. waarom de dienst praktisch past;
 7. waarom deze kandidaat hoger staat dan andere kandidaten;
 8. welke rol het vorige seizoen speelt;
@@ -247,7 +302,7 @@ Relatie tussen lid en team gedurende een periode.
 Wedstrijdcontext: team, datum/tijd en thuis/uit.
 
 ### CandidateAssessment
-Beoordeling van kandidaat voor concrete dienst: taakplicht, urenpositie, mogelijke uitvoerder, geschiktheid, wedstrijdrelatie, prioriteit, uitsluitingsreden en verklaring.
+Beoordeling van kandidaat voor concrete dienst: taakplicht, urenpositie, uitvoerdercategorie, geschiktheid, wedstrijdrelatie, prioriteit, uitsluitingsreden en verklaring.
 
 ### AssignmentProposal
 DVK-advies met dienst, kandidaat, rang, gebruikte regels, verklaring en status.
@@ -258,7 +313,26 @@ Menselijke beoordeling met voorstel, goedgekeurd/afgewezen, beslisser, moment en
 ### DutyAssignment
 Goedgekeurde feitelijke indeling. Ontstaat pas na menselijke goedkeuring.
 
-## 12. Acceptatiecases v0.3
+### ImportAdapter
+Functionele grens die Sportlink-achtige bronbestanden omzet naar canonieke DVK-objecten. De adapter bevat bronmapping, maar geen beleids- of selectielogica.
+
+### DashboardViewModel
+Afgeleide presentatiestructuur voor het dashboard. Bevat uitsluitend gegevens en verklaringen uit de DVK-engine en geen zelfstandige beleidsregels.
+
+## 12. Permanente regressiestrategie
+
+De geaccepteerde C-cases uit Prototype v0.2 en de W-cases uit Prototype v0.3 vormen samen een blijvend functioneel contract van DVK.
+
+Daarom gelden de volgende uitgangspunten:
+
+1. C01–C22 blijven als vaste regressieset bestaan.
+2. W01–W13 worden na acceptatie eveneens als vaste regressieset gehandhaafd.
+3. Nieuwe werkstromen kunnen eigen vaste regressiesets toevoegen.
+4. Alle relevante regressiesets draaien automatisch in batch mode bij wijzigingen.
+5. Operationele interfaces, imports en dashboards mogen de onderliggende geaccepteerde functionele uitkomsten niet stilzwijgend wijzigen.
+6. Een bewuste beleidswijziging mag een bestaande regressie alleen wijzigen wanneer die functionele wijziging expliciet is vastgesteld en in ontwerp en testcase is vastgelegd.
+
+## 13. Acceptatiecases v0.3
 
 ### W01 – Taakplicht automatisch afgeleid
 Spelend seniorlid, geen vrijstellende functie of andere vrijstellingsgrond. **Verwacht:** DVK leidt taakplicht af en past de beleidsnorm van 10 uur toe zonder handmatig taakplichtveld.
@@ -267,16 +341,16 @@ Spelend seniorlid, geen vrijstellende functie of andere vrijstellingsgrond. **Ve
 Lid is volgens feiten en beleid 10 uur taakplichtig, maar Sportlink bevat geen verplichte taakuren. **Verwacht:** DVK signaleert het verschil en verzint geen correctie.
 
 ### W03 – Volwassen senior en thuiswedstrijd
-Taakplichtige senior heeft E > 0 en speelt thuis. **Verwacht:** passende dienst vóór of na wedstrijd krijgt voorkeur.
+Taakplichtige senior heeft E > 0 en speelt thuis. **Verwacht:** passende dienst vóór of na wedstrijd krijgt voorkeur; uitvoerdercategorie is het lid zelf.
 
-### W04 – Jeugdlid tot en met 14 jaar
-Taakplichtig jeugdlid speelt thuis. **Verwacht:** overlappende dienst kan worden voorgesteld; uitvoerdercategorie ouder/verzorger; administratie blijft op kind.
+### W04 – Minderjarig jeugdlid en thuiswedstrijd
+Taakplichtig jeugdlid jonger dan 18 jaar speelt thuis. **Verwacht:** overlappende dienst kan worden voorgesteld; uitvoerdercategorie is ouder/verzorger; administratie blijft op het kind.
 
-### W05 – Vijftienjarig jeugdlid en bardienst
-Taakplichtig lid van 15 jaar. **Verwacht:** lid zelf niet als bardienstuitvoerder; ouder/verzorger kan wel uitvoeren.
+### W05 – Vijftienjarig jeugdlid
+Taakplichtig lid van 15 jaar. **Verwacht:** administratief subject blijft het jeugdlid; uitvoerdercategorie voor kandidaatselectie en planning is ouder/verzorger.
 
-### W06 – Zestien- of zeventienjarig lid
-**Verwacht:** zowel lid zelf als ouder/verzorger kan mogelijke uitvoerder zijn; lid zelf kan voor bardienst worden voorgesteld.
+### W06 – Zeventienjarig jeugdlid
+Taakplichtig lid van 17 jaar. **Verwacht:** ook vlak vóór meerderjarigheid blijft het jeugdlid administratief subject en is de uitvoerdercategorie voor kandidaatselectie en planning ouder/verzorger. Vanaf 18 jaar wordt de uitvoerdercategorie het lid zelf.
 
 ### W07 – Urenpositie
 A=10, B=0, C=4, D=3. **Verwacht:** E=3; DVK behandelt het lid niet alsof nog zes uur moet worden ingepland.
@@ -299,13 +373,46 @@ Vrijwilligerscommissie wijst voorstel af met reden. **Verwacht:** geen DutyAssig
 ### W13 – Familieverplichting
 Meerdere minderjarige spelende kinderen waarvoor volgens familielogica slechts één verplichting geldt. **Verwacht:** geen dubbele gezinsverplichting of kunstmatig verdubbelde kandidaatdruk.
 
-## 13. Acceptatiecriterium
+## 14. Acceptatie van bronimport en dashboard
 
-V0.3 is functioneel geslaagd wanneer reproduceerbaar wordt aangetoond dat taakplicht uit feiten en regels wordt afgeleid; de beleidsnorm afzonderlijk wordt toegepast; afwijkingen met Sportlink worden gesignaleerd; urenposities correct worden bepaald; geschikte kandidaten worden gevonden en volgens expliciete regels geprioriteerd; ieder voorstel verklaarbaar is; ontbrekende feiten of regels niet worden verzonnen; goedkeuring en afwijzing menselijke beslissingen blijven; alleen goedkeuring tot indeling leidt; en de geaccepteerde v0.2-logica behouden blijft behalve waar v0.3 deze expliciet verfijnt.
+Naast W01–W13 gelden voor v0.3 twee operationele acceptatie-eisen.
 
-## 14. Ontwerpconclusie
+### I01 – Sportlink-achtige bronimport
+Een representatieve set leden, taakuren, teams, wedstrijden en diensten wordt via downloadbestanden ingelezen. **Verwacht:** de importlaag levert canonieke DVK-objecten op waarop dezelfde regels reproduceerbaar werken als bij directe testfixtures.
+
+### I02 – Dashboard gebruikt uitsluitend engine-uitkomsten
+Een gebruiker selecteert een openstaande dienst in het dashboard. **Verwacht:** het dashboard toont taakplichtigen, urenpositie, kandidaatvolgorde, uitvoerdercategorie, uitsluitingsredenen en verklaringen zoals door de DVK-engine bepaald; het dashboard bevat geen afwijkende eigen selectie- of beleidslogica.
+
+Deze twee eisen vervangen de W-regressies niet. Zij voegen een operationele acceptatielaag toe bovenop dezelfde functionele kern.
+
+## 15. Implementatievolgorde v0.3
+
+De voorkeursvolgorde is:
+
+1. domeinfundament, taakplichtafleiding en `DutyPosition`; C01–C22 blijven groen; W01, W02 en W07 worden toegevoegd;
+2. Sportlink-achtige CSV-importlaag en representatieve bronbestanden;
+3. minderjarigen- en familielogica volgens de vereenvoudigde uitvoerdersregel; W04, W05, W06 en W13;
+4. wedstrijdcontext en kandidaatselectie; W03 en W10;
+5. prioritering; W08 en W09;
+6. eerste operationele dashboard voor urenposities, diensten en kandidaatselectie;
+7. `AssignmentProposal` en menselijke goedkeuring/afwijzing;
+8. `DutyAssignment`; W11 en W12;
+9. uitbreiding dashboard met goedkeuren/afwijzen;
+10. geïntegreerde regressie- en operationele acceptatie over C-, W- en import/dashboardtests.
+
+Het doel is bewust om vroeg met realistisch aangeleverde brondata en een zichtbaar selectieproces te werken, zonder de scheiding tussen bronimport, domeinlogica en gebruikersinterface op te geven.
+
+## 16. Acceptatiecriterium
+
+V0.3 is functioneel geslaagd wanneer reproduceerbaar wordt aangetoond dat taakplicht uit feiten en regels wordt afgeleid; de beleidsnorm afzonderlijk wordt toegepast; afwijkingen met Sportlink worden gesignaleerd; urenposities correct worden bepaald; Sportlink-achtige bronbestanden via een expliciete importlaag kunnen worden verwerkt; geschikte kandidaten worden gevonden en volgens expliciete regels geprioriteerd; ieder voorstel verklaarbaar is; de resultaten via een dashboard operationeel inzichtelijk zijn zonder businesslogica in het dashboard te dupliceren; ontbrekende feiten of regels niet worden verzonnen; goedkeuring en afwijzing menselijke beslissingen blijven; alleen goedkeuring tot indeling leidt; en de geaccepteerde v0.2-logica behouden blijft behalve waar v0.3 deze expliciet verfijnt.
+
+## 17. Ontwerpconclusie
 
 V0.3 verschuift DVK van regelbeoordelaar naar eerste operationele procesondersteuner. De belangrijke nieuwe stap is dat taakplicht zelf uit feiten wordt afgeleid en de omvang van de daaruit volgende urenverplichting uit CKC-beleid volgt.
+
+Tegelijk wordt de stap gezet van uitsluitend interne testdata naar een realistische operationele keten:
+
+**Sportlink-achtige brondata → DVK-import → canonieke objecten → regels → kandidaatselectie → dashboard → menselijke beslissing**
 
 De huidige werkwijze:
 
@@ -313,6 +420,8 @@ De huidige werkwijze:
 
 wordt:
 
-**DVK bepaalt → DVK controleert → DVK zoekt → DVK prioriteert → DVK verklaart → mens beslist**
+**DVK importeert → DVK bepaalt → DVK controleert → DVK zoekt → DVK prioriteert → DVK verklaart → mens beslist**
 
 De Vrijwilligerscommissie houdt regie en eindverantwoordelijkheid, terwijl reproduceerbaar en arbeidsintensief administratief werk naar DVK kan verschuiven.
+
+De C- en W-regressies blijven daarbij het uitvoerbare functionele contract waarop ook latere operationele doorontwikkeling wordt bewaakt.
