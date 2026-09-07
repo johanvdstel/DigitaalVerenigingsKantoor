@@ -68,3 +68,19 @@ def test_i02_dashboard_shows_multiple_candidates_only_for_equal_first_choice():
     dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, (priorities[0], equal), matches=matches)
     assert {row.person_id for row in dashboard.candidate_rows} == {"W08P", "W07P"}
     assert all(row.shared_first_choice for row in dashboard.candidate_rows)
+
+
+def test_i02_dashboard_does_not_propose_same_person_twice_on_same_day_if_alternative_exists():
+    cases, service, teams, matches, decisions, assessments, priorities = _dashboard_fixture()
+    later = DutyService("S-LATER", "bardienst", datetime(2026, 9, 12, 17), datetime(2026, 9, 12, 20), "kantine", 1)
+    later_assessments = tuple(assess_candidate(case, later, teams, matches, TODAY) for case in cases)
+    later_priorities = prioritize_candidates(later_assessments, cases, date(2026, 9, 12))
+    dashboard = build_dashboard(
+        cases, decisions, (service, later), teams,
+        assessments + later_assessments, priorities + later_priorities, matches=matches,
+    )
+    proposed = {row.service_id: row.person_id for row in dashboard.candidate_rows}
+    assert proposed["S-DASH"] == "W08P"
+    assert proposed["S-LATER"] == "W07P"
+    jan_later = next(row for row in dashboard.not_proposed_rows if row.service_id == "S-LATER" and row.person_id == "W08P")
+    assert "al voorgesteld voor een andere Ledendienst op deze dag" in jan_later.reason
