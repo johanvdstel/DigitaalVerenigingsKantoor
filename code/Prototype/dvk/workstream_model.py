@@ -36,11 +36,7 @@ class DutyService:
 
 @dataclass(frozen=True)
 class CandidateAssessment:
-    """Step-4 assessment for one member/service combination.
-
-    This records eligibility and practical match context only. Ranking based on
-    remaining hours or previous-season backlog belongs to step 5.
-    """
+    """Step-4 assessment for one member/service combination."""
 
     person_id: str
     service_id: str
@@ -79,6 +75,26 @@ class DashboardDutyRow:
     E: int | None
     sportlink_mismatch: bool
 
+    @property
+    def required_hours(self) -> int | None:
+        return self.A
+
+    @property
+    def correction_hours(self) -> int | None:
+        return self.B
+
+    @property
+    def completed_hours(self) -> int | None:
+        return self.C
+
+    @property
+    def scheduled_hours(self) -> int | None:
+        return self.D
+
+    @property
+    def remaining_hours(self) -> int | None:
+        return self.E
+
 
 @dataclass(frozen=True)
 class DashboardServiceRow:
@@ -94,14 +110,17 @@ class DashboardServiceRow:
 class DashboardCandidateRow:
     service_id: str
     person_id: str
+    name: str
     rank: int
     team_id: str | None
     remaining_hours: int
     executor_category: str | None
     home_away: str | None
+    match_starts_at: datetime | None
     match_relation: str
     preference: str
     explanation: tuple[str, ...]
+    shared_first_choice: bool = False
     exclusion_reason: str | None = None
 
 
