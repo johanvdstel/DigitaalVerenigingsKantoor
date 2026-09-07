@@ -36,8 +36,6 @@ class DutyService:
 
 @dataclass(frozen=True)
 class CandidateAssessment:
-    """Step-4 assessment for one member/service combination."""
-
     person_id: str
     service_id: str
     eligible: bool
@@ -76,24 +74,15 @@ class DashboardDutyRow:
     sportlink_mismatch: bool
 
     @property
-    def required_hours(self) -> int | None:
-        return self.A
-
+    def required_hours(self) -> int | None: return self.A
     @property
-    def correction_hours(self) -> int | None:
-        return self.B
-
+    def correction_hours(self) -> int | None: return self.B
     @property
-    def completed_hours(self) -> int | None:
-        return self.C
-
+    def completed_hours(self) -> int | None: return self.C
     @property
-    def scheduled_hours(self) -> int | None:
-        return self.D
-
+    def scheduled_hours(self) -> int | None: return self.D
     @property
-    def remaining_hours(self) -> int | None:
-        return self.E
+    def remaining_hours(self) -> int | None: return self.E
 
 
 @dataclass(frozen=True)
@@ -125,7 +114,19 @@ class DashboardCandidateRow:
 
 
 @dataclass(frozen=True)
+class DashboardNotProposedRow:
+    service_id: str
+    person_id: str
+    name: str
+    team_id: str | None
+    home_away: str | None
+    match_starts_at: datetime | None
+    reason: str
+
+
+@dataclass(frozen=True)
 class DashboardViewModel:
     duty_rows: tuple[DashboardDutyRow, ...]
     service_rows: tuple[DashboardServiceRow, ...]
     candidate_rows: tuple[DashboardCandidateRow, ...]
+    not_proposed_rows: tuple[DashboardNotProposedRow, ...] = ()
