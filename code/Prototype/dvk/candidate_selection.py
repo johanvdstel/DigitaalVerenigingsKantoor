@@ -38,7 +38,6 @@ def _match_for_team_on_service_date(
 
 
 def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
-    """Known overlap based only on source facts available in v0.3: match start time."""
     return service.starts_at <= match.starts_at < service.ends_at
 
 
@@ -49,10 +48,7 @@ def assess_candidate(
     matches: tuple[Match, ...],
     today: date,
 ) -> CandidateAssessment:
-    """Assess step-4 candidate eligibility and practical match context.
-
-    No ranking on remaining hours or historic backlog is performed here.
-    """
+    """Assess candidate eligibility and practical match context without ranking."""
     qualification = derive_duty_qualification(case, today)
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
@@ -88,19 +84,29 @@ def assess_candidate(
             )
         return CandidateAssessment(
             person_id, service.service_id, True, executor_category,
-            team.team_id, "away", "away_match_same_day_no_overlap", "avoid",
+            team.team_id, "away", "away_match_same_day", "avoid",
         )
 
     if match.home_away == "home":
         if executor_category == "parent_guardian":
-            relation = "home_match_overlaps_service" if overlap else "home_match_same_day_no_overlap"
-            preference = "preferred" if overlap else "neutral"
-        else:
-            relation = "home_match_before_or_after_service" if not overlap else "home_match_overlaps_service"
-            preference = "preferred" if not overlap else "neutral"
+            if overlap:
+                return CandidateAssessment(
+                    person_id, service.service_id, True, executor_category,
+                    team.team_id, "home", "home_match_overlaps_service", "preferred",
+                )
+            return CandidateAssessment(
+                person_id, service.service_id, True, executor_category,
+                team.team_id, "home", "home_match_same_day", "neutral",
+            )
+
+        if overlap:
+            return CandidateAssessment(
+                person_id, service.service_id, True, executor_category,
+                team.team_id, "home", "home_match_overlaps_service", "neutral",
+            )
         return CandidateAssessment(
             person_id, service.service_id, True, executor_category,
-            team.team_id, "home", relation, preference,
+            team.team_id, "home", "home_match_same_day", "preferred",
         )
 
     raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
@@ -113,7 +119,6 @@ def select_candidates(
     matches: tuple[Match, ...],
     today: date,
 ) -> tuple[CandidateAssessment, ...]:
-    """Return eligible candidates; ordering/prioritisation belongs to step 5."""
     assessments = tuple(
         assess_candidate(case, service, team_memberships, matches, today) for case in cases
     )
