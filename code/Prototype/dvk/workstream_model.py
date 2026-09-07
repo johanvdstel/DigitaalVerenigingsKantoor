@@ -60,6 +60,39 @@ class CandidatePriority:
 
 
 @dataclass(frozen=True)
+class AssignmentProposal:
+    proposal_id: str
+    service_id: str
+    person_id: str
+    executor_category: str | None
+    A: int
+    B: int
+    C: int
+    D: int
+    E: int
+    previous_season_backlog: int
+    previous_season_considered: bool
+    team_id: str | None
+    home_away: str | None
+    match_starts_at: datetime | None
+    match_relation: str
+    suitability: str
+    priority_rank: int
+    applied_priority_rules: tuple[str, ...]
+    uncertainties: tuple[str, ...] = ()
+    status: str = "proposed"
+
+
+@dataclass(frozen=True)
+class HumanDecision:
+    proposal_id: str
+    decision: str
+    decided_by: str
+    reason_category: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
 class DashboardDutyRow:
     person_id: str
     name: str
