@@ -63,3 +63,50 @@ class CandidatePriority:
     previous_season_considered: bool
     match_preference: str
     explanation: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DashboardDutyRow:
+    person_id: str
+    name: str
+    team_id: str | None
+    duty_required: bool
+    qualification_reason: str
+    A: int | None
+    B: int | None
+    C: int | None
+    D: int | None
+    E: int | None
+    sportlink_mismatch: bool
+
+
+@dataclass(frozen=True)
+class DashboardServiceRow:
+    service_id: str
+    service_type: str
+    starts_at: datetime
+    ends_at: datetime
+    required_staff: int
+    remaining_staff: int
+
+
+@dataclass(frozen=True)
+class DashboardCandidateRow:
+    service_id: str
+    person_id: str
+    rank: int
+    team_id: str | None
+    remaining_hours: int
+    executor_category: str | None
+    home_away: str | None
+    match_relation: str
+    preference: str
+    explanation: tuple[str, ...]
+    exclusion_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class DashboardViewModel:
+    duty_rows: tuple[DashboardDutyRow, ...]
+    service_rows: tuple[DashboardServiceRow, ...]
+    candidate_rows: tuple[DashboardCandidateRow, ...]
