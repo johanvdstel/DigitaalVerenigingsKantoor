@@ -22,41 +22,49 @@ def _dashboard_fixture():
     decisions = tuple(evaluate_duty_foundation(case, TODAY) for case in cases)
     assessments = tuple(assess_candidate(case, service, teams, matches, TODAY) for case in cases)
     priorities = prioritize_candidates(assessments, cases, date(2026, 9, 12))
-    return cases, service, teams, decisions, assessments, priorities
+    return cases, service, teams, matches, decisions, assessments, priorities
 
 
-def test_i02_dashboard_shows_duty_position_and_source_mismatch_state():
-    cases, service, teams, decisions, assessments, priorities = _dashboard_fixture()
-    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities)
+def test_i02_dashboard_lists_only_members_with_open_duty_and_meaningful_hours():
+    cases, service, teams, matches, decisions, assessments, priorities = _dashboard_fixture()
+    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, matches=matches)
     rows = {row.person_id: row for row in dashboard.duty_rows}
-    assert rows["W08P"].E == 8
-    assert rows["W07P"].E == 3
-    assert rows["W08P"].duty_required is True
-    assert rows["W08P"].sportlink_mismatch is False
+    assert rows["W08P"].name == "Senior Grote E"
+    assert rows["W08P"].remaining_hours == 8
+    assert rows["W08P"].required_hours == 10
+    assert rows["W08P"].completed_hours == 1
+    assert rows["W08P"].scheduled_hours == 1
 
 
-def test_i02_dashboard_shows_open_service_capacity_without_selection_policy():
-    cases, service, teams, decisions, assessments, priorities = _dashboard_fixture()
-    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, {"S-DASH": 1})
-    row = dashboard.service_rows[0]
-    assert row.required_staff == 2
-    assert row.remaining_staff == 1
+def test_i02_dashboard_lists_only_services_that_still_need_people():
+    cases, service, teams, matches, decisions, assessments, priorities = _dashboard_fixture()
+    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, {"S-DASH": 1}, matches)
+    assert dashboard.service_rows[0].remaining_staff == 1
+    full = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, {"S-DASH": 2}, matches)
+    assert full.service_rows == ()
 
 
-def test_i02_dashboard_preserves_engine_candidate_ranking_and_explanation():
-    cases, service, teams, decisions, assessments, priorities = _dashboard_fixture()
-    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities)
-    assert [row.person_id for row in dashboard.candidate_rows] == ["W08P", "W07P"]
-    assert [row.remaining_hours for row in dashboard.candidate_rows] == [8, 3]
-    assert dashboard.candidate_rows[0].rank == priorities[0].rank
-    assert dashboard.candidate_rows[0].explanation == priorities[0].explanation
-    assert dashboard.candidate_rows[0].preference == "preferred"
+def test_i02_dashboard_recommends_one_best_candidate_with_name_and_match_time():
+    cases, service, teams, matches, decisions, assessments, priorities = _dashboard_fixture()
+    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, matches=matches)
+    assert len(dashboard.candidate_rows) == 1
+    row = dashboard.candidate_rows[0]
+    assert row.person_id == "W08P"
+    assert row.name == "Senior Grote E"
+    assert row.remaining_hours == 8
+    assert row.team_id == "SEN-8"
+    assert row.home_away == "home"
+    assert row.match_starts_at == datetime(2026, 9, 12, 14, 30)
+    assert row.shared_first_choice is False
 
 
-def test_i02_dashboard_does_not_re_rank_supplied_engine_outcomes():
-    cases, service, teams, decisions, assessments, priorities = _dashboard_fixture()
-    deliberately_reversed_ranks = (priorities[1], priorities[0])
-    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, deliberately_reversed_ranks)
-    # Dashboard orders only by the supplied rank field; it does not recalculate E or policy.
-    assert [row.rank for row in dashboard.candidate_rows] == [1, 2]
-    assert [row.person_id for row in dashboard.candidate_rows] == ["W08P", "W07P"]
+def test_i02_dashboard_shows_multiple_candidates_only_for_equal_first_choice():
+    cases, service, teams, matches, decisions, assessments, priorities = _dashboard_fixture()
+    equal = priorities[0].__class__(
+        "W07P", "S-DASH", 2, priorities[0].remaining_hours,
+        priorities[0].previous_season_backlog, priorities[0].previous_season_considered,
+        priorities[0].match_preference, priorities[0].explanation,
+    )
+    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, (priorities[0], equal), matches=matches)
+    assert {row.person_id for row in dashboard.candidate_rows} == {"W08P", "W07P"}
+    assert all(row.shared_first_choice for row in dashboard.candidate_rows)
