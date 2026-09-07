@@ -24,13 +24,35 @@ def _same_priority(a: CandidatePriority, b: CandidatePriority) -> bool:
         b.remaining_hours, b.previous_season_backlog, b.previous_season_considered, b.match_preference)
 
 
-def _recommended_priorities(priorities: tuple[CandidatePriority, ...]) -> tuple[CandidatePriority, ...]:
+def _recommended_priorities(
+    priorities: tuple[CandidatePriority, ...], services_by_id: dict[str, DutyService]
+) -> tuple[CandidatePriority, ...]:
+    """Choose one first recommendation per service and spread same-day proposals.
+
+    The engine ranking remains intact. For multiple services on one day, a person
+    already proposed that day is skipped while another ranked candidate is
+    available. This avoids proposing the same volunteer for several duties on
+    the same day. Equal first choices remain visible when they are genuinely tied.
+    """
     result = []
-    for service_id in dict.fromkeys(p.service_id for p in priorities):
+    proposed_by_day: dict[object, set[str]] = {}
+    service_ids = sorted(
+        {p.service_id for p in priorities},
+        key=lambda service_id: services_by_id[service_id].starts_at,
+    )
+    for service_id in service_ids:
+        service = services_by_id[service_id]
+        day = service.starts_at.date()
+        used = proposed_by_day.setdefault(day, set())
         rows = sorted((p for p in priorities if p.service_id == service_id), key=lambda p: p.rank)
-        if rows:
-            result.append(rows[0])
-            result.extend(row for row in rows[1:] if _same_priority(row, rows[0]))
+        available = [row for row in rows if row.person_id not in used]
+        pool = available or rows
+        if not pool:
+            continue
+        first = pool[0]
+        selected = [first, *(row for row in pool[1:] if _same_priority(row, first))]
+        result.extend(selected)
+        used.update(row.person_id for row in selected)
     return tuple(result)
 
 
@@ -67,7 +89,7 @@ def build_dashboard(
         max(0, s.required_staff - assigned.get(s.service_id, 0)),
     ) for s in services if max(0, s.required_staff - assigned.get(s.service_id, 0)) > 0)
 
-    recommended = _recommended_priorities(priorities)
+    recommended = _recommended_priorities(priorities, services_by_id)
     candidate_rows = []
     for priority in recommended:
         assessment = assessments_by_key[(priority.service_id, priority.person_id)]
@@ -84,6 +106,9 @@ def build_dashboard(
     not_proposed = []
     recommended_keys = {(r.service_id, r.person_id) for r in recommended}
     priority_by_key = {(p.service_id, p.person_id): p for p in priorities}
+    proposed_person_days = {
+        (r.person_id, services_by_id[r.service_id].starts_at.date()) for r in recommended
+    }
     for assessment in candidate_assessments:
         key = (assessment.service_id, assessment.person_id)
         if key in recommended_keys or assessment.person_id not in cases_by_person:
@@ -92,6 +117,8 @@ def build_dashboard(
         match = _match_for_team(assessment.team_id, service, matches)
         if not assessment.eligible:
             reason = assessment.exclusion_reason or "voldoet niet aan de kandidaatvoorwaarden"
+        elif (assessment.person_id, service.starts_at.date()) in proposed_person_days:
+            reason = "al voorgesteld voor een andere Ledendienst op deze dag; beschikbaar als alternatief"
         elif key in priority_by_key:
             rank = priority_by_key[key].rank
             reason = f"wel geschikt, maar staat lager in de rangorde (plaats {rank}); beschikbaar als alternatief"
@@ -105,6 +132,6 @@ def build_dashboard(
     return DashboardViewModel(
         tuple(sorted(duty_rows, key=lambda r: (-r.remaining_hours, r.name))),
         tuple(sorted(service_rows, key=lambda r: r.starts_at)),
-        tuple(sorted(candidate_rows, key=lambda r: (r.service_id, r.name))),
-        tuple(sorted(not_proposed, key=lambda r: (r.service_id, r.name))),
+        tuple(sorted(candidate_rows, key=lambda r: (services_by_id[r.service_id].starts_at, r.name))),
+        tuple(sorted(not_proposed, key=lambda r: (services_by_id[r.service_id].starts_at, r.name))),
     )
