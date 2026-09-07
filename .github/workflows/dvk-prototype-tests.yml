@@ -56,3 +56,6 @@ jobs:
 
       - name: Show v0.3 step 6 dashboard output
         run: python run_dashboard.py
+
+      - name: Show v0.3 step 7 proposal and human decision output
+        run: python run_proposal_cases.py
