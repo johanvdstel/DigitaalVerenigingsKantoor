@@ -37,6 +37,11 @@ def _match_for_team_on_service_date(
     )
 
 
+def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
+    """Known overlap based only on source facts available in v0.3: match start time."""
+    return service.starts_at <= match.starts_at < service.ends_at
+
+
 def assess_candidate(
     case: PrototypeCase,
     service: DutyService,
@@ -44,7 +49,7 @@ def assess_candidate(
     matches: tuple[Match, ...],
     today: date,
 ) -> CandidateAssessment:
-    """Assess step-4 candidate eligibility and match context.
+    """Assess step-4 candidate eligibility and practical match context.
 
     No ranking on remaining hours or historic backlog is performed here.
     """
@@ -54,65 +59,51 @@ def assess_candidate(
 
     if not qualification.duty_required:
         return CandidateAssessment(
-            person_id,
-            service.service_id,
-            False,
-            executor_category,
-            None,
-            None,
-            "not_assessed",
-            "none",
-            qualification.reason,
+            person_id, service.service_id, False, executor_category,
+            None, None, "not_assessed", "none", qualification.reason,
         )
 
     team = _active_team_membership(person_id, service, team_memberships)
     if team is None:
         return CandidateAssessment(
-            person_id,
-            service.service_id,
-            True,
-            executor_category,
-            None,
-            None,
-            "no_match_context",
-            "neutral",
+            person_id, service.service_id, True, executor_category,
+            None, None, "no_match_context", "neutral",
         )
 
     match = _match_for_team_on_service_date(team.team_id, service, matches)
     if match is None:
         return CandidateAssessment(
-            person_id,
-            service.service_id,
-            True,
-            executor_category,
-            team.team_id,
-            None,
-            "no_match_that_day",
-            "neutral",
+            person_id, service.service_id, True, executor_category,
+            team.team_id, None, "no_match_that_day", "neutral",
+        )
+
+    overlap = _match_start_overlaps_service(match, service)
+
+    if match.home_away == "away":
+        if overlap:
+            return CandidateAssessment(
+                person_id, service.service_id, False, executor_category,
+                team.team_id, "away", "away_match_overlaps_service", "none",
+                "dienst overlapt met de uitwedstrijd",
+            )
+        return CandidateAssessment(
+            person_id, service.service_id, True, executor_category,
+            team.team_id, "away", "away_match_same_day_no_overlap", "avoid",
         )
 
     if match.home_away == "home":
+        if executor_category == "parent_guardian":
+            relation = "home_match_overlaps_service" if overlap else "home_match_same_day_no_overlap"
+            preference = "preferred" if overlap else "neutral"
+        else:
+            relation = "home_match_before_or_after_service" if not overlap else "home_match_overlaps_service"
+            preference = "preferred" if not overlap else "neutral"
         return CandidateAssessment(
-            person_id,
-            service.service_id,
-            True,
-            executor_category,
-            team.team_id,
-            "home",
-            "home_match_same_day",
-            "preferred",
+            person_id, service.service_id, True, executor_category,
+            team.team_id, "home", relation, preference,
         )
 
-    return CandidateAssessment(
-        person_id,
-        service.service_id,
-        True,
-        executor_category,
-        team.team_id,
-        match.home_away,
-        "away_match_same_day",
-        "avoid",
-    )
+    raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
 
 
 def select_candidates(
