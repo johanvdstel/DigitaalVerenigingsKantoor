@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime
 
 from dvk.candidate_selection import assess_candidate
@@ -8,7 +9,10 @@ from dvk.workstream_model import DutyService, Match, TeamMembership
 
 
 def main() -> None:
-    case = W_CASE_BY_ID["W08"]
+    # De W08-regressiefixture blijft technisch herkenbaar; de gebruikersgerichte
+    # Step-7-uitvoer gebruikt dezelfde feiten met een normale fictieve naam.
+    base_case = W_CASE_BY_ID["W08"]
+    case = replace(base_case, person=replace(base_case.person, name="Jan Smit"))
     service = DutyService("S-PROP", "bardienst", datetime(2026, 9, 12, 11), datetime(2026, 9, 12, 14), "kantine", 1)
     teams = (TeamMembership("W08P", "Senioren 8", date(2026, 7, 1), date(2027, 6, 30)),)
     matches = (Match("M-PROP", "Senioren 8", datetime(2026, 9, 12, 14, 30), "home"),)
