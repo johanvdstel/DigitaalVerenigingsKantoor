@@ -8,6 +8,13 @@ from dvk.workstream_cases import TODAY, W_CASE_BY_ID
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
 
+def _wedstrijdtekst(row) -> str:
+    if row.match_starts_at is None:
+        return "geen relevante wedstrijd op deze dag"
+    soort = "thuiswedstrijd" if row.home_away == "home" else "uitwedstrijd"
+    return f"{soort} om {row.match_starts_at:%H:%M}"
+
+
 def main() -> None:
     cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"])
     service = DutyService("S-DASH", "bardienst", datetime(2026, 9, 12, 11), datetime(2026, 9, 12, 14), "kantine", 2)
@@ -22,32 +29,40 @@ def main() -> None:
     decisions = tuple(evaluate_duty_foundation(case, TODAY) for case in cases)
     assessments = tuple(assess_candidate(case, service, teams, matches, TODAY) for case in cases)
     priorities = prioritize_candidates(assessments, cases, date(2026, 9, 12))
-    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, {"S-DASH": 1})
+    dashboard = build_dashboard(cases, decisions, (service,), teams, assessments, priorities, {"S-DASH": 1}, matches)
 
-    print("DVK Prototype v0.3 - Eerste dashboard (I02)")
-    print("=" * 52)
-    print("\nTaakplichtigen en urenpositie")
+    print("DVK Ledendiensten — werkoverzicht Vrijwilligerscommissie")
+    print("=" * 62)
+
+    print("\n1. Leden met nog openstaande Ledendiensturen")
+    print("   Dit zijn taakplichtige leden waarvoor nog uren moeten worden ingepland.")
     for row in dashboard.duty_rows:
+        print(f"\n   {row.name} — team {row.team_id}")
+        print(f"   Nog in te plannen: {row.remaining_hours} uur")
         print(
-            f"  {row.name} [{row.team_id}]: taakplicht={row.duty_required} "
-            f"A/B/C/D/E={row.A}/{row.B}/{row.C}/{row.D}/{row.E} "
-            f"Sportlink-afwijking={row.sportlink_mismatch}"
+            f"   Toelichting: verplicht {row.required_hours} uur; "
+            f"uitgevoerd {row.completed_hours} uur; al ingepland {row.scheduled_hours} uur"
+            + (f"; correctie {row.correction_hours} uur" if row.correction_hours else "")
+            + "."
         )
+        if row.sportlink_mismatch:
+            print("   Let op: de Sportlink-registratie wijkt af van de DVK-afleiding.")
 
-    print("\nOpenstaande diensten")
+    print("\n2. Ledendiensten waarvoor nog iemand nodig is")
     for row in dashboard.service_rows:
+        plek = "plek" if row.remaining_staff == 1 else "plekken"
         print(
-            f"  {row.service_id} {row.service_type} {row.starts_at:%Y-%m-%d %H:%M}-{row.ends_at:%H:%M}: "
-            f"bezetting nodig={row.required_staff}, resterend={row.remaining_staff}"
+            f"   {row.service_type.capitalize()} op {row.starts_at:%d-%m-%Y} "
+            f"van {row.starts_at:%H:%M} tot {row.ends_at:%H:%M} — "
+            f"nog {row.remaining_staff} {plek} te bezetten."
         )
 
-    print("\nKandidaatselectie per dienst")
+    print("\n3. Geadviseerde kandidaat per openstaande dienst")
     for row in dashboard.candidate_rows:
-        print(
-            f"  {row.rank}. {row.person_id} [{row.team_id}]: E={row.remaining_hours}, "
-            f"uitvoerder={row.executor_category}, wedstrijd={row.home_away}, voorkeur={row.preference}"
-        )
-        print("     verklaring: " + "; ".join(row.explanation))
+        label = "Gedeelde eerste keuze" if row.shared_first_choice else "Advies"
+        print(f"\n   {label}: {row.name} — team {row.team_id}")
+        print(f"   Nog {row.remaining_hours} Ledendiensturen in te plannen; {_wedstrijdtekst(row)}.")
+        print("   Waarom dit advies: " + "; ".join(row.explanation) + ".")
 
 
 if __name__ == "__main__":
