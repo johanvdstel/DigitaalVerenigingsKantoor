@@ -93,6 +93,18 @@ class HumanDecision:
 
 
 @dataclass(frozen=True)
+class DutyAssignment:
+    assignment_id: str
+    proposal_id: str
+    service_id: str
+    person_id: str
+    executor_category: str | None
+    scheduled_hours: int
+    approved_by: str
+    status: str = "scheduled"
+
+
+@dataclass(frozen=True)
 class DashboardDutyRow:
     person_id: str
     name: str
