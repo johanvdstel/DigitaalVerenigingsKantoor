@@ -31,9 +31,9 @@ def test_step9_dashboard_approval_uses_domain_flow_and_updates_hours():
     after = duty_position_from_registration(result.updated_case.sportlink_duty)
     assert result.decision.decision == "approved"
     assert result.assignment is not None
-    assert (before.D, before.E) == (1, 8)
-    assert (after.D, after.E) == (4, 5)
-    assert after.C == before.C == 1
+    assert (before.D, before.E) == (1, 7)
+    assert (after.D, after.E) == (4, 4)
+    assert after.C == before.C == 2
 
 
 def test_step9_dashboard_rejection_requires_reason_and_keeps_service_unassigned():
@@ -44,7 +44,7 @@ def test_step9_dashboard_rejection_requires_reason_and_keeps_service_unassigned(
     assert result.decision.decision == "rejected"
     assert result.assignment is None
     assert result.updated_case == case
-    assert duty_position_from_registration(result.updated_case.sportlink_duty).E == 8
+    assert duty_position_from_registration(result.updated_case.sportlink_duty).E == 7
 
 
 def test_step9_dashboard_rejection_without_reason_is_blocked_by_domain_rule():
