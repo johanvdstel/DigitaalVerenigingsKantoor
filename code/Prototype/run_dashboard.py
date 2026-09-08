@@ -4,8 +4,9 @@ from datetime import date, datetime
 from dvk.candidate_selection import assess_candidate
 from dvk.dashboard import build_dashboard
 from dvk.duty import evaluate_duty_foundation
-from dvk.model import Person, SportlinkDutyRegistration
+from dvk.model import SportlinkDutyRegistration
 from dvk.prioritization import prioritize_candidates
+from dvk.recommendation_planner import plan_recommendations
 from dvk.workstream_cases import TODAY, W_CASE_BY_ID
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
@@ -61,16 +62,16 @@ def main() -> None:
             tuple(a for a in assessments if a.service_id == service.service_id), cases, service.starts_at.date()
         )
     )
-    dashboard = build_dashboard(cases, decisions, services, teams, assessments, priorities,
+    plan = plan_recommendations(priorities, services)
+    dashboard = build_dashboard(cases, decisions, services, teams, assessments, priorities, plan,
                                 {"BAR-OCHTEND": 1}, matches)
 
     print("DVK Ledendiensten — werkoverzicht Vrijwilligerscommissie")
     print("=" * 66)
     print("\n1. Leden met nog openstaande Ledendienstplicht")
     for row in dashboard.duty_rows:
-        nadruk = " met veel openstaande uren" if row.remaining_hours >= 7 else ""
-        print(f"   {row.name} uit {row.team_id}{nadruk}: nog {row.remaining_hours} uur in te plannen.")
-        print(f"      Verplicht {row.required_hours}; uitgevoerd {row.completed_hours}; al ingepland {row.scheduled_hours} uur.")
+        print(f"   {row.name} uit {row.team_id}: nog {row.remaining_hours} uur Ledendienst in te plannen.")
+        print(f"      Verplicht {row.required_hours} uur; uitgevoerd {row.completed_hours} uur; al ingepland {row.scheduled_hours} uur.")
 
     print("\n2. Ledendiensten waarvoor nog bezetting nodig is")
     for row in dashboard.service_rows:
