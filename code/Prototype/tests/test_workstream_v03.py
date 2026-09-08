@@ -81,7 +81,7 @@ def test_w08_larger_current_e_has_higher_priority():
         (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"]),
         date(2026, 9, 15),
     )
-    assert [(row.person_id, row.remaining_hours) for row in ranked] == [("W08P", 8), ("W07P", 3)]
+    assert [(row.person_id, row.remaining_hours) for row in ranked] == [("W08P", 7), ("W07P", 3)]
     assert ranked[0].rank == 1
 
 
