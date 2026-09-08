@@ -1,245 +1,122 @@
-# DVK Prototype v0.3 — architectuur en werkstroomprototype
+# DVK Prototype v0.3 — functioneel geaccepteerde baseline
 
-Dit is het zelfstandig uitvoerbare prototype van het Digitaal Verenigingskantoor (DVK).
+**Status: functioneel geaccepteerd op 8 september 2026.**
 
-De oorspronkelijke basis is de masterset C01–C22 uit `22 cases.md` en het ontwerp uit `ontwerp-dvk-prototype-v0.2.md`. In v0.3 is daarop een tweede, meer operationele keten toegevoegd voor ledendiensten: bronimport, taakplicht, urenpositie, kandidaatselectie, prioritering en dashboardweergave.
+Dit is het zelfstandig uitvoerbare prototype van het Digitaal Verenigingskantoor (DVK). Prototype v0.3 vormt vanaf deze acceptatie de functionele regressiebaseline voor verdere ontwikkeling.
 
-De ontwerpgrondslag sluit aan op `docs/informatiemodel/Canoniek_Informatiemodel.md`.
+De formele baseline is vastgelegd in [`BASELINE-v0.3.md`](BASELINE-v0.3.md). De ontwerpgrondslag staat in `ontwerp-dvk-prototype-v0.3.md`; de bestaande C01–C22-masterset blijft gezaghebbend via `22 cases.md` en het geaccepteerde v0.2-ontwerp.
 
-## Hoofdgedachte
+## Baseline in één oogopslag
 
-De prototypeketen is:
+Prototype v0.3 combineert:
 
-`bronfeit → adapter → canoniek DVK-object → afleiding/beleid → werkstroomlogica → Decision/Signal/Action of dashboardweergave → test`
+- de reeds geaccepteerde **C01–C22** uit Prototype v0.2;
+- de werkstroom **Ledendiensten & Vrijwilligersbeleid — Fase 1**;
+- Sportlink-achtige bronimport;
+- automatische afleiding van taakplicht;
+- urenpositie `A-B-C-D=E`;
+- minderjarigen- en gezinslogica;
+- wedstrijdcontext en kandidaatselectie;
+- uitlegbare prioritering;
+- spreiding van voorstellen over kandidaten op dezelfde dag;
+- dashboardweergave;
+- `AssignmentProposal` en menselijke goedkeuring/afwijzing;
+- `DutyAssignment` na goedkeuring;
+- dashboardacties voor goedkeuren en afwijzen;
+- geïntegreerde end-to-endacceptatie.
 
-De kernprincipes zijn:
+De afsluitende acceptatierun op GitHub Actions was volledig groen: **59 tests passed** en alle leesbare acceptatiestappen zijn geslaagd.
 
-- brondata en beleidslogica blijven van elkaar gescheiden;
-- het canonieke DVK-model vormt de gemeenschappelijke taal tussen bronnen en werkstromen;
-- afleidingen en beslissingen zijn deterministisch en uitlegbaar;
-- kandidaatselectie en prioritering zijn expliciet gescheiden;
-- tests en testdata bewaken de lagen afzonderlijk én in samenhang;
-- externe acties worden in het prototype nog niet daadwerkelijk uitgevoerd.
-
-## Architectuuroverzicht
-
-```text
-                           DVK PROTOTYPE
-                                │
-          ┌─────────────────────┴─────────────────────┐
-          │                                           │
-   BRON / TESTDATA                              TESTSCENARIO'S
-          │                                           │
- testdata/v03_import/                            dvk/cases.py
- ├─ members.csv                                 C01 … C22
- ├─ duty_hours.csv                                   │
- ├─ teams.csv                                        │
- ├─ matches.csv                                      │
- └─ services.csv                                     │
-          │                                           │
-          ▼                                           │
-  import_adapter.py                                   │
-          │                                           │
-          │ vertaalt brondata                         │
-          ▼                                           ▼
- ┌──────────────────────────────────────────────────────────┐
- │                  CANONIEK DVK-MODEL                      │
- │                                                          │
- │  dvk/model.py                    dvk/workstream_model.py  │
- │                                                          │
- │  Person                          DutyService              │
- │  Membership                      TeamMembership           │
- │  PersonRelationship              Match                    │
- │  RoleAssignment                  CandidateAssessment      │
- │  AuthorityGrant                  CandidatePriority        │
- │  SportlinkDutyRegistration       Dashboard...             │
- │  DutyQualification                                       │
- │  Decision / Signal / Action                              │
- │  PrototypeCase                                           │
- └───────────────────────────┬──────────────────────────────┘
-                             │
-                             ▼
-                 ┌──────────────────────┐
-                 │  AFLEIDING / REGELS  │
-                 └──────────┬───────────┘
-                            │
-             ┌──────────────┼────────────────┐
-             │              │                │
-             ▼              ▼                ▼
-        dvk/rules.py     dvk/duty.py    overige regels
-             │              │
-             │              ├─ taakplicht bepalen
-             │              ├─ vrijstellingen
-             │              ├─ uitvoerder lid/ouder
-             │              ├─ normuren toepassen
-             │              └─ A-B-C-D → E
-             │
-             ▼
-        dvk/engine.py
-          RuleEngine
-             │
-             ▼
-      Decision / Signal / Action
-```
-
-## De v0.3-ledendienstketen
-
-Naast de oorspronkelijke rule-engine-keten bevat v0.3 een operationele werkstroom voor ledendiensten.
+## Functionele keten
 
 ```text
- PrototypeCase + SportlinkDutyRegistration
-                │
-                ▼
-             duty.py
-      "is deze persoon taakplichtig?"
-      "hoeveel uur resteert? (E)"
-                │
-                ├──────────────────────┐
-                ▼                      │
-      candidate_selection.py           │
-                ▲                      │
-                │                      │
-      DutyService + Team + Match       │
-                │                      │
-                ▼                      │
-       "is kandidaat geschikt?"       │
-       "wedstrijd thuis/uit?"         │
-       "lid of ouder/verzorger?"      │
-                │                      │
-                ▼                      │
-        CandidateAssessment            │
-                │                      │
-                ▼                      │
-        prioritization.py ◄────────────┘
-                │
-       actuele E-uren
-       achterstand vorig seizoen
-       wedstrijdvoorkeur
-                │
-                ▼
-         CandidatePriority
-                │
-                ▼
-           dashboard.py
-                │
-                ▼
-       DashboardViewModel
-       ├─ taakplichtigen
-       ├─ open diensten
-       ├─ voorgestelde kandidaten
-       └─ niet-voorgestelde kandidaten
+bronfeiten
+    │
+    ▼
+import / normalisatie
+    │
+    ▼
+canonieke DVK-objecten
+    │
+    ▼
+taakplicht afleiden
+    │
+    ▼
+urenpositie A-B-C-D=E
+    │
+    ▼
+kandidaatselectie
+    │
+    ▼
+prioritering
+    │
+    ▼
+adviesplanning
+    │
+    ├──────────────► dashboard
+    │
+    ▼
+AssignmentProposal
+    │
+    ▼
+menselijke beoordeling
+    ├── afwijzen ──► geen indeling; uren ongewijzigd
+    │
+    └── goedkeuren
+            │
+            ▼
+      DutyAssignment
+            │
+            ▼
+       D omhoog, E omlaag
+       C blijft gelijk tot uitvoering
 ```
 
-`candidate_selection.py` bepaalt geschiktheid en praktische wedstrijdcontext, maar rangschikt nog niet. `prioritization.py` rangschikt vervolgens de geschikte kandidaten transparant op resterende uren (`E`), eventuele achterstand uit het vorige seizoen en wedstrijdvoorkeur. Er wordt bewust geen verborgen gewogen score gebruikt.
+Een kernprincipe is:
 
-## Verantwoordelijkheid per laag
+> **DVK-voorstel ≠ CKC-besluit.**
 
-```text
-                        model.py
-                   "Wat weet DVK?"
-                          │
-                          ▼
-               rules.py / duty.py
-              "Wat betekent dat?"
-                          │
-                          ▼
-           candidate_selection.py
-              "Wie kan dit doen?"
-                          │
-                          ▼
-             prioritization.py
-              "Wie eerst?"
-                          │
-                          ▼
-                dashboard.py
-           "Wat ziet de gebruiker?"
-```
+Het systeem adviseert en verklaart. De feitelijke indeling ontstaat pas na menselijke goedkeuring.
+
+## Architectuurlagen
 
 ### 1. Canoniek model
 
-`dvk/model.py` is het hart van het algemene DVK-prototype. Hierin staan onder meer:
+`dvk/model.py` bevat het algemene DVK-domeinmodel, waaronder `Person`, `Membership`, relaties, rollen, autorisaties, `SportlinkDutyRegistration`, `DutyQualification`, `DutyPosition`, `Decision`, `Signal`, `Action` en `PrototypeCase`.
 
-- `Person`
-- `Membership`
-- `PersonRelationship`
-- `RoleAssignment`
-- `Resource`
-- `AuthorityGrant`
-- `RequiredAuthorization`
-- `AccessGrant`
-- `DutyRegistration`
-- `SportlinkDutyRegistration`
-- `DutyPolicy`
-- `DutyQualification`
-- `DutyPosition`
-- `ClothingIssue`
-- `ComplianceFact`
-- `Signal`
-- `Action`
-- `Decision`
-- `PrototypeCase`
+`dvk/workstream_model.py` bevat de operationele ledendienstobjecten, waaronder:
 
-`dvk/workstream_model.py` bevat aanvullende objecten die specifiek nodig zijn voor de operationele ledendienstwerkstroom, zoals `DutyService`, `TeamMembership`, `Match`, `CandidateAssessment`, `CandidatePriority` en de dashboard-viewmodels.
+- `DutyService`
+- `TeamMembership`
+- `Match`
+- `CandidateAssessment`
+- `CandidatePriority`
+- `AssignmentProposal`
+- `HumanDecision`
+- `DutyAssignment`
+- dashboard-viewmodels.
 
-### 2. Regels en afleidingen
+### 2. Regels en taakplicht
 
-`dvk/rules.py` bevat de deterministische regels voor de oorspronkelijke C01–C22-functionele clusters.
+`dvk/rules.py` bevat de geaccepteerde C01–C22-regels.
 
-`dvk/duty.py` bevat de expliciete grondslag voor de ledendienstlogica. Daar worden onder meer afgeleid:
-
-- of iemand taakplichtig is;
-- welke vrijstelling van toepassing is;
-- of de uitvoerder het lid zelf of een ouder/verzorger is;
-- hoeveel normuren uit CKC-beleid volgen;
-- of de Sportlink-registratie daarvan afwijkt;
-- de actuele urenpositie `A-B-C-D=E`.
-
-De CKC-norm is beleidsinformatie en wordt dus niet als bronfeit behandeld.
-
-### 3. Rule engine
-
-`dvk/engine.py` vormt voor het oorspronkelijke C01–C22-model de orkestratielaag. Eén `PrototypeCase` wordt achtereenvolgens beoordeeld op onder meer lidmaatschap, relaties, ledendienst, kleding, autorisatie, compliance en datakwaliteit.
-
-De uitkomst bestaat uit `Decision`, eventueel met `Signal` en `Action`.
-
-### 4. Kandidaatselectie
-
-`dvk/candidate_selection.py` beoordeelt per open dienst of iemand als kandidaat in aanmerking komt. Daarbij worden onder andere gebruikt:
+`dvk/duty.py` leidt voor de ledendienstwerkstroom onder meer af:
 
 - taakplicht;
-- categorie lid of ouder/verzorger;
-- teamlidmaatschap;
-- thuis- of uitwedstrijd;
-- overlap tussen wedstrijd en dienst;
-- praktische voorkeur of uitsluiting.
+- vrijstelling;
+- administratief subject;
+- uitvoerdercategorie lid of ouder/verzorger;
+- beleidsnormuren;
+- afwijking van Sportlink-administratie;
+- urenpositie `E = A - B - C - D`.
 
-Het resultaat is een `CandidateAssessment`.
+De CKC-norm van 10 uur is beleidsinformatie en wordt niet als bronfeit behandeld.
 
-### 5. Prioritering
+### 3. Importlaag
 
-`dvk/prioritization.py` rangschikt geschikte kandidaten. De volgorde is expliciet en uitlegbaar:
+`dvk/import_adapter.py` vertaalt Sportlink-achtige CSV-bronnen naar canonieke DVK-objecten. De adapter kent bronvelden en bronformaten, maar bevat geen CKC-beleidsregels.
 
-1. resterende uren `E`;
-2. relevante achterstand uit het vorige seizoen;
-3. wedstrijdvoorkeur;
-4. stabiele tie-break op `person_id`.
-
-Vanaf 1 december wordt de achterstand uit het vorige seizoen niet meer meegewogen.
-
-### 6. Dashboard
-
-`dvk/dashboard.py` vertaalt beslissingen, diensten, kandidaatbeoordelingen en prioriteiten naar een `DashboardViewModel` met:
-
-- taakplichtigen met openstaande uren;
-- nog te bezetten diensten;
-- voorgestelde kandidaten;
-- niet-voorgestelde kandidaten met reden.
-
-Dit is de presentatielaag; de onderliggende beleidslogica blijft in de eerdere lagen.
-
-## Bronimport en testdata
-
-De map `testdata/v03_import/` bevat Sportlink-achtige CSV-bronnen:
+De representatieve testbronnen staan onder:
 
 ```text
 testdata/v03_import/
@@ -250,75 +127,100 @@ testdata/v03_import/
 └── services.csv
 ```
 
-`dvk/import_adapter.py` vertaalt deze bronrepresentaties naar canonieke DVK-objecten.
+### 4. Kandidaatselectie
+
+`dvk/candidate_selection.py` bepaalt of iemand voor een concrete Ledendienst geschikt is. Daarbij spelen onder meer taakplicht, teamlidmaatschap, thuis-/uitwedstrijd, tijdscontext en uitvoerdercategorie een rol.
+
+Deze laag bepaalt **geschiktheid**, niet de rangorde.
+
+### 5. Prioritering
+
+`dvk/prioritization.py` rangschikt geschikte kandidaten transparant:
+
+1. actuele resterende uren `E`;
+2. relevante achterstand uit het vorige seizoen vóór 1 december;
+3. wedstrijdvoorkeur;
+4. stabiele tie-break.
+
+W08 is conform het geaccepteerde ontwerp vastgelegd als **E=7 versus E=3**.
+
+### 6. Adviesplanning
+
+`dvk/recommendation_planner.py` zet de per-dienst-rangorde om in concrete eerste adviezen. Daarbij wordt, wanneer er alternatieven zijn, voorkomen dat dezelfde persoon meerdere keren op dezelfde dag als eerste kandidaat wordt voorgesteld.
+
+Deze logica staat bewust **niet** in het dashboard.
+
+### 7. Dashboard
+
+`dvk/dashboard.py` is een presentatielaag. Het toont:
+
+- leden met openstaande Ledendiensturen;
+- open diensten;
+- voorgestelde kandidaten;
+- alternatieven en niet-voorgestelde kandidaten met reden.
+
+Het dashboard gebruikt vooraf berekende engine-uitkomsten. Daarmee blijft acceptatiecriterium I02 behouden: geen verborgen selectie- of prioriteringsbeleid in de UI-laag.
+
+### 8. Voorstel en menselijke beslissing
+
+`dvk/proposals.py` maakt een uitlegbaar `AssignmentProposal` met de relevante uren-, team-, wedstrijd- en prioriteitscontext.
+
+Een mens kan het voorstel vervolgens goedkeuren of gemotiveerd afwijzen. Afwijzing verwijdert de taakplicht niet en verandert de urenpositie niet.
+
+### 9. Feitelijke indeling
+
+`dvk/assignments.py` maakt alleen na goedkeuring een `DutyAssignment`.
+
+Bij planning:
+
+- A blijft gelijk;
+- B blijft gelijk;
+- C blijft gelijk;
+- D stijgt met de ingeplande diensturen;
+- E daalt overeenkomstig.
+
+C verandert pas wanneer de dienst daadwerkelijk is uitgevoerd.
+
+`dvk/dashboard_actions.py` orkestreert goedkeuren en afwijzen vanuit de dashboardcontext met dezelfde domeinfuncties; het voegt geen nieuw beleid toe.
+
+## Geaccepteerde acceptatiebasis
+
+De baseline wordt bewaakt door:
+
+- **C01–C22** — bestaande functionele masterset;
+- **W01–W13** — v0.3 werkstroomacceptatie;
+- **I01** — bronimport naar canonieke DVK-objecten;
+- **I02** — dashboard uitsluitend op basis van vooraf berekende uitkomsten;
+- geïntegreerde end-to-endtests van taakplicht tot en met menselijke beslissing en `DutyAssignment`.
+
+De afsluitende CI-run van de functionele acceptatie rapporteerde:
 
 ```text
-Sportlink-achtige CSV
-        │
-        ▼
- import_adapter.py        ← kent bronvelden en formaten
-        │
-        ▼
- Canonieke DVK-objecten   ← brononafhankelijk
-        │
-        ▼
- duty / rules / selectie  ← kent CKC-beleid en werkstroomlogica
+59 passed
+EINDRESULTAAT: functionele keten v0.3 reproduceerbaar.
 ```
 
-De adapter bevat bewust geen CKC-beleid. Daardoor kan later bijvoorbeeld een echte Sportlink API-adapter worden toegevoegd zonder de kernlogica voor taakplicht, selectie of prioritering fundamenteel te veranderen.
-
-## Twee soorten testdata
-
-Het prototype gebruikt bewust twee vormen van testdata:
-
-1. `dvk/cases.py` — Python-fixtures voor de gezaghebbende C01–C22-scenario's;
-2. `testdata/v03_import/` — externe, meer realistische bronbestanden voor de v0.3-import- en werkstroomketen.
-
-De eerste vorm test vooral beslislogica. De tweede vorm test ook de overgang van bronrepresentatie naar canonieke objecten.
-
-## Tests
-
-De tests vormen een vangnet rond de verschillende lagen.
-
-```text
-                    PRODUCTIECODE
-                         │
-     ┌───────────────────┼──────────────────────┐
-     │                   │                      │
- test_cases.py     test_workstream_v03.py  test_import_v03.py
-     │                   │                      │
- C01–C22              duty/selectie/         CSV → DVK
- regelengine          prioritering             model
-                                                │
-                                                │
-                                      test_dashboard_v03.py
-                                                │
-                                      model → dashboardbeeld
-```
-
-De huidige testmodules zijn:
-
-```text
-tests/
-├── test_cases.py
-├── test_import_v03.py
-├── test_workstream_v03.py
-└── test_dashboard_v03.py
-```
-
-## Huidige structuur
+## Belangrijkste structuur
 
 ```text
 code/Prototype/
 ├── 22 cases.md
 ├── ontwerp-dvk-prototype-v0.2.md
 ├── ontwerp-dvk-prototype-v0.3.md
+├── BASELINE-v0.3.md
 ├── README.md
 ├── pyproject.toml
 ├── run_cases.py
+├── run_workstream_cases.py
+├── run_import_cases.py
 ├── run_candidate_cases.py
+├── run_priority_cases.py
+├── run_dashboard.py
+├── run_proposal_cases.py
+├── run_assignment_cases.py
+├── run_dashboard_actions.py
+├── run_integrated_acceptance.py
 ├── dvk/
-│   ├── __init__.py
 │   ├── model.py
 │   ├── workstream_model.py
 │   ├── cases.py
@@ -329,31 +231,17 @@ code/Prototype/
 │   ├── import_adapter.py
 │   ├── candidate_selection.py
 │   ├── prioritization.py
-│   └── dashboard.py
+│   ├── recommendation_planner.py
+│   ├── dashboard.py
+│   ├── proposals.py
+│   ├── assignments.py
+│   └── dashboard_actions.py
 ├── testdata/
 │   └── v03_import/
-│       ├── members.csv
-│       ├── duty_hours.csv
-│       ├── teams.csv
-│       ├── matches.csv
-│       └── services.csv
 └── tests/
-    ├── test_cases.py
-    ├── test_import_v03.py
-    ├── test_workstream_v03.py
-    └── test_dashboard_v03.py
 ```
 
-De oudere losse Python-bestanden in de root van `code/Prototype/`, zoals `model.py`, `rules.py`, `engine.py` en `cases.py`, zijn legacy uit v0.1. De `dvk/` package is vanaf v0.2 de uitvoerbare bron.
-
-## Functionele clusters C01–C22
-
-1. bestaande kern en ledendienst: C01–C09;
-2. personen/gezinsrelaties: C03, C04, C20, C22;
-3. kleding en beëindiging: C10;
-4. governance/autorisatie: C11–C17 en C19;
-5. compliance: C18;
-6. datakwaliteit: C20–C22.
+De `dvk/` package is de uitvoerbare bron. Oudere losse Python-bestanden in de root van `code/Prototype/` zijn legacy uit eerdere prototypeversies.
 
 ## Uitvoeren
 
@@ -363,25 +251,40 @@ Vanaf `code/Prototype/`:
 python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -e ".[test]"
-pytest
+pytest -q
 ```
 
-Alle C01–C22-cases handmatig tonen:
+Leesbare acceptatie-uitvoer kan afzonderlijk worden uitgevoerd, bijvoorbeeld:
 
 ```bash
 python run_cases.py
+python run_workstream_cases.py
+python run_dashboard.py
+python run_dashboard_actions.py
+python run_integrated_acceptance.py
 ```
 
-De kandidaat-/werkstroomcases handmatig uitvoeren:
+GitHub Actions voert bij wijzigingen onder `code/Prototype/` automatisch de volledige regressiesuite en de acceptatierunners uit.
 
-```bash
-python run_candidate_cases.py
-```
+## Scopegrens van v0.3
 
-## Scope v0.3
+Prototype v0.3 is een deterministisch functioneel prototype. Het voert nog geen productieacties uit in externe systemen.
 
-Het prototype is nog steeds deterministisch en voert geen externe productieacties uit. `Action` beschrijft wat moet gebeuren, bijvoorbeeld e-mail sturen, toegang laten toekennen/intrekken of een blokkade handhaven.
+Buiten deze baseline vallen onder meer:
 
-De v0.3-importadapter leest uitsluitend lokale Sportlink-achtige CSV-testdata. Een echte productieverbinding met Sportlink, e-mail, kassasysteem of andere externe systemen valt nog buiten deze prototypefase.
+- een echte Sportlink API-koppeling of productie-import;
+- daadwerkelijk schrijven naar Sportlink;
+- productie-e-mail of notificaties;
+- authenticatie en productie-autorisatie van dashboardgebruikers;
+- persistente workflow-/auditopslag;
+- overige productie-integraties.
 
-De architectuur is daar wel bewust op voorbereid: externe bronnen worden via adapters vertaald naar canonieke DVK-objecten, waarna dezelfde afleidings- en werkstroomlogica kan blijven functioneren.
+De architectuur is hier wel op voorbereid doordat bronadapters, domeinlogica, adviesplanning, menselijke besluitvorming en presentatie van elkaar gescheiden zijn.
+
+## Baselineregel
+
+Vanaf 8 september 2026 geldt:
+
+> **Prototype v0.3 is functioneel geaccepteerd en vormt de regressiebaseline. Nieuwe ontwikkeling moet deze werking behouden, tenzij CKC expliciet een functionele wijziging besluit.**
+
+Zie [`BASELINE-v0.3.md`](BASELINE-v0.3.md) voor de formele vastlegging.
