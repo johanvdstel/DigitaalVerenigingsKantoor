@@ -59,3 +59,6 @@ jobs:
 
       - name: Show v0.3 step 7 proposal and human decision output
         run: python run_proposal_cases.py
+
+      - name: Show v0.3 step 8 DutyAssignment acceptance output
+        run: python run_assignment_cases.py
