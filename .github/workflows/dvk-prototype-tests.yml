@@ -62,3 +62,6 @@ jobs:
 
       - name: Show v0.3 step 8 DutyAssignment acceptance output
         run: python run_assignment_cases.py
+
+      - name: Show v0.3 step 9 dashboard decision output
+        run: python run_dashboard_actions.py
