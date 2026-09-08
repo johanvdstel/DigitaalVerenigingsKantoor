@@ -25,7 +25,7 @@ def test_step7_assignment_proposal_contains_complete_explainable_context():
     assert proposal.status == "proposed"
     assert proposal.service_id == service.service_id
     assert proposal.person_id == case.person.person_id
-    assert (proposal.A, proposal.B, proposal.C, proposal.D, proposal.E) == (10, 0, 1, 1, 8)
+    assert (proposal.A, proposal.B, proposal.C, proposal.D, proposal.E) == (10, 0, 2, 1, 7)
     assert proposal.team_id == "SEN-8"
     assert proposal.home_away == "home"
     assert proposal.match_starts_at == datetime(2026, 9, 12, 14, 30)
@@ -63,4 +63,4 @@ def test_step7_rejection_records_reason_without_removing_obligation():
     assert decision.reason_category == "personal_circumstance"
     assert decision.reason == "Kan deze datum niet"
     assert case.sportlink_duty == before
-    assert proposal.E == 8
+    assert proposal.E == 7
