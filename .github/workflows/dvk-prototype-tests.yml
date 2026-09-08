@@ -65,3 +65,6 @@ jobs:
 
       - name: Show v0.3 step 9 dashboard decision output
         run: python run_dashboard_actions.py
+
+      - name: Show v0.3 integrated final acceptance
+        run: python run_integrated_acceptance.py
