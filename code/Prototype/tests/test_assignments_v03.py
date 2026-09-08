@@ -33,8 +33,8 @@ def test_w11_approved_proposal_creates_assignment_and_changes_d_and_e_only():
     updated_case = apply_assignment_to_case(case, assignment)
     after = duty_position_from_registration(updated_case.sportlink_duty)
 
-    assert (before.A, before.B, before.C, before.D, before.E) == (10, 0, 1, 1, 8)
-    assert (after.A, after.B, after.C, after.D, after.E) == (10, 0, 1, 4, 5)
+    assert (before.A, before.B, before.C, before.D, before.E) == (10, 0, 2, 1, 7)
+    assert (after.A, after.B, after.C, after.D, after.E) == (10, 0, 2, 4, 4)
     assert after.C == before.C
 
 
@@ -46,7 +46,7 @@ def test_w12_rejected_proposal_creates_no_assignment_and_changes_nothing():
     )
     assignment = create_duty_assignment("A-W12", proposal, decision, service)
     assert assignment is None
-    assert duty_position_from_registration(case.sportlink_duty).E == 8
+    assert duty_position_from_registration(case.sportlink_duty).E == 7
 
 
 def test_step8_assignment_requires_decision_for_same_proposal():
