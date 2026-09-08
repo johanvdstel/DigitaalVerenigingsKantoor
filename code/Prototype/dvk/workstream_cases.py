@@ -48,7 +48,7 @@ W_CASES = (
         "W08", "Grotere actuele E krijgt hogere prioriteit",
         Person("W08P", "Senior Grote E", date(1987, 4, 1)),
         Membership("W08P", "active", "bondslid", plays_football=True),
-        sportlink_duty=SportlinkDutyRegistration("W08P", required_hours=10, correction_hours=0, completed_hours=1, scheduled_hours=1),
+        sportlink_duty=SportlinkDutyRegistration("W08P", required_hours=10, correction_hours=0, completed_hours=2, scheduled_hours=1),
     ),
     PrototypeCase(
         "W09", "Relevante achterstand vorig seizoen wordt vóór 1 december meegewogen",
