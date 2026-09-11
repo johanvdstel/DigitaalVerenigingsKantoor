@@ -105,3 +105,36 @@ def test_conflicting_duplicate_identity_is_blocked(tmp_path):
     result = load(tmp_path, member_rows=rows)
     assert not result.persons
     assert any(s.code == "CONFLICTING_DUPLICATE_IDENTITY" for s in result.signals)
+
+
+def test_blank_duty_value_is_not_silently_zero(tmp_path):
+    result = load(tmp_path, duty_rows=[["P1", "10", "0", "", "3", "7"]])
+    assert not result.duty_records
+    assert any(s.code == "INVALID_DUTY_VALUE" and "Voldaan" in s.message for s in result.signals)
+
+
+def test_non_numeric_duty_value_is_explicit_data_quality_error(tmp_path):
+    result = load(tmp_path, duty_rows=[["P1", "10", "0", "twee", "3", "5"]])
+    assert not result.duty_records
+    assert any(s.code == "INVALID_DUTY_VALUE" for s in result.signals)
+
+
+def test_unknown_playing_member_value_is_signalled(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text(
+        "Rel. code;Team;Teamrol;Functie;Spelend lid\nP1;Senioren 8;Teamspeler;Aanvaller;Onbekend",
+        encoding="utf-8",
+    )
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.team_memberships[0].playing_member is None
+    assert any(s.code == "UNKNOWN_PLAYING_MEMBER_VALUE" for s in result.signals)
+
+
+def test_role_provenance_keeps_source_and_normalized_value(tmp_path):
+    result = load(tmp_path)
+    trainer_provenance = next(
+        p for p in result.provenance
+        if p.source_dataset == "functies" and p.source_value == "Trainer Pupillen"
+    )
+    assert trainer_provenance.source_field == "Functie"
+    assert trainer_provenance.normalized_value == "Trainer"
