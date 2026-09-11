@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .model import DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
@@ -16,6 +16,9 @@ class Provenance:
     imported_at: datetime
     source_period: str | None = None
     kind: str = "SOURCE_FACT"
+    source_field: str | None = None
+    source_value: str | None = None
+    normalized_value: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,7 +96,7 @@ class SportlinkRealDataAdapter:
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
                      imported_at=None, source_period=None, expected_required_hours=None) -> RealDataImportResult:
-        imported_at = imported_at or datetime.now()
+        imported_at = imported_at or datetime.now(timezone.utc)
         expected_required_hours = expected_required_hours or {}
         signals: list[DataQualitySignal] = []
         provenance: list[Provenance] = []
@@ -142,10 +145,15 @@ class SportlinkRealDataAdapter:
                 continue
             role = self.value(row, "Functie")
             if role:
-                roles.append(RoleAssignment(pid, self.normalize_role(role)))
+                normalized_role = self.normalize_role(role)
+                roles.append(RoleAssignment(pid, normalized_role))
+                provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
+                                            source_field="Functie", source_value=role,
+                                            normalized_value=normalized_role))
             else:
                 signals.append(DataQualitySignal("UNKNOWN_FUNCTION", "WARNING", "functies", pid, "Lege functienaam"))
-            provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period))
+                provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
+                                            source_field="Functie", source_value=""))
 
         committees: list[CommitteeMembership] = []
         for i, row in enumerate(committee_rows, 1):
@@ -164,21 +172,31 @@ class SportlinkRealDataAdapter:
             if not team:
                 signals.append(DataQualitySignal("UNMATCHED_TEAM_REFERENCE", "WARNING", "teams", f"{pid}:{i}", "Team ontbreekt"))
                 continue
+            playing_value = self.value(row, "Spelend lid")
+            playing_member = self.optional_bool(playing_value)
+            if playing_value and playing_member is None:
+                signals.append(DataQualitySignal("UNKNOWN_PLAYING_MEMBER_VALUE", "WARNING", "teams", f"{pid}:{i}",
+                                                 f"Onbekende waarde Spelend lid: {playing_value!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
-                                            self.value(row, "Functie") or None,
-                                            self.optional_bool(self.value(row, "Spelend lid"))))
-            provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period))
+                                            self.value(row, "Functie") or None, playing_member))
+            provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period,
+                                        source_field="Spelend lid", source_value=playing_value,
+                                        normalized_value=None if playing_member is None else str(playing_member)))
 
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
             pid = self.value(row, "Relatiecode")
             if not self.known_person(pid, person_ids, "vrijwilligers_periode", str(i), signals):
                 continue
-            a = self.whole_number(self.value(row, "Verplichte punten"))
-            b = self.whole_number(self.value(row, "Gecorrigeerde punten"))
-            c = self.whole_number(self.value(row, "Voldaan"))
-            d = self.whole_number(self.value(row, "Nog ingedeeld"))
-            source_e = self.whole_number(self.value(row, "Niet ingedeeld"))
+            try:
+                a = self.required_whole_number(self.value(row, "Verplichte punten"), "Verplichte punten")
+                b = self.required_whole_number(self.value(row, "Gecorrigeerde punten"), "Gecorrigeerde punten")
+                c = self.required_whole_number(self.value(row, "Voldaan"), "Voldaan")
+                d = self.required_whole_number(self.value(row, "Nog ingedeeld"), "Nog ingedeeld")
+                source_e = self.required_whole_number(self.value(row, "Niet ingedeeld"), "Niet ingedeeld")
+            except ValueError as exc:
+                signals.append(DataQualitySignal("INVALID_DUTY_VALUE", "ERROR", "vrijwilligers_periode", pid, str(exc)))
+                continue
             registration = SportlinkDutyRegistration(pid, a, b, c, d)
             record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d), expected_required_hours.get(pid))
             duties.append(record)
@@ -188,7 +206,9 @@ class SportlinkRealDataAdapter:
             if record.required_hours_mismatch:
                 signals.append(DataQualitySignal("REQUIRED_HOURS_MISMATCH", "WARNING", "vrijwilligers_periode", pid,
                                                  f"Sportlink A={a} maar DVK verwacht A={record.expected_required_hours}"))
-            provenance.append(self.prov("vrijwilligers_periode", pid, imported_at, source_period))
+            provenance.append(self.prov("vrijwilligers_periode", pid, imported_at, source_period,
+                                        source_field="Niet ingedeeld", source_value=str(source_e),
+                                        normalized_value=str(record.position.E)))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
@@ -257,15 +277,20 @@ class SportlinkRealDataAdapter:
         return None
 
     @staticmethod
-    def whole_number(value: str) -> int:
+    def required_whole_number(value: str, field_name: str) -> int:
         normalized = value.strip().replace(",", ".")
         if not normalized:
-            return 0
-        number = float(normalized)
+            raise ValueError(f"Ontbrekende verplichte waarde {field_name}")
+        try:
+            number = float(normalized)
+        except ValueError as exc:
+            raise ValueError(f"Ongeldige waarde {field_name}: {value!r}") from exc
         if not number.is_integer():
-            raise ValueError(f"Expected whole duty points/hours, got {value!r}")
+            raise ValueError(f"Verwacht geheel aantal punten/uren voor {field_name}, kreeg {value!r}")
         return int(number)
 
     @staticmethod
-    def prov(dataset, key, imported_at, source_period):
-        return Provenance("Sportlink", dataset, key, imported_at, source_period)
+    def prov(dataset, key, imported_at, source_period, *, source_field=None, source_value=None, normalized_value=None):
+        return Provenance("Sportlink", dataset, key, imported_at, source_period,
+                          source_field=source_field, source_value=source_value,
+                          normalized_value=normalized_value)
