@@ -39,6 +39,9 @@ jobs:
       - name: Run all regression tests
         run: pytest -q
 
+      - name: Show v0.4 R10-R11 Programma acceptance output
+        run: pytest -q -vv tests/test_programma_adapter_v04.py
+
       - name: Show C01-C22 acceptance output
         run: python run_cases.py
 
