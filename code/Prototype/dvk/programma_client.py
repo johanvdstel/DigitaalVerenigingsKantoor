@@ -16,7 +16,6 @@ class ProgrammaFetchError(RuntimeError):
 @dataclass(frozen=True)
 class ProgrammaFetchResult:
     rows: tuple[dict[str, object], ...]
-    url: str
 
 
 class SportlinkProgrammaClient:
@@ -54,7 +53,7 @@ class SportlinkProgrammaClient:
             raise ProgrammaFetchError(f"Sportlink Programma transport failure: {exc}") from exc
 
         if not payload:
-            return ProgrammaFetchResult((), url)
+            return ProgrammaFetchResult(())
 
         try:
             data = json.loads(payload.decode("utf-8"))
@@ -71,4 +70,4 @@ class SportlinkProgrammaClient:
             if not isinstance(item, dict):
                 raise ProgrammaFetchError("Sportlink Programma response contains a non-object item")
             rows.append(item)
-        return ProgrammaFetchResult(tuple(rows), url)
+        return ProgrammaFetchResult(tuple(rows))
