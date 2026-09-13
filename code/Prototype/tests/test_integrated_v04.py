@@ -86,7 +86,7 @@ def test_r17_integrated_weekend_reaches_proposal_human_decision_and_assignment()
 
     assert need.open_need == 1
     assert proposal.person_id == "W08P"
-    assert proposal.home_away == "HOME"
+    assert proposal.home_away == "home"
     assert proposal.match_starts_at == program_result.matches[0].starts_at
     assert proposal.status == "proposed"
 
