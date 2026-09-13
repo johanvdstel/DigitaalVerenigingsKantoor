@@ -32,6 +32,22 @@ class VolunteerBooking:
 
 
 @dataclass(frozen=True)
+class OperationalService:
+    """Concrete Sportlink service period plus DVK planning segments.
+
+    The full Sportlink interval remains the source fact. Segments are derived
+    planning boundaries only; they never replace or shorten that interval.
+    """
+
+    task_code: str
+    starts_at: datetime
+    ends_at: datetime
+    location: str
+    segments: tuple[tuple[datetime, datetime], ...]
+    deviates_from_catalog: bool
+
+
+@dataclass(frozen=True)
 class VolunteerImportResult:
     bookings: tuple[VolunteerBooking, ...]
     provenance: tuple[Provenance, ...]
@@ -51,6 +67,38 @@ class SportlinkVrijwilligersAdapter:
             "fields": VRIJWILLIGERS_FIELDS,
         }
         return f"{VRIJWILLIGERS_ENDPOINT}?{urlencode(params, quote_via=quote)}"
+
+    @staticmethod
+    def derive_operational_service(
+        *,
+        task_code: str,
+        starts_at: datetime,
+        ends_at: datetime,
+        location: str,
+        catalog_boundaries: Iterable[datetime] = (),
+    ) -> OperationalService:
+        """Keep a concrete Sportlink interval intact and derive planning segments.
+
+        Known catalog boundaries strictly inside the actual interval are reused.
+        The actual start/end are always boundaries themselves, so a previously
+        unknown edge such as Tuesday 17:00 is represented instead of discarded.
+        """
+        if ends_at <= starts_at:
+            raise ValueError("Operational service requires ends_at > starts_at")
+
+        start = starts_at.astimezone(TZ)
+        end = ends_at.astimezone(TZ)
+        internal = sorted({
+            boundary.astimezone(TZ)
+            for boundary in catalog_boundaries
+            if start < boundary.astimezone(TZ) < end
+        })
+        points = (start, *internal, end)
+        segments = tuple((left, right) for left, right in zip(points, points[1:]))
+        deviates = start not in {b.astimezone(TZ) for b in catalog_boundaries} or end not in {
+            b.astimezone(TZ) for b in catalog_boundaries
+        }
+        return OperationalService(task_code, start, end, location, segments, deviates)
 
     def import_rows(
         self,
