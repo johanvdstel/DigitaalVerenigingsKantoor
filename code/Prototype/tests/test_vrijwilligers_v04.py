@@ -1,10 +1,14 @@
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
+import pytest
 
 from dvk.vrijwilligers_adapter import ServiceBinding, SportlinkVrijwilligersAdapter
 from dvk.workstream_model import DutyService
 
 
 IMPORTED_AT = datetime(2026, 9, 13, 20, 0, tzinfo=timezone.utc)
+TZ = ZoneInfo("Europe/Amsterdam")
 
 
 def service(service_id="S741", start_hour=10):
@@ -81,3 +85,57 @@ def test_r13_records_source_provenance_without_credentials():
     assert provenance.source_dataset == "Vrijwilligers"
     assert provenance.kind == "SOURCE_FACT"
     assert provenance.source_record_key == "741:1"
+
+
+def local_dt(hour: int, minute: int = 0) -> datetime:
+    return datetime(2026, 9, 15, hour, minute, tzinfo=TZ)  # Tuesday
+
+
+def test_r13b_preserves_full_sportlink_period_and_derives_catalog_segments():
+    adapter = SportlinkVrijwilligersAdapter()
+    operational = adapter.derive_operational_service(
+        task_code="741",
+        starts_at=local_dt(17),
+        ends_at=local_dt(22, 30),
+        location="CKC",
+        catalog_boundaries=(local_dt(18), local_dt(19), local_dt(20), local_dt(22, 30)),
+    )
+
+    assert operational.starts_at == local_dt(17)
+    assert operational.ends_at == local_dt(22, 30)
+    assert operational.segments == (
+        (local_dt(17), local_dt(18)),
+        (local_dt(18), local_dt(19)),
+        (local_dt(19), local_dt(20)),
+        (local_dt(20), local_dt(22, 30)),
+    )
+    assert operational.deviates_from_catalog is True
+
+
+def test_r13b_exact_catalog_period_is_not_marked_as_deviation():
+    adapter = SportlinkVrijwilligersAdapter()
+    operational = adapter.derive_operational_service(
+        task_code="741",
+        starts_at=local_dt(18),
+        ends_at=local_dt(22, 30),
+        location="CKC",
+        catalog_boundaries=(local_dt(18), local_dt(19), local_dt(20), local_dt(22, 30)),
+    )
+    assert operational.segments == (
+        (local_dt(18), local_dt(19)),
+        (local_dt(19), local_dt(20)),
+        (local_dt(20), local_dt(22, 30)),
+    )
+    assert operational.deviates_from_catalog is False
+
+
+def test_r13b_rejects_empty_or_reversed_period():
+    adapter = SportlinkVrijwilligersAdapter()
+    with pytest.raises(ValueError):
+        adapter.derive_operational_service(
+            task_code="741",
+            starts_at=local_dt(18),
+            ends_at=local_dt(18),
+            location="CKC",
+            catalog_boundaries=(),
+        )
