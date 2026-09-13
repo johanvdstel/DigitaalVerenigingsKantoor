@@ -71,3 +71,9 @@ jobs:
 
       - name: Show v0.3 integrated final acceptance
         run: python run_integrated_acceptance.py
+
+      - name: Validate live CKC Sportlink Programma response
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SPORTLINK_CLIENT_ID: ${{ secrets.SPORTLINK_CLIENT_ID }}
+        run: python run_programma_live_validation.py
