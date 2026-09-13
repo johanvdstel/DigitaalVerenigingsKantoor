@@ -83,3 +83,9 @@ jobs:
         env:
           SPORTLINK_CLIENT_ID: ${{ secrets.SPORTLINK_CLIENT_ID }}
         run: python run_programma_live_validation.py
+        
+      - name: Validate live CKC Sportlink Vrijwilligers response
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SPORTLINK_CLIENT_ID: ${{ secrets.SPORTLINK_CLIENT_ID }}
+        run: python run_vrijwilligers_live_validation.py
