@@ -1,204 +1,130 @@
-# DVK Prototype v0.3 — functioneel geaccepteerde baseline
+# DVK Prototype v0.4 — functioneel geaccepteerde baseline
 
-**Status: functioneel geaccepteerd op 8 september 2026.**
+**Status: functioneel geaccepteerd op 13 september 2026.**
 
-Dit is het zelfstandig uitvoerbare prototype van het Digitaal Verenigingskantoor (DVK). Prototype v0.3 vormt vanaf deze acceptatie de functionele regressiebaseline voor verdere ontwikkeling.
+Dit is het uitvoerbare prototype van het Digitaal Verenigingskantoor (DVK) voor de werkstroom Ledendiensten & Vrijwilligersbeleid. Prototype v0.4 bouwt voort op de volledig behouden v0.3-baseline en voegt read-only real-data-integratie toe.
 
-De formele baseline is vastgelegd in [`BASELINE-v0.3.md`](BASELINE-v0.3.md). De ontwerpgrondslag staat in `ontwerp-dvk-prototype-v0.3.md`; de bestaande C01–C22-masterset blijft gezaghebbend via `22 cases.md` en het geaccepteerde v0.2-ontwerp.
+De formele actuele baseline staat in [`BASELINE-v0.4.md`](BASELINE-v0.4.md). [`BASELINE-v0.3.md`](BASELINE-v0.3.md) blijft de historische en regressieve grondslag voor C01–C22, W01–W13 en I01/I02.
 
-## Baseline in één oogopslag
+## v0.4 in één oogopslag
 
-Prototype v0.3 combineert:
+Prototype v0.4 voegt aan de bestaande v0.3-engine toe:
 
-- de reeds geaccepteerde **C01–C22** uit Prototype v0.2;
-- de werkstroom **Ledendiensten & Vrijwilligersbeleid — Fase 1**;
-- Sportlink-achtige bronimport;
-- automatische afleiding van taakplicht;
-- urenpositie `A-B-C-D=E`;
-- minderjarigen- en gezinslogica;
-- wedstrijdcontext en kandidaatselectie;
-- uitlegbare prioritering;
-- spreiding van voorstellen over kandidaten op dezelfde dag;
-- dashboardweergave;
-- `AssignmentProposal` en menselijke goedkeuring/afwijzing;
-- `DutyAssignment` na goedkeuring;
-- dashboardacties voor goedkeuren en afwijzen;
-- geïntegreerde end-to-endacceptatie.
+- real-data-import van leden-, functie-, commissie-, team- en urenfeiten;
+- read-only Sportlink Programma-integratie voor wedstrijden;
+- CKC ShiftCatalog als expliciete configuratiebron voor diensten en bezetting;
+- read-only Sportlink Vrijwilligers-integratie voor concrete vrijwilligersregistraties;
+- behoud en segmentering van afwijkende concrete dienstperioden;
+- afleiding van staffing/open need;
+- expliciete signalering van onbekende of ambigue taakcodes;
+- provenance met onderscheid `SOURCE_FACT`, `CONFIGURATION` en `DERIVED`;
+- integrale koppeling van echte-bronachtige data aan de bestaande kandidaat-, voorstel-, menselijke-beslissing- en assignmentketen.
 
-De afsluitende acceptatierun op GitHub Actions was volledig groen: **59 tests passed** en alle leesbare acceptatiestappen zijn geslaagd.
+De afsluitende GitHub Actions-run **#130** is volledig groen: **118 tests passed**, inclusief **3/3 R16–R18 geïntegreerde eindacceptatietests**.
 
-## Functionele keten
+## Architectuur
 
 ```text
-bronfeiten
-    │
-    ▼
-import / normalisatie
-    │
-    ▼
+Bronnen
+  ├── Sportlink/exportdata
+  ├── Sportlink Programma API
+  ├── Sportlink Vrijwilligers API
+  └── CKC ShiftCatalog
+          │
+          ▼
+      adapters
+          │
+          ▼
+   normalisatie
+          │
+          ▼
 canonieke DVK-objecten
-    │
-    ▼
-taakplicht afleiden
-    │
-    ▼
-urenpositie A-B-C-D=E
-    │
-    ▼
-kandidaatselectie
-    │
-    ▼
-prioritering
-    │
-    ▼
-adviesplanning
-    │
-    ├──────────────► dashboard
-    │
-    ▼
-AssignmentProposal
-    │
-    ▼
-menselijke beoordeling
-    ├── afwijzen ──► geen indeling; uren ongewijzigd
-    │
-    └── goedkeuren
-            │
-            ▼
-      DutyAssignment
-            │
-            ▼
-       D omhoog, E omlaag
-       C blijft gelijk tot uitvoering
+          │
+          ▼
+ bestaande v0.3-engine
+          │
+          ├── taakplicht / urenpositie
+          ├── kandidaatselectie
+          ├── prioritering
+          └── adviesplanning
+          │
+          ▼
+ AssignmentProposal
+          │
+          ▼
+ menselijke beslissing
+     ├── afwijzen → geen mutatie
+     └── goedkeuren
+             │
+             ▼
+       DutyAssignment
+             │
+             ▼
+        D omhoog, E omlaag
 ```
 
-Een kernprincipe is:
+Kernprincipe blijft:
 
 > **DVK-voorstel ≠ CKC-besluit.**
 
-Het systeem adviseert en verklaart. De feitelijke indeling ontstaat pas na menselijke goedkeuring.
+## v0.4 integratielagen
 
-## Architectuurlagen
+### Real-data import
 
-### 1. Canoniek model
+`dvk/real_data_import.py` normaliseert echte CKC-exportfeiten naar canonieke DVK-objecten en legt provenance en datakwaliteitssignalen vast. Ontbrekende of ambigue informatie wordt niet stilzwijgend ingevuld.
 
-`dvk/model.py` bevat het algemene DVK-domeinmodel, waaronder `Person`, `Membership`, relaties, rollen, autorisaties, `SportlinkDutyRegistration`, `DutyQualification`, `DutyPosition`, `Decision`, `Signal`, `Action` en `PrototypeCase`.
+### Sportlink Programma
 
-`dvk/workstream_model.py` bevat de operationele ledendienstobjecten, waaronder:
+`dvk/programma_client.py` verzorgt de read-only HTTP-toegang. `dvk/programma_adapter.py` vertaalt bronregels naar canonieke `Match`-objecten, inclusief `HOME/AWAY`, statusverwerking en provenance. Niet-operationele wedstrijden worden niet als normale kandidaatcontext gebruikt.
 
-- `DutyService`
-- `TeamMembership`
-- `Match`
-- `CandidateAssessment`
-- `CandidatePriority`
-- `AssignmentProposal`
-- `HumanDecision`
-- `DutyAssignment`
-- dashboard-viewmodels.
+### ShiftCatalog
 
-### 2. Regels en taakplicht
+`dvk/shift_catalog.py` behandelt de CKC ShiftCatalog als `CONFIGURATION`. Taakcode is de natuurlijke sleutel. Minimumbezetting bepaalt de noodzakelijke staffing; maximumbezetting blijft afzonderlijke registratie-/planningscapaciteit.
 
-`dvk/rules.py` bevat de geaccepteerde C01–C22-regels.
+### Sportlink Vrijwilligers
 
-`dvk/duty.py` leidt voor de ledendienstwerkstroom onder meer af:
+`dvk/vrijwilligers_client.py` en `dvk/vrijwilligers_adapter.py` verwerken concrete registraties read-only. Koppeling aan diensten gebeurt via taakcode en datum/tijd, niet via de naam van de vrijwilliger als sleutel.
 
-- taakplicht;
-- vrijstelling;
-- administratief subject;
-- uitvoerdercategorie lid of ouder/verzorger;
-- beleidsnormuren;
-- afwijking van Sportlink-administratie;
-- urenpositie `E = A - B - C - D`.
+Afwijkende concrete Sportlink-dienstperioden blijven volledig bronfeit. DVK mag daaruit planbare segmenten afleiden langs catalogusgrenzen en werkelijke randtijden, maar mag geen periode stilzwijgend weggooien of verzinnen.
 
-De CKC-norm van 10 uur is beleidsinformatie en wordt niet als bronfeit behandeld.
+### Staffing en taakcoderesolutie
 
-### 3. Importlaag
+`dvk/staffing.py` leidt bezetting en open behoefte af. Deze uitkomsten hebben provenance `DERIVED`.
 
-`dvk/import_adapter.py` vertaalt Sportlink-achtige CSV-bronnen naar canonieke DVK-objecten. De adapter kent bronvelden en bronformaten, maar bevat geen CKC-beleidsregels.
+`dvk/task_code_resolution.py` koppelt uitsluitend exacte, unieke taakcodes. Onbekende, afwijkende en ambigue codes worden expliciet gesignaleerd; DVK gokt of corrigeert niet stilzwijgend.
 
-De representatieve testbronnen staan onder:
+## Provenancecontract
 
-```text
-testdata/v03_import/
-├── members.csv
-├── duty_hours.csv
-├── teams.csv
-├── matches.csv
-└── services.csv
-```
+v0.4 maakt het onderscheid expliciet:
 
-### 4. Kandidaatselectie
+- `SOURCE_FACT` — feiten uit Sportlink of andere brondata;
+- `CONFIGURATION` — CKC-inrichting, zoals ShiftCatalog;
+- `DERIVED` — door DVK berekende uitkomsten, zoals staffing/open need.
 
-`dvk/candidate_selection.py` bepaalt of iemand voor een concrete Ledendienst geschikt is. Daarbij spelen onder meer taakplicht, teamlidmaatschap, thuis-/uitwedstrijd, tijdscontext en uitvoerdercategorie een rol.
+Dit voorkomt dat een DVK-afleiding later ten onrechte als bronfeit wordt behandeld.
 
-Deze laag bepaalt **geschiktheid**, niet de rangorde.
+## Acceptatiebasis
 
-### 5. Prioritering
+De actuele regressiebasis bestaat uit:
 
-`dvk/prioritization.py` rangschikt geschikte kandidaten transparant:
+- **C01–C22** — geaccepteerde v0.2-masterset;
+- **W01–W13** — geaccepteerde v0.3-werkstroomcases;
+- **I01/I02** — import- en UI/enginecontract uit v0.3;
+- **R01–R18** — v0.4 real-data- en integratieacceptatie.
 
-1. actuele resterende uren `E`;
-2. relevante achterstand uit het vorige seizoen vóór 1 december;
-3. wedstrijdvoorkeur;
-4. stabiele tie-break.
+De v0.4-stappen zijn functioneel geaccepteerd als:
 
-W08 is conform het geaccepteerde ontwerp vastgelegd als **E=7 versus E=3**.
+1. R01–R09 — real-data-import;
+2. R10–R11 — Sportlink Programma;
+3. R12 — ShiftCatalog;
+4. R13/R13b — Sportlink Vrijwilligers en afwijkende concrete tijden;
+5. R14 — staffing/open need;
+6. R15 — onbekende/ambigue taakcodes;
+7. R16 — provenance;
+8. R17 — integrale weekendketen;
+9. R18 — volledige regressie/eindacceptatie.
 
-### 6. Adviesplanning
-
-`dvk/recommendation_planner.py` zet de per-dienst-rangorde om in concrete eerste adviezen. Daarbij wordt, wanneer er alternatieven zijn, voorkomen dat dezelfde persoon meerdere keren op dezelfde dag als eerste kandidaat wordt voorgesteld.
-
-Deze logica staat bewust **niet** in het dashboard.
-
-### 7. Dashboard
-
-`dvk/dashboard.py` is een presentatielaag. Het toont:
-
-- leden met openstaande Ledendiensturen;
-- open diensten;
-- voorgestelde kandidaten;
-- alternatieven en niet-voorgestelde kandidaten met reden.
-
-Het dashboard gebruikt vooraf berekende engine-uitkomsten. Daarmee blijft acceptatiecriterium I02 behouden: geen verborgen selectie- of prioriteringsbeleid in de UI-laag.
-
-### 8. Voorstel en menselijke beslissing
-
-`dvk/proposals.py` maakt een uitlegbaar `AssignmentProposal` met de relevante uren-, team-, wedstrijd- en prioriteitscontext.
-
-Een mens kan het voorstel vervolgens goedkeuren of gemotiveerd afwijzen. Afwijzing verwijdert de taakplicht niet en verandert de urenpositie niet.
-
-### 9. Feitelijke indeling
-
-`dvk/assignments.py` maakt alleen na goedkeuring een `DutyAssignment`.
-
-Bij planning:
-
-- A blijft gelijk;
-- B blijft gelijk;
-- C blijft gelijk;
-- D stijgt met de ingeplande diensturen;
-- E daalt overeenkomstig.
-
-C verandert pas wanneer de dienst daadwerkelijk is uitgevoerd.
-
-`dvk/dashboard_actions.py` orkestreert goedkeuren en afwijzen vanuit de dashboardcontext met dezelfde domeinfuncties; het voegt geen nieuw beleid toe.
-
-## Geaccepteerde acceptatiebasis
-
-De baseline wordt bewaakt door:
-
-- **C01–C22** — bestaande functionele masterset;
-- **W01–W13** — v0.3 werkstroomacceptatie;
-- **I01** — bronimport naar canonieke DVK-objecten;
-- **I02** — dashboard uitsluitend op basis van vooraf berekende uitkomsten;
-- geïntegreerde end-to-endtests van taakplicht tot en met menselijke beslissing en `DutyAssignment`.
-
-De afsluitende CI-run van de functionele acceptatie rapporteerde:
-
-```text
-59 passed
-EINDRESULTAAT: functionele keten v0.3 reproduceerbaar.
-```
+Zie [`BASELINE-v0.4.md`](BASELINE-v0.4.md) voor het formele acceptatiecontract.
 
 ## Belangrijkste structuur
 
@@ -208,40 +134,33 @@ code/Prototype/
 ├── ontwerp-dvk-prototype-v0.2.md
 ├── ontwerp-dvk-prototype-v0.3.md
 ├── BASELINE-v0.3.md
+├── BASELINE-v0.4.md
 ├── README.md
 ├── pyproject.toml
-├── run_cases.py
-├── run_workstream_cases.py
-├── run_import_cases.py
-├── run_candidate_cases.py
-├── run_priority_cases.py
-├── run_dashboard.py
-├── run_proposal_cases.py
-├── run_assignment_cases.py
-├── run_dashboard_actions.py
-├── run_integrated_acceptance.py
+├── run_*.py
 ├── dvk/
 │   ├── model.py
 │   ├── workstream_model.py
-│   ├── cases.py
-│   ├── workstream_cases.py
-│   ├── rules.py
 │   ├── duty.py
 │   ├── engine.py
-│   ├── import_adapter.py
 │   ├── candidate_selection.py
 │   ├── prioritization.py
 │   ├── recommendation_planner.py
-│   ├── dashboard.py
 │   ├── proposals.py
 │   ├── assignments.py
-│   └── dashboard_actions.py
-├── testdata/
-│   └── v03_import/
+│   ├── real_data_import.py
+│   ├── programma_adapter.py
+│   ├── programma_client.py
+│   ├── shift_catalog.py
+│   ├── vrijwilligers_adapter.py
+│   ├── vrijwilligers_client.py
+│   ├── staffing.py
+│   └── task_code_resolution.py
 └── tests/
+    ├── test_integrated_v03.py
+    ├── test_integrated_v04.py
+    └── ...
 ```
-
-De `dvk/` package is de uitvoerbare bron. Oudere losse Python-bestanden in de root van `code/Prototype/` zijn legacy uit eerdere prototypeversies.
 
 ## Uitvoeren
 
@@ -254,37 +173,20 @@ pip install -e ".[test]"
 pytest -q
 ```
 
-Leesbare acceptatie-uitvoer kan afzonderlijk worden uitgevoerd, bijvoorbeeld:
+GitHub Actions voert de volledige regressiesuite en afzonderlijke acceptatiestappen uit. Live Programma- en Vrijwilligersvalidatie wordt alleen in de daarvoor ingerichte handmatige workflowcontext uitgevoerd; gevoelige credentials worden niet in code, baseline of logs opgenomen.
 
-```bash
-python run_cases.py
-python run_workstream_cases.py
-python run_dashboard.py
-python run_dashboard_actions.py
-python run_integrated_acceptance.py
-```
+## Scopegrens van v0.4
 
-GitHub Actions voert bij wijzigingen onder `code/Prototype/` automatisch de volledige regressiesuite en de acceptatierunners uit.
+v0.4 valideert de read-only real-data-integratie en de volledige functionele keten. Buiten deze baseline vallen onder meer:
 
-## Scopegrens van v0.3
-
-Prototype v0.3 is een deterministisch functioneel prototype. Het voert nog geen productieacties uit in externe systemen.
-
-Buiten deze baseline vallen onder meer:
-
-- een echte Sportlink API-koppeling of productie-import;
-- daadwerkelijk schrijven naar Sportlink;
-- productie-e-mail of notificaties;
-- authenticatie en productie-autorisatie van dashboardgebruikers;
+- automatisch schrijven naar Sportlink;
+- productie-e-mail/notificaties;
+- productie-authenticatie en -autorisatie;
 - persistente workflow-/auditopslag;
-- overige productie-integraties.
-
-De architectuur is hier wel op voorbereid doordat bronadapters, domeinlogica, adviesplanning, menselijke besluitvorming en presentatie van elkaar gescheiden zijn.
+- het vervangen van menselijke CKC-besluitvorming door automatische indeling.
 
 ## Baselineregel
 
-Vanaf 8 september 2026 geldt:
+Vanaf 13 september 2026 geldt:
 
-> **Prototype v0.3 is functioneel geaccepteerd en vormt de regressiebaseline. Nieuwe ontwikkeling moet deze werking behouden, tenzij CKC expliciet een functionele wijziging besluit.**
-
-Zie [`BASELINE-v0.3.md`](BASELINE-v0.3.md) voor de formele vastlegging.
+> **Prototype v0.4 is functioneel geaccepteerd en vormt de actuele regressiebaseline voor de real-data-integratie van Ledendiensten. Nieuwe ontwikkeling moet R01–R18 én de onderliggende v0.3-baseline behouden, tenzij CKC expliciet een functionele wijziging besluit.**
