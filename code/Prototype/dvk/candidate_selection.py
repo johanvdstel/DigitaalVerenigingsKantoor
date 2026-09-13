@@ -48,7 +48,12 @@ def assess_candidate(
     matches: tuple[Match, ...],
     today: date,
 ) -> CandidateAssessment:
-    """Assess candidate eligibility and practical match context without ranking."""
+    """Assess candidate eligibility and practical match context without ranking.
+
+    v0.4 canonical Match values use HOME/AWAY. Lowercase remains accepted here
+    for the already accepted v0.3 fixtures; all returned assessment values keep
+    the established lowercase domain vocabulary.
+    """
     qualification = derive_duty_qualification(case, today)
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
@@ -74,8 +79,9 @@ def assess_candidate(
         )
 
     overlap = _match_start_overlaps_service(match, service)
+    home_away = match.home_away.lower()
 
-    if match.home_away == "away":
+    if home_away == "away":
         if overlap:
             return CandidateAssessment(
                 person_id, service.service_id, False, executor_category,
@@ -87,7 +93,7 @@ def assess_candidate(
             team.team_id, "away", "away_match_same_day", "avoid",
         )
 
-    if match.home_away == "home":
+    if home_away == "home":
         if executor_category == "parent_guardian":
             if overlap:
                 return CandidateAssessment(

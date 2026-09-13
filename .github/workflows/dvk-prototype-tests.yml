@@ -39,6 +39,21 @@ jobs:
       - name: Run all regression tests
         run: pytest -q
 
+      - name: Show v0.4 R16-R18 integrated final acceptance
+        run: pytest -q -vv tests/test_integrated_v04.py
+
+      - name: Show v0.4 R15 task-code acceptance output
+        run: pytest -q -vv tests/test_task_code_resolution_v04.py
+
+      - name: Show v0.4 R14 staffing acceptance output
+        run: pytest -q -vv tests/test_staffing_v04.py
+
+      - name: Show v0.4 R13 Vrijwilligers acceptance output
+        run: pytest -q -vv tests/test_vrijwilligers_v04.py tests/test_vrijwilligers_client_v04.py
+
+      - name: Show v0.4 R12 ShiftCatalog acceptance output
+        run: pytest -q -vv tests/test_shift_catalog_v04.py
+
       - name: Show v0.4 R10-R11 Programma acceptance output
         run: pytest -q -vv tests/test_programma_adapter_v04.py
 
@@ -77,3 +92,9 @@ jobs:
         env:
           SPORTLINK_CLIENT_ID: ${{ secrets.SPORTLINK_CLIENT_ID }}
         run: python run_programma_live_validation.py
+        
+      - name: Validate live CKC Sportlink Vrijwilligers response
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SPORTLINK_CLIENT_ID: ${{ secrets.SPORTLINK_CLIENT_ID }}
+        run: python run_vrijwilligers_live_validation.py
