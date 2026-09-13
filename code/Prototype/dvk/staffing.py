@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable
 
+from .real_data_import import Provenance
 from .shift_catalog import ShiftDefinition
 from .vrijwilligers_adapter import VolunteerBooking
 from .workstream_model import DutyService
@@ -45,4 +47,17 @@ def calculate_staffing_need(
         confirmed_occupancy=confirmed,
         open_need=max(0, minimum - confirmed),
         remaining_capacity=max(0, maximum - confirmed),
+    )
+
+
+def staffing_provenance(need: StaffingNeed, *, derived_at: datetime) -> Provenance:
+    """Mark a staffing result explicitly as a DVK derivation, never as a source fact."""
+    return Provenance(
+        source_system="DVK",
+        source_dataset="staffing",
+        source_record_key=need.service_id,
+        imported_at=derived_at,
+        kind="DERIVED",
+        source_value=None,
+        normalized_value=str(need),
     )
