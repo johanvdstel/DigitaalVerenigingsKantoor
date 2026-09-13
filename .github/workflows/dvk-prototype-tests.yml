@@ -39,6 +39,9 @@ jobs:
       - name: Run all regression tests
         run: pytest -q
 
+      - name: Show v0.4 R15 task-code acceptance output
+        run: pytest -q -vv tests/test_task_code_resolution_v04.py
+
       - name: Show v0.4 R14 staffing acceptance output
         run: pytest -q -vv tests/test_staffing_v04.py
 
