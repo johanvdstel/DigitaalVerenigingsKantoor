@@ -20,7 +20,7 @@ Prototype v0.4 voegt aan de bestaande v0.3-engine toe:
 - provenance met onderscheid `SOURCE_FACT`, `CONFIGURATION` en `DERIVED`;
 - integrale koppeling van echte-bronachtige data aan de bestaande kandidaat-, voorstel-, menselijke-beslissing- en assignmentketen.
 
-De afsluitende GitHub Actions-run **#130** is volledig groen: **118 tests passed**, inclusief **3/3 R16–R18 geïntegreerde eindacceptatietests**.
+De formele v0.4-regressiesuite telt **118 tests**, inclusief **3/3 R16–R18 geïntegreerde eindacceptatietests**. De post-acceptatie presentatierun is aanvullend en verandert het formele R01–R18-acceptatiecontract niet.
 
 ## Architectuur
 
@@ -126,6 +126,27 @@ De v0.4-stappen zijn functioneel geaccepteerd als:
 
 Zie [`BASELINE-v0.4.md`](BASELINE-v0.4.md) voor het formele acceptatiecontract.
 
+## Presentatierun
+
+`run_v04_demo.py` is een post-acceptatie demonstratierunner voor projectpresentaties. Hij gebruikt de bestaande, geaccepteerde v0.4-productiecomponenten en maakt zichtbaar welke input DVK ontvangt, wat DVK afleidt, waarom een kandidaat wordt geprioriteerd, waar een mens beslist en welke output daarna ontstaat.
+
+De presentatierun bevat vier deterministische scenario's:
+
+1. **Goedkeuring end-to-end** — ShiftCatalog en brondata leiden tot open behoefte, kandidaatselectie, uitlegbare prioriteit, een DVK-voorstel, menselijke goedkeuring, `DutyAssignment` en een gewijzigde urenpositie.
+2. **Afwijzing zonder assignment** — een mens wijst het DVK-voorstel af; er ontstaat geen assignment en de urenpositie verandert niet.
+3. **Onbekende taakcode** — DVK signaleert de onbekende code expliciet en gokt of fuzzy-matcht niet.
+4. **Afwijkende diensttijd** — het volledige concrete broninterval blijft behouden; DVK leidt alleen planbare segmenten af.
+
+De demo is nadrukkelijk **geen vervanging van de formele pytest-suite**. De regressietests bewaken het acceptatiecontract; de demo maakt hetzelfde gedrag begrijpelijk en presenteerbaar voor projectleden.
+
+Vanaf `code/Prototype/`:
+
+```bash
+python run_v04_demo.py
+```
+
+GitHub Actions voert de presentatierun naast de volledige regressiesuite uit, zodat zowel technische regressie als de reproduceerbare presentatie-uitvoer zichtbaar blijft.
+
 ## Belangrijkste structuur
 
 ```text
@@ -137,6 +158,7 @@ code/Prototype/
 ├── BASELINE-v0.4.md
 ├── README.md
 ├── pyproject.toml
+├── run_v04_demo.py
 ├── run_*.py
 ├── dvk/
 │   ├── model.py
@@ -171,9 +193,10 @@ python -m venv .venv
 source .venv/bin/activate       # Windows: .venv\Scripts\activate
 pip install -e ".[test]"
 pytest -q
+python run_v04_demo.py
 ```
 
-GitHub Actions voert de volledige regressiesuite en afzonderlijke acceptatiestappen uit. Live Programma- en Vrijwilligersvalidatie wordt alleen in de daarvoor ingerichte handmatige workflowcontext uitgevoerd; gevoelige credentials worden niet in code, baseline of logs opgenomen.
+GitHub Actions voert de volledige regressiesuite, afzonderlijke acceptatiestappen en de presentatierun uit. Live Programma- en Vrijwilligersvalidatie wordt alleen in de daarvoor ingerichte handmatige workflowcontext uitgevoerd; gevoelige credentials worden niet in code, baseline of logs opgenomen.
 
 ## Scopegrens van v0.4
 
