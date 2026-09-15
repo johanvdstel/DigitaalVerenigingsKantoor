@@ -128,7 +128,21 @@ def scenario_1_approval():
     field("Team", "Senioren 8")
     field("Urenpositie vóór voorstel", position(before))
     field("DVK kandidaatstatus", "GESCHIKT" if assessment.eligible else "NIET GESCHIKT")
-    field("DVK prioriteit", priority)
+
+    section("4a. DVK-UITLEG — Waarom deze kandidaat?")
+    field("DVK rangorde", priority.rank)
+    field("Nog in te plannen", f"{priority.remaining_hours:g} uur")
+    field("Achterstand vorig seizoen", f"{priority.previous_season_backlog:g} uur ({'meegewogen' if priority.previous_season_considered else 'niet meegewogen'})")
+    preference = {
+        "preferred": "GUNSTIG",
+        "neutral": "NEUTRAAL",
+        "avoid": "ONGUNSTIG",
+    }.get(priority.match_preference, str(priority.match_preference).upper())
+    field("Wedstrijdvoorkeur", preference)
+    reason_parts = [f"{priority.remaining_hours:g} uur openstaand"]
+    if priority.match_preference == "preferred" and proposal.match_starts_at is not None:
+        reason_parts.append(f"thuiswedstrijd om {proposal.match_starts_at.astimezone(LOCAL).strftime('%H:%M')}")
+    field("Reden", "; ".join(reason_parts))
 
     section("5. DVK-VOORSTEL")
     field("Voorstel-ID", proposal.proposal_id)
