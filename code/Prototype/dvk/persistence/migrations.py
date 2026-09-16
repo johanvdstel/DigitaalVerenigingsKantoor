@@ -9,7 +9,7 @@ Migration = Callable[[sqlite3.Connection], None]
 def _migration_001(connection: sqlite3.Connection) -> None:
     connection.execute(
         """
-        CREATE TABLE IF NOT EXISTS dvk_records (
+        CREATE TABLE dvk_records (
             record_id TEXT PRIMARY KEY,
             payload TEXT NOT NULL
         )
@@ -18,7 +18,7 @@ def _migration_001(connection: sqlite3.Connection) -> None:
 
 
 def _migration_002(connection: sqlite3.Connection) -> None:
-    connection.executescript(
+    connection.execute(
         """
         CREATE TABLE import_batches (
             import_batch_id TEXT PRIMARY KEY,
@@ -31,7 +31,11 @@ def _migration_002(connection: sqlite3.Connection) -> None:
             validation_summary TEXT,
             confirmed_at TEXT,
             confirmed_by TEXT
-        );
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE source_snapshots (
             snapshot_id TEXT PRIMARY KEY,
             import_batch_id TEXT NOT NULL UNIQUE REFERENCES import_batches(import_batch_id),
@@ -40,7 +44,11 @@ def _migration_002(connection: sqlite3.Connection) -> None:
             source_period TEXT,
             created_at TEXT NOT NULL,
             supersedes_snapshot_id TEXT REFERENCES source_snapshots(snapshot_id)
-        );
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE TABLE snapshot_records (
             snapshot_id TEXT NOT NULL REFERENCES source_snapshots(snapshot_id),
             record_key TEXT NOT NULL,
@@ -48,9 +56,13 @@ def _migration_002(connection: sqlite3.Connection) -> None:
             canonical_payload TEXT NOT NULL,
             provenance_payload TEXT NOT NULL,
             PRIMARY KEY (snapshot_id, record_key)
-        );
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE INDEX idx_snapshot_dataset
-            ON source_snapshots(source_system, dataset_type, source_period, created_at);
+        ON source_snapshots(source_system, dataset_type, source_period, created_at)
         """
     )
 
