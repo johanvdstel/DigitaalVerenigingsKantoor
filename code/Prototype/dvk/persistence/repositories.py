@@ -2,14 +2,22 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from ..import_management import ImportBatch, SnapshotRecord, SourceSnapshot
+
 
 class RecordRepository(Protocol):
-    """Minimal persistence port used to prove the Gate 1 boundary.
-
-    Gate 1 deliberately stores generic records only. Domain-specific repositories
-    are introduced in later gates when their persisted concepts are implemented.
-    """
-
     def add(self, record_id: str, payload: str) -> None: ...
-
     def get(self, record_id: str) -> dict[str, Any] | None: ...
+
+
+class ImportBatchRepository(Protocol):
+    def add(self, batch: ImportBatch) -> None: ...
+    def get(self, import_batch_id: str) -> ImportBatch | None: ...
+    def update(self, batch: ImportBatch) -> None: ...
+
+
+class SnapshotRepository(Protocol):
+    def add(self, snapshot: SourceSnapshot, records: tuple[SnapshotRecord, ...]) -> None: ...
+    def get(self, snapshot_id: str) -> SourceSnapshot | None: ...
+    def records(self, snapshot_id: str) -> tuple[SnapshotRecord, ...]: ...
+    def latest(self, source_system: str, dataset_type: str, source_period: str | None) -> SourceSnapshot | None: ...
