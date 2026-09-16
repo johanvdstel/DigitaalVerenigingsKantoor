@@ -39,6 +39,9 @@ jobs:
       - name: Run all regression tests
         run: pytest -q
 
+      - name: Show v0.5 Gate 1 persistence acceptance
+        run: pytest -q -vv tests/test_persistence_v05.py
+
       - name: Show v0.4 R16-R18 integrated final acceptance
         run: pytest -q -vv tests/test_integrated_v04.py
 
