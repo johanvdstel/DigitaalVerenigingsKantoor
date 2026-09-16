@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from .repositories import ImportBatchRepository, RecordRepository, SnapshotRepository
+from .repositories import EngineRunRepository, ImportBatchRepository, RecordRepository, SnapshotRepository, SourceFetchRepository
 
 
 class UnitOfWork(Protocol):
@@ -11,6 +11,8 @@ class UnitOfWork(Protocol):
     records: RecordRepository
     import_batches: ImportBatchRepository
     snapshots: SnapshotRepository
+    source_fetches: SourceFetchRepository
+    engine_runs: EngineRunRepository
 
     def __enter__(self) -> "UnitOfWork": ...
     def __exit__(self, exc_type, exc_value, traceback) -> bool | None: ...
