@@ -64,7 +64,10 @@ class SQLiteUnitOfWork:
     def __init__(self, database_path: str | Path) -> None:
         self._database_path = str(database_path); self._connection = None; self._committed = False
     def __enter__(self):
-        self._connection = sqlite3.connect(self._database_path); migrate(self._connection)
+        self._connection = sqlite3.connect(self._database_path)
+        # Schema setup is infrastructure state and must survive rollback of a business UoW.
+        migrate(self._connection)
+        self._connection.commit()
         self.records = SQLiteRecordRepository(self._connection)
         self.import_batches = SQLiteImportBatchRepository(self._connection)
         self.snapshots = SQLiteSnapshotRepository(self._connection)
