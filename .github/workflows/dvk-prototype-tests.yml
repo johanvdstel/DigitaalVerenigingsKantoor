@@ -33,6 +33,8 @@ jobs:
           pip install -e '.[test]'
       - name: Run all regression tests
         run: pytest -q
+      - name: Show v0.5 Gate 4 policy acceptance
+        run: pytest -q -vv tests/test_policy_v05.py
       - name: Show v0.5 Gate 3 run-context acceptance
         run: pytest -q -vv tests/test_run_context_v05.py
       - name: Show v0.5 Gate 2 import snapshot acceptance
