@@ -15,11 +15,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-
     defaults:
       run:
         working-directory: code/Prototype
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,6 +33,8 @@ jobs:
           pip install -e '.[test]'
       - name: Run all regression tests
         run: pytest -q
+      - name: Show v0.5 Gate 3 run-context acceptance
+        run: pytest -q -vv tests/test_run_context_v05.py
       - name: Show v0.5 Gate 2 import snapshot acceptance
         run: pytest -q -vv tests/test_import_snapshots_v05.py
       - name: Show v0.5 Gate 1 persistence acceptance
