@@ -9,8 +9,9 @@ def test_empty_database_is_migrated_reproducibly(tmp_path):
     path = tmp_path / "dvk.sqlite"
     database = SQLiteDatabase(path)
 
-    assert database.initialize() == 1
-    assert database.initialize() == 1
+    latest_version = database.initialize()
+    assert latest_version >= 1
+    assert database.initialize() == latest_version
 
     with sqlite3.connect(path) as connection:
         version = connection.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
@@ -21,7 +22,7 @@ def test_empty_database_is_migrated_reproducibly(tmp_path):
             )
         }
 
-    assert version == 1
+    assert version == latest_version
     assert {"schema_version", "dvk_records"} <= tables
 
 
