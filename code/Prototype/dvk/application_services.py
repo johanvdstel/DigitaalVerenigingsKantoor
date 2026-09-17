@@ -7,9 +7,12 @@ from .dashboard_actions import DashboardActionResult, approve_from_dashboard, re
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
 from .import_workflow import confirm_import, preview_differences
 from .model import PrototypeCase
+from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
+from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
 from .security import Authorizer, Identity, Permission
-from .workstream_model import AssignmentProposal, DutyService
+from .staffing import StaffingNeed
+from .workstream_model import AssignmentProposal, DutyService, Match
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,34 @@ class EngineRunApplicationService:
         self.uow.engine_runs.add(run)
         self.uow.commit()
         return run
+
+
+class PlanningApplicationService:
+    """Authorized read-only boundary for the Planning presentation layer."""
+
+    def __init__(self, identity: Identity, authorizer: Authorizer | None = None):
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
+    def build_overview(
+        self,
+        *,
+        period: PlanningPeriod,
+        services: tuple[DutyService, ...],
+        staffing_needs: tuple[StaffingNeed, ...],
+        matches: tuple[Match, ...] = (),
+        source_statuses: tuple[PlanningSourceStatus, ...] = (),
+        data_quality_signals: tuple[DataQualitySignal, ...] = (),
+    ) -> PlanningOverview:
+        self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
+        return build_planning_overview(
+            period=period,
+            services=services,
+            staffing_needs=staffing_needs,
+            matches=matches,
+            source_statuses=source_statuses,
+            data_quality_signals=data_quality_signals,
+        )
 
 
 class ProposalDecisionApplicationService:
