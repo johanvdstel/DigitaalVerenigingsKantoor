@@ -23,12 +23,36 @@ def test_senior_away_overlap_is_ineligible():
     assert result.match_relation == "away_match_overlaps_service"
 
 
-def test_senior_away_same_day_is_emergency_candidate():
+def test_senior_away_match_already_started_still_overlaps_service():
     service = _service(datetime(2026, 9, 19, 12, 30), datetime(2026, 9, 19, 17))
     match = Match("M2", "SEN-8", datetime(2026, 9, 19, 12, 15), "away")
     result = _assessment("W08", service, match)
+    assert result.eligible is False
+    assert result.match_relation == "away_match_overlaps_service"
+
+
+def test_senior_away_same_day_after_two_hour_window_is_emergency_candidate():
+    service = _service(datetime(2026, 9, 19, 14, 30), datetime(2026, 9, 19, 17))
+    match = Match("M2B", "SEN-8", datetime(2026, 9, 19, 12, 15), "away")
+    result = _assessment("W08", service, match)
     assert result.eligible is True
     assert result.match_relation == "away_match_same_day"
+    assert result.preference == "avoid"
+
+
+def test_service_containing_entire_match_window_counts_as_overlap():
+    service = _service(datetime(2026, 9, 19, 11), datetime(2026, 9, 19, 15))
+    match = Match("M2C", "SEN-8", datetime(2026, 9, 19, 12, 15), "away")
+    result = _assessment("W08", service, match)
+    assert result.eligible is False
+    assert result.match_relation == "away_match_overlaps_service"
+
+
+def test_service_ending_before_match_window_does_not_overlap():
+    service = _service(datetime(2026, 9, 19, 9), datetime(2026, 9, 19, 12))
+    match = Match("M2D", "SEN-8", datetime(2026, 9, 19, 12, 15), "away")
+    result = _assessment("W08", service, match)
+    assert result.eligible is True
     assert result.preference == "avoid"
 
 
