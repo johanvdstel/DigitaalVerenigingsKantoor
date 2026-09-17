@@ -57,7 +57,24 @@ def _migration_005(connection: sqlite3.Connection) -> None:
         created_at TEXT NOT NULL)""")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005)
+def _migration_006(connection: sqlite3.Connection) -> None:
+    """Persist the V07 chain: proposal -> human decision -> inroostering."""
+    connection.execute("""CREATE TABLE assignment_proposals (
+        proposal_id TEXT PRIMARY KEY,
+        engine_run_id TEXT REFERENCES engine_runs(engine_run_id),
+        payload TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE human_decisions (
+        proposal_id TEXT PRIMARY KEY REFERENCES assignment_proposals(proposal_id),
+        payload TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE duty_assignments (
+        assignment_id TEXT PRIMARY KEY,
+        proposal_id TEXT NOT NULL REFERENCES assignment_proposals(proposal_id),
+        engine_run_id TEXT REFERENCES engine_runs(engine_run_id),
+        payload TEXT NOT NULL)""")
+    connection.execute("CREATE INDEX idx_assignment_proposal ON duty_assignments(proposal_id)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006)
 
 
 def migrate(connection: sqlite3.Connection) -> int:
