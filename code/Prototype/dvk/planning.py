@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime
 
 from .real_data_import import DataQualitySignal
 from .staffing import StaffingNeed
@@ -49,6 +49,7 @@ class PlanningServiceRow:
 class PlanningOverview:
     period: PlanningPeriod
     services: tuple[PlanningServiceRow, ...]
+    matches: tuple[Match, ...] = ()
     source_statuses: tuple[PlanningSourceStatus, ...] = ()
     data_quality_signals: tuple[DataQualitySignal, ...] = ()
 
@@ -64,6 +65,10 @@ def build_planning_overview(
 ) -> PlanningOverview:
     """Build a read-only planning view from already-derived DVK facts."""
     needs = {need.service_id: need for need in staffing_needs}
+    visible_matches = tuple(sorted(
+        (match for match in matches if period.contains(match.starts_at)),
+        key=lambda match: (match.starts_at, match.match_id),
+    ))
     rows: list[PlanningServiceRow] = []
     for service in services:
         if not period.contains(service.starts_at):
@@ -71,11 +76,15 @@ def build_planning_overview(
         need = needs.get(service.service_id)
         if need is None:
             raise ValueError(f"missing staffing need for {service.service_id}")
+
+        # Commissiekamer is a location. A service there may show a home match as
+        # context, but an away match must never be linked to that service.
         linked_match = next(
             (
-                match for match in matches
+                match for match in visible_matches
                 if match.starts_at.date() == service.starts_at.date()
-                and service.service_type.lower() in {"commissiekamer", "commissie kamer"}
+                and service.location.strip().lower() == "commissiekamer"
+                and match.home_away.strip().lower() == "home"
             ),
             None,
         )
@@ -90,6 +99,7 @@ def build_planning_overview(
     return PlanningOverview(
         period,
         tuple(sorted(rows, key=lambda row: (row.starts_at, row.service_id))),
+        visible_matches,
         source_statuses,
         data_quality_signals,
     )
