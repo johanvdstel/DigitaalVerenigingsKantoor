@@ -11,10 +11,17 @@ from dvk.staffing import StaffingNeed
 from dvk.workstream_model import DutyService, Match
 
 
-st.set_page_config(page_title="DVK Planning", page_icon="📋", layout="wide")
-st.title("Digitaal Verenigingskantoor")
-st.subheader("Planning")
-st.caption("Read-only planningsoverzicht — Prototype v0.5")
+DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
+
+
+def _datum_met_dag(moment: datetime) -> str:
+    return f"{DAGEN[moment.weekday()]} {moment:%d-%m}"
+
+
+st.set_page_config(page_title="DVK — Ledendienst Planning", page_icon="📋", layout="wide")
+st.title("Digitaal Verenigings Kantoor (DVK)")
+st.subheader("Ledendienst Planning")
+st.caption("Alleen-lezen planningsoverzicht — Prototype v0.5")
 
 
 def _demo_data(start: date):
@@ -22,7 +29,7 @@ def _demo_data(start: date):
     services = (
         DutyService("BAR-WO-1", "Bardienst", datetime.combine(monday + timedelta(days=2), time(19, 0)), datetime.combine(monday + timedelta(days=2), time(22, 0)), "Clubhuis", 2),
         DutyService("BAR-ZA-1", "Bardienst", datetime.combine(monday + timedelta(days=5), time(9, 0)), datetime.combine(monday + timedelta(days=5), time(13, 0)), "Clubhuis", 3),
-        DutyService("CK-ZA-1", "Commissiekamer", datetime.combine(monday + timedelta(days=5), time(12, 30)), datetime.combine(monday + timedelta(days=5), time(17, 0)), "Commissiekamer", 1),
+        DutyService("CK-ZA-1", "Gastvrouw/heer", datetime.combine(monday + timedelta(days=5), time(12, 30)), datetime.combine(monday + timedelta(days=5), time(17, 0)), "Commissiekamer", 1),
     )
     needs = (
         StaffingNeed("BAR-WO-1", 2, 3, 1, 1, 2),
@@ -35,7 +42,7 @@ def _demo_data(start: date):
     statuses = (
         PlanningSourceStatus("Sportlink Programma", datetime.now() - timedelta(minutes=18), "actueel"),
         PlanningSourceStatus("Sportlink Vrijwilligers", datetime.now() - timedelta(minutes=12), "actueel"),
-        PlanningSourceStatus("DVK bron-snapshot", datetime.now() - timedelta(days=1), "bevestigd"),
+        PlanningSourceStatus("Leden- en vrijwilligersgegevens", datetime.now() - timedelta(days=1), "bevestigd"),
     )
     return services, needs, matches, statuses
 
@@ -74,7 +81,7 @@ if not overview.services:
 else:
     st.dataframe([
         {
-            "Datum": row.starts_at.strftime("%a %d-%m"),
+            "Datum": _datum_met_dag(row.starts_at),
             "Tijd": f"{row.starts_at:%H:%M}–{row.ends_at:%H:%M}",
             "Dienst": row.service_type,
             "Locatie": row.location,
@@ -83,16 +90,30 @@ else:
             "Bevestigd": row.confirmed_occupancy,
             "Open minimum": row.open_need,
             "Vrije capaciteit": row.remaining_capacity,
-            "Wedstrijd": row.match_team_id or "—",
+            "Thuiswedstrijd": row.match_team_id or "—",
             "Aanvang wedstrijd": row.match_starts_at.strftime("%H:%M") if row.match_starts_at else "—",
         }
         for row in overview.services
     ], use_container_width=True, hide_index=True)
 
-st.markdown("### Bronnen")
+st.markdown("### Wedstrijden")
+if not overview.matches:
+    st.info("Geen wedstrijden in de gekozen periode.")
+else:
+    st.dataframe([
+        {
+            "Datum": _datum_met_dag(match.starts_at),
+            "Tijd": match.starts_at.strftime("%H:%M"),
+            "Team": match.team_id,
+            "Thuis/uit": "Thuis" if match.home_away.strip().lower() == "home" else "Uit",
+        }
+        for match in overview.matches
+    ], use_container_width=True, hide_index=True)
+
+st.markdown("### Databronnen")
 st.dataframe([
     {
-        "Bron": status.source,
+        "Databron": status.source,
         "Laatst opgehaald": status.fetched_at.strftime("%d-%m-%Y %H:%M") if status.fetched_at else "onbekend",
         "Status": status.status,
     }
@@ -108,4 +129,4 @@ if overview.data_quality_signals:
 else:
     st.success("Geen datakwaliteitssignalen voor deze planning.")
 
-st.caption("Gate 7 gebruikt demonstratiedata via dezelfde read-only PlanningApplicationService. Live bron- en snapshotaansluiting volgt de bestaande DVK-integratiegrenzen; de UI bevat geen planningsregels of mutatieacties.")
+st.caption("Gate 7 gebruikt demonstratiedata via dezelfde alleen-lezen PlanningApplicationService. De UI bevat geen planningsregels of mutatieacties.")
