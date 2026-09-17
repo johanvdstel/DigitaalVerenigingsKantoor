@@ -100,10 +100,10 @@ class SportlinkDutyRegistration:
     """Administrative A/B/C/D values as registered in Sportlink."""
 
     person_id: str
-    required_hours: int | None = None
-    correction_hours: int = 0
-    completed_hours: int = 0
-    scheduled_hours: int = 0
+    required_hours: int | float | None = None
+    correction_hours: int | float = 0
+    completed_hours: int | float = 0
+    scheduled_hours: int | float = 0
 
 
 @dataclass(frozen=True)
@@ -141,13 +141,13 @@ class DutyQualification:
 class DutyPosition:
     """A/B/C/D/E duty-hours position. E is always derived from A-B-C-D."""
 
-    A: int
-    B: int = 0
-    C: int = 0
-    D: int = 0
+    A: int | float
+    B: int | float = 0
+    C: int | float = 0
+    D: int | float = 0
 
     @property
-    def E(self) -> int:
+    def E(self) -> int | float:
         return self.A - self.B - self.C - self.D
 
 
