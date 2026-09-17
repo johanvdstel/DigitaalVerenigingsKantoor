@@ -19,7 +19,7 @@ def _datum_met_dag(moment: datetime) -> str:
 
 
 st.set_page_config(page_title="DVK — Ledendienst Planning", page_icon="📋", layout="wide")
-st.title("Digitaal Verenigings Kantoor (DVK)")
+st.title("CKC Digitaal Verenigings Kantoor (DVK)")
 st.subheader("Ledendienst Planning")
 st.caption("Alleen-lezen planningsoverzicht — Prototype v0.5")
 
@@ -40,8 +40,8 @@ def _demo_data(start: date):
         Match("W-001", "Senioren 1", datetime.combine(monday + timedelta(days=5), time(14, 30)), "home"),
     )
     statuses = (
-        PlanningSourceStatus("Sportlink Programma", datetime.now() - timedelta(minutes=18), "actueel"),
-        PlanningSourceStatus("Sportlink Vrijwilligers", datetime.now() - timedelta(minutes=12), "actueel"),
+        PlanningSourceStatus("Sportlink Wedstrijden", datetime.now() - timedelta(minutes=18), "actueel"),
+        PlanningSourceStatus("Sportlink Diensten", datetime.now() - timedelta(minutes=12), "actueel"),
         PlanningSourceStatus("Leden- en vrijwilligersgegevens", datetime.now() - timedelta(days=1), "bevestigd"),
     )
     return services, needs, matches, statuses
@@ -90,8 +90,6 @@ else:
             "Bevestigd": row.confirmed_occupancy,
             "Open minimum": row.open_need,
             "Vrije capaciteit": row.remaining_capacity,
-            "Thuiswedstrijd": row.match_team_id or "—",
-            "Aanvang wedstrijd": row.match_starts_at.strftime("%H:%M") if row.match_starts_at else "—",
         }
         for row in overview.services
     ], use_container_width=True, hide_index=True)
