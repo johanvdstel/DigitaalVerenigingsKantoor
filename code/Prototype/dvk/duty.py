@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import date
 
-from .model import Decision, DutyPolicy, DutyPosition, DutyQualification, PrototypeCase, Signal, SportlinkDutyRegistration
+from .model import Decision, DutyPolicy, DutyPosition, DutyQualification, FunctionExemptionPolicy, PrototypeCase, Signal, SportlinkDutyRegistration
 
-FUNCTION_EXEMPT_ROLES = {"trainer", "teamleider", "commissielid", "bestuurslid", "ledenadministrateur", "beheerder CKC Kleding Beheer Tool"}
-DEFAULT_DUTY_POLICY = DutyPolicy(required_hours=10)
+LEGACY_FUNCTION_EXEMPTIONS = tuple(FunctionExemptionPolicy(role, True, False) for role in ("trainer", "teamleider", "commissielid", "bestuurslid", "ledenadministrateur", "beheerder CKC Kleding Beheer Tool"))
+DEFAULT_DUTY_POLICY = DutyPolicy(required_hours=10, version="legacy-v0.4", function_exemptions=LEGACY_FUNCTION_EXEMPTIONS)
 HOUSEHOLD_EXEMPTION_EXPLANATION = "Vrijgesteld — gezinsvrijstelling wegens kwalificerende CKC-functie van gezinslid"
 
 
@@ -40,30 +40,31 @@ def _older_minor_family_subject(case: PrototypeCase, today: date) -> str | None:
     return sorted(older, key=lambda p: p.birth_date)[0].person_id
 
 
-def _household_function_exemption(case: PrototypeCase, today: date) -> tuple[str, str] | None:
-    """Return (household member, qualifying role) only from demonstrable same-address facts."""
+def _household_function_exemption(case: PrototypeCase, today: date, policy: DutyPolicy) -> tuple[str, str] | None:
     address = case.person.address
     if not address or not address.strip(): return None
     same_address_ids = {p.person_id for p in case.all_persons if p.person_id != case.person.person_id and p.address and p.address.strip() == address.strip()}
-    qualifying = sorted((role.person_id, role.role) for role in case.roles if role.person_id in same_address_ids and _role_is_active(role, today) and role.role in FUNCTION_EXEMPT_ROLES)
+    qualifying = sorted((role.person_id, role.role) for role in case.roles if role.person_id in same_address_ids and _role_is_active(role, today) and (policy.function_policy(role.role) is not None and policy.function_policy(role.role).household_exempt))
     return qualifying[0] if qualifying else None
 
 
-def _household_exemption_uncertain(case: PrototypeCase, today: date) -> bool:
-    """Missing subject address prevents testing an otherwise potentially relevant household exemption."""
-    if case.person.address and case.person.address.strip(): return False
-    return any(role.person_id != case.person.person_id and _role_is_active(role, today) and role.role in FUNCTION_EXEMPT_ROLES for role in case.roles)
+def _household_exemption_uncertain(case: PrototypeCase, today: date, policy: DutyPolicy) -> bool:
+    relevant_role_ids = {role.person_id for role in case.roles if role.person_id != case.person.person_id and _role_is_active(role, today) and (policy.function_policy(role.role) is not None and policy.function_policy(role.role).household_exempt)}
+    if not relevant_role_ids: return False
+    if not case.person.address or not case.person.address.strip(): return True
+    persons = {p.person_id: p for p in case.all_persons}
+    return any(role_id not in persons or not persons[role_id].address or not persons[role_id].address.strip() for role_id in relevant_role_ids)
 
 
-def derive_duty_qualification(case: PrototypeCase, today: date) -> DutyQualification:
+def derive_duty_qualification(case: PrototypeCase, today: date, policy: DutyPolicy = DEFAULT_DUTY_POLICY) -> DutyQualification:
     person_id = case.person.person_id; membership = case.membership
     if membership.status != "active": return DutyQualification(person_id, False, "inactive_membership", person_id)
     if not membership.plays_football: return DutyQualification(person_id, False, "not_playing", person_id)
     if membership.honorary: return DutyQualification(person_id, False, "honorary", person_id)
     if membership.recreational: return DutyQualification(person_id, False, "recreational", person_id)
-    exempt_roles = sorted({role.role for role in case.roles if role.person_id == person_id and _role_is_active(role, today)} & FUNCTION_EXEMPT_ROLES)
+    exempt_roles = sorted(role.role for role in case.roles if role.person_id == person_id and _role_is_active(role, today) and (policy.function_policy(role.role) is not None and policy.function_policy(role.role).self_exempt))
     if exempt_roles: return DutyQualification(person_id, False, f"function:{exempt_roles[0]}", person_id)
-    household = _household_function_exemption(case, today)
+    household = _household_function_exemption(case, today, policy)
     if household: return DutyQualification(person_id, False, f"household_function:{household[0]}:{household[1]}", person_id)
     family_subject = _older_minor_family_subject(case, today)
     if family_subject: return DutyQualification(person_id, False, f"family_duty:{family_subject}", person_id)
@@ -80,15 +81,15 @@ def duty_position_from_registration(registration: SportlinkDutyRegistration) -> 
 
 
 def evaluate_duty_foundation(case: PrototypeCase, today: date, policy: DutyPolicy = DEFAULT_DUTY_POLICY) -> Decision:
-    qualification = derive_duty_qualification(case, today); expected = expected_required_hours(qualification, policy)
+    qualification = derive_duty_qualification(case, today, policy); expected = expected_required_hours(qualification, policy)
     registration = case.sportlink_duty; registered = registration.required_hours if registration is not None else None; comparison_performed = registration is not None
-    facts = {"duty_required": qualification.duty_required, "qualification_reason": qualification.reason, "administrative_subject": qualification.administrative_subject_id, "executor_category": derive_executor_category(case, today), "policy_required_hours": policy.required_hours, "expected_required_hours": expected, "sportlink_required_hours": registered, "sportlink_comparison_performed": comparison_performed}
+    facts = {"duty_required": qualification.duty_required, "qualification_reason": qualification.reason, "administrative_subject": qualification.administrative_subject_id, "executor_category": derive_executor_category(case, today), "policy_version": policy.version, "policy_required_hours": policy.required_hours, "expected_required_hours": expected, "sportlink_required_hours": registered, "sportlink_comparison_performed": comparison_performed}
     signals = []; status = "ok"; message = "Taakplicht en urenverplichting reproduceerbaar afgeleid."
     if qualification.reason.startswith("household_function:"):
         _, member_id, role = qualification.reason.split(":", 2)
         facts.update({"household_exemption_member_id": member_id, "household_exemption_role": role, "exemption_explanation": HOUSEHOLD_EXEMPTION_EXPLANATION})
-    if _household_exemption_uncertain(case, today) and qualification.duty_required:
-        signal = Signal("household_exemption_address_missing", "Gezinsvrijstelling kan niet betrouwbaar worden beoordeeld omdat het woonadres ontbreekt; DVK leidt geen huishouden af zonder bronfeit.", "attention", case.person.person_id)
+    if _household_exemption_uncertain(case, today, policy) and qualification.duty_required:
+        signal = Signal("household_exemption_address_missing", "Gezinsvrijstelling kan niet betrouwbaar worden beoordeeld omdat een benodigd woonadres ontbreekt; DVK leidt geen huishouden af zonder bronfeit.", "attention", case.person.person_id)
         signals.append(signal); status = "attention"; message = signal.message
     if comparison_performed and registered != expected:
         signal = Signal("sportlink_required_hours_mismatch", "Sportlink-registratie van verplichte taakuren wijkt af van de DVK-afleiding.", "attention", case.person.person_id, {"expected_required_hours": expected, "sportlink_required_hours": registered})
