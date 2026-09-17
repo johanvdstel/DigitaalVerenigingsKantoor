@@ -42,13 +42,22 @@ def _migration_003(connection: sqlite3.Connection) -> None:
 
 
 def _migration_004(connection: sqlite3.Connection) -> None:
-    # Existing v0.5 development databases predate this field. The sentinel keeps
-    # those historical rows readable; all newly created EngineRuns require an
-    # explicit real configuration version in the domain model.
     connection.execute("ALTER TABLE engine_runs ADD COLUMN config_version TEXT NOT NULL DEFAULT 'unspecified'")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004)
+def _migration_005(connection: sqlite3.Connection) -> None:
+    connection.execute("""CREATE TABLE policy_versions (
+        version_id TEXT PRIMARY KEY, content_json TEXT NOT NULL, content_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL, created_by TEXT NOT NULL, effective_from TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE config_versions (
+        version_id TEXT PRIMARY KEY, content_json TEXT NOT NULL, content_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL, created_by TEXT NOT NULL, effective_from TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE software_versions (
+        version_id TEXT PRIMARY KEY, release_label TEXT NOT NULL, git_commit_sha TEXT NOT NULL,
+        created_at TEXT NOT NULL)""")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005)
 
 
 def migrate(connection: sqlite3.Connection) -> int:
@@ -57,7 +66,8 @@ def migrate(connection: sqlite3.Connection) -> int:
     row = connection.execute("SELECT MAX(version) FROM schema_version").fetchone()
     current = int(row[0] or 0)
     for version, migration in enumerate(MIGRATIONS, start=1):
-        if version <= current: continue
+        if version <= current:
+            continue
         migration(connection)
         connection.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
     return len(MIGRATIONS)
