@@ -16,7 +16,8 @@ def create_duty_assignment(
 
     A rejected proposal deliberately yields no assignment. The assignment records
     scheduled hours; applying those hours to the administrative duty position is
-    a separate explicit operation.
+    a separate explicit operation. v0.5 also retains the proposal's EngineRun
+    context so the factual assignment remains reconstructible.
     """
     if decision.proposal_id != proposal.proposal_id:
         raise ValueError("human decision does not belong to proposal")
@@ -42,6 +43,12 @@ def create_duty_assignment(
         executor_category=proposal.executor_category,
         scheduled_hours=scheduled_hours,
         approved_by=decision.decided_by,
+        engine_run_id=proposal.engine_run_id,
+        snapshot_ids=proposal.snapshot_ids,
+        policy_version=proposal.policy_version,
+        config_version=proposal.config_version,
+        software_version=proposal.software_version,
+        decided_at=decision.decided_at,
     )
 
 
