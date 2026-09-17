@@ -7,6 +7,7 @@ from typing import Any
 
 from ..import_management import ImportBatch, ImportStatus, SnapshotRecord, SourceSnapshot
 from ..run_context import EngineRun, EngineRunStatus, SourceFetch, SourceFetchStatus
+from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
 from .migrations import migrate
 
 
@@ -47,9 +48,41 @@ class SQLiteSourceFetchRepository:
         row = self._connection.execute("SELECT * FROM source_fetches WHERE source_fetch_id=?", (source_fetch_id,)).fetchone(); return None if row is None else SourceFetch(row[0], row[1], row[2], _dt(row[3]), _dt(row[4]), date.fromisoformat(row[5]), date.fromisoformat(row[6]), SourceFetchStatus(row[7]), row[8], row[9])
 
 
+class _ImmutableContentVersionRepository:
+    model = None
+    table = ""
+    def __init__(self, connection): self._connection = connection
+    def add(self, version) -> None:
+        self._connection.execute(f"INSERT INTO {self.table} VALUES (?, ?, ?, ?, ?, ?)", (version.version_id, version.content_json, version.content_hash, version.created_at.isoformat(), version.created_by, version.effective_from.isoformat()))
+    def get(self, version_id):
+        row = self._connection.execute(f"SELECT version_id, content_json, content_hash, created_at, created_by, effective_from FROM {self.table} WHERE version_id=?", (version_id,)).fetchone()
+        return None if row is None else self.model(row[0], row[1], row[2], _dt(row[3]), row[4], date.fromisoformat(row[5]))
+
+
+class SQLitePolicyVersionRepository(_ImmutableContentVersionRepository):
+    model = PolicyVersion; table = "policy_versions"
+
+
+class SQLiteConfigVersionRepository(_ImmutableContentVersionRepository):
+    model = ConfigVersion; table = "config_versions"
+
+
+class SQLiteSoftwareVersionRepository:
+    def __init__(self, connection): self._connection = connection
+    def add(self, version: SoftwareVersion) -> None:
+        self._connection.execute("INSERT INTO software_versions VALUES (?, ?, ?, ?)", (version.version_id, version.release_label, version.git_commit_sha, version.created_at.isoformat()))
+    def get(self, version_id: str) -> SoftwareVersion | None:
+        row = self._connection.execute("SELECT version_id, release_label, git_commit_sha, created_at FROM software_versions WHERE version_id=?", (version_id,)).fetchone()
+        return None if row is None else SoftwareVersion(row[0], row[1], row[2], _dt(row[3]))
+
+
 class SQLiteEngineRunRepository:
     def __init__(self, connection): self._connection = connection
     def add(self, run: EngineRun) -> None:
+        required = (("policy_versions", run.policy_version), ("config_versions", run.config_version), ("software_versions", run.engine_version))
+        for table, version_id in required:
+            if self._connection.execute(f"SELECT 1 FROM {table} WHERE version_id=?", (version_id,)).fetchone() is None:
+                raise ValueError(f"EngineRun references unknown version: {version_id}")
         self._connection.execute("INSERT INTO engine_runs (engine_run_id, started_at, completed_at, initiated_by, period_start, period_end, status, policy_version, engine_version, config_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (run.engine_run_id, run.started_at.isoformat(), _iso(run.completed_at), run.initiated_by, run.period_start.isoformat(), run.period_end.isoformat(), run.status.value, run.policy_version, run.engine_version, run.config_version))
         self._connection.executemany("INSERT INTO engine_run_snapshots VALUES (?, ?)", [(run.engine_run_id, value) for value in run.snapshot_ids])
         self._connection.executemany("INSERT INTO engine_run_fetches VALUES (?, ?)", [(run.engine_run_id, value) for value in run.source_fetch_ids])
@@ -65,7 +98,9 @@ class SQLiteUnitOfWork:
     def __init__(self, database_path: str | Path) -> None: self._database_path = str(database_path); self._connection = None; self._committed = False
     def __enter__(self):
         self._connection = sqlite3.connect(self._database_path); migrate(self._connection); self._connection.commit()
-        self.records = SQLiteRecordRepository(self._connection); self.import_batches = SQLiteImportBatchRepository(self._connection); self.snapshots = SQLiteSnapshotRepository(self._connection); self.source_fetches = SQLiteSourceFetchRepository(self._connection); self.engine_runs = SQLiteEngineRunRepository(self._connection); self._committed = False; return self
+        self.records = SQLiteRecordRepository(self._connection); self.import_batches = SQLiteImportBatchRepository(self._connection); self.snapshots = SQLiteSnapshotRepository(self._connection); self.source_fetches = SQLiteSourceFetchRepository(self._connection); self.engine_runs = SQLiteEngineRunRepository(self._connection)
+        self.policy_versions = SQLitePolicyVersionRepository(self._connection); self.config_versions = SQLiteConfigVersionRepository(self._connection); self.software_versions = SQLiteSoftwareVersionRepository(self._connection)
+        self._committed = False; return self
     def commit(self) -> None:
         if self._connection is None: raise RuntimeError("Unit of work is not active")
         self._connection.commit(); self._committed = True
