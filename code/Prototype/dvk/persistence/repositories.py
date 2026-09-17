@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from ..import_management import ImportBatch, SnapshotRecord, SourceSnapshot
 from ..run_context import EngineRun, SourceFetch
 from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
+from ..workstream_model import AssignmentProposal, DutyAssignment, HumanDecision
 
 
 class RecordRepository(Protocol):
@@ -33,6 +34,21 @@ class SourceFetchRepository(Protocol):
 class EngineRunRepository(Protocol):
     def add(self, run: EngineRun) -> None: ...
     def get(self, engine_run_id: str) -> EngineRun | None: ...
+
+
+class AssignmentProposalRepository(Protocol):
+    def add(self, proposal: AssignmentProposal) -> None: ...
+    def get(self, proposal_id: str) -> AssignmentProposal | None: ...
+
+
+class HumanDecisionRepository(Protocol):
+    def add(self, decision: HumanDecision) -> None: ...
+    def get(self, proposal_id: str) -> HumanDecision | None: ...
+
+
+class DutyAssignmentRepository(Protocol):
+    def add(self, assignment: DutyAssignment) -> None: ...
+    def get(self, assignment_id: str) -> DutyAssignment | None: ...
 
 
 class PolicyVersionRepository(Protocol):
