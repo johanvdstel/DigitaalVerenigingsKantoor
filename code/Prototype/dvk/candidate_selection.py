@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time
 
 from .duty import derive_duty_qualification, derive_executor_category
 from .model import PrototypeCase
@@ -41,6 +41,13 @@ def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
     return service.starts_at <= match.starts_at < service.ends_at
 
 
+def _youth_service_window_allowed(service: DutyService) -> bool:
+    """Parents of youth members are candidates on weekdays and weekend services starting <= 12:30."""
+    if service.starts_at.weekday() < 5:
+        return True
+    return service.starts_at.time() <= time(12, 30)
+
+
 def assess_candidate(
     case: PrototypeCase,
     service: DutyService,
@@ -48,12 +55,7 @@ def assess_candidate(
     matches: tuple[Match, ...],
     today: date,
 ) -> CandidateAssessment:
-    """Assess candidate eligibility and practical match context without ranking.
-
-    v0.4 canonical Match values use HOME/AWAY. Lowercase remains accepted here
-    for the already accepted v0.3 fixtures; all returned assessment values keep
-    the established lowercase domain vocabulary.
-    """
+    """Assess candidate eligibility using the Gate-8 youth/senior match decision tree."""
     qualification = derive_duty_qualification(case, today)
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
@@ -62,6 +64,15 @@ def assess_candidate(
         return CandidateAssessment(
             person_id, service.service_id, False, executor_category,
             None, None, "not_assessed", "none", qualification.reason,
+        )
+
+    # Youth duties are fulfilled by a parent/guardian. They are available on
+    # weekdays and for weekend services that start no later than 12:30.
+    if executor_category == "parent_guardian" and not _youth_service_window_allowed(service):
+        return CandidateAssessment(
+            person_id, service.service_id, False, executor_category,
+            None, None, "youth_weekend_after_1230", "none",
+            "jeugdlid alleen beschikbaar voor doordeweekse diensten of weekenddiensten die uiterlijk om 12:30 beginnen",
         )
 
     team = _active_team_membership(person_id, service, team_memberships)
@@ -81,6 +92,8 @@ def assess_candidate(
     overlap = _match_start_overlaps_service(match, service)
     home_away = match.home_away.lower()
 
+    # Away match: overlap is a hard exclusion for both youth and seniors.
+    # Without overlap the candidate remains available only as an emergency option.
     if home_away == "away":
         if overlap:
             return CandidateAssessment(
@@ -94,21 +107,19 @@ def assess_candidate(
         )
 
     if home_away == "home":
-        if executor_category == "parent_guardian":
-            if overlap:
+        # Youth member: the parent/guardian performs the duty, so overlap with
+        # the child's home match is allowed. A senior performs the duty personally
+        # and is therefore excluded when the home match overlaps.
+        if overlap:
+            if executor_category == "parent_guardian":
                 return CandidateAssessment(
                     person_id, service.service_id, True, executor_category,
                     team.team_id, "home", "home_match_overlaps_service", "preferred",
                 )
             return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_same_day", "neutral",
-            )
-
-        if overlap:
-            return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_overlaps_service", "neutral",
+                person_id, service.service_id, False, executor_category,
+                team.team_id, "home", "home_match_overlaps_service", "none",
+                "dienst overlapt met de thuiswedstrijd",
             )
         return CandidateAssessment(
             person_id, service.service_id, True, executor_category,
