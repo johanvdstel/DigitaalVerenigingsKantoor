@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from .duty import duty_position_from_registration
 from .model import PrototypeCase
+from .run_context import EngineRun
 from .workstream_model import (
     AssignmentProposal, CandidateAssessment, CandidatePriority, DutyService,
     HumanDecision, Match,
@@ -36,6 +39,7 @@ def create_assignment_proposal(
     assessment: CandidateAssessment,
     priority: CandidatePriority,
     matches: tuple[Match, ...] = (),
+    engine_run: EngineRun | None = None,
 ) -> AssignmentProposal:
     """Create an auditable DVK proposal from already-derived engine outcomes."""
     if assessment.service_id != service.service_id or priority.service_id != service.service_id:
@@ -74,6 +78,11 @@ def create_assignment_proposal(
         applied_priority_rules=priority.explanation,
         uncertainties=tuple(uncertainties),
         status="proposed",
+        engine_run_id=engine_run.engine_run_id if engine_run else None,
+        snapshot_ids=engine_run.snapshot_ids if engine_run else (),
+        policy_version=engine_run.policy_version if engine_run else None,
+        config_version=engine_run.config_version if engine_run else None,
+        software_version=engine_run.engine_version if engine_run else None,
     )
 
 
@@ -83,6 +92,7 @@ def assess_proposal(
     decided_by: str,
     reason_category: str | None = None,
     reason: str | None = None,
+    decided_at: datetime | None = None,
 ) -> HumanDecision:
     """Record the human decision; does not create a DutyAssignment or mutate D."""
     if proposal.status != "proposed":
@@ -106,4 +116,5 @@ def assess_proposal(
         decided_by=decided_by,
         reason_category=reason_category,
         reason=reason,
+        decided_at=decided_at,
     )
