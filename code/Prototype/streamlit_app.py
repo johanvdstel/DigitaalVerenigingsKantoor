@@ -20,14 +20,37 @@ DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
 REJECTION_LABELS = {
     "Persoonlijke omstandigheid": "personal_circumstance",
     "Niet geschikt voor deze dienst": "unsuitable_for_service",
-    "Planning": "planning",
-    "Brongegevens onjuist": "source_data_incorrect",
-    "Anders": "other",
+    "Brongegevens kloppen niet": "source_data_incorrect",
+    "Andere bijzonderheid": "other",
+}
+MATCH_LABELS = {
+    "no_match_context": "Geen wedstrijdcontext nodig",
+    "no_match_that_day": "Geen wedstrijd op deze dag",
+    "home_overlap": "Thuiswedstrijd overlapt met dienst",
+    "home_same_day": "Thuiswedstrijd op dezelfde dag",
+    "away_overlap": "Uitwedstrijd overlapt met dienst",
+    "away_same_day": "Uitwedstrijd op dezelfde dag",
+}
+RULE_LABELS = {
+    "higher_current_E": "Hoge resterende uren",
+    "previous_season_backlog_before_december": "Achterstand vorig seizoen meegewogen",
+    "home_match_overlap": "Thuiswedstrijd sluit aan op dienst",
+    "home_match_same_day": "Thuiswedstrijd op dezelfde dag",
 }
 
 
 def _datum_met_dag(moment: datetime) -> str:
     return f"{DAGEN[moment.weekday()]} {moment:%d-%m}"
+
+
+def _vriendelijke_wedstrijdcontext(value: str) -> str:
+    return MATCH_LABELS.get(value, value.replace("_", " ").capitalize())
+
+
+def _vriendelijke_waarom(rules: tuple[str, ...]) -> str:
+    if not rules:
+        return "Geschikt volgens de planningsregels"
+    return "; ".join(RULE_LABELS.get(rule, rule.replace("_", " ").capitalize()) for rule in rules)
 
 
 def _demo_data(start: date):
@@ -53,22 +76,12 @@ def _demo_data(start: date):
 
 def _demo_proposals(service: DutyService, need: StaffingNeed):
     cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
-    memberships = tuple(
-        TeamMembership(case.person.person_id, "SEN-8", service.starts_at.date() - timedelta(days=60), service.starts_at.date() + timedelta(days=300))
-        for case in cases
-    )
+    memberships = tuple(TeamMembership(case.person.person_id, "SEN-8", service.starts_at.date() - timedelta(days=60), service.starts_at.date() + timedelta(days=300)) for case in cases)
     assessments = tuple(assess_candidate(case, service, memberships, (), TODAY) for case in cases)
     eligible = tuple(a for a in assessments if a.eligible)
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date())
     by_person = {p.person_id: p for p in priorities}
-    proposals = tuple(
-        create_assignment_proposal(
-            f"DEMO-{service.service_id}-{case.person.person_id}", service, case,
-            next(a for a in eligible if a.person_id == case.person.person_id),
-            by_person[case.person.person_id], (),
-        )
-        for case in cases if case.person.person_id in by_person
-    )
+    proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], ()) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
 
 
@@ -100,19 +113,18 @@ c1, c2, c3, c4 = st.columns(4)
 c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services)); c3.metric("Bevestigd", sum(r.confirmed_occupancy for r in overview.services)); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services))
 
 st.markdown("### Diensten")
-if not overview.services: st.info("Geen diensten in de gekozen periode.")
+if not overview.services:
+    st.info("Geen diensten in de gekozen periode.")
+    selected_service_id = None
 else:
+    service_options = {r.service_id: f"{_datum_met_dag(r.starts_at)} · {r.service_type} · {r.starts_at:%H:%M}–{r.ends_at:%H:%M} · {r.location}" for r in overview.services}
+    selected_service_id = st.radio("Selecteer een dienst om kandidaten te bekijken", tuple(service_options), format_func=service_options.get, horizontal=True, label_visibility="collapsed")
     st.dataframe([{"Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Locatie": r.location, "Min": r.minimum_staff, "Max": r.maximum_staff, "Bevestigd": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services], use_container_width=True, hide_index=True)
 
 st.markdown("### Kandidaten en voorstellen")
-if not overview.services:
-    st.info("Selecteer een periode met diensten om kandidaten te bekijken.")
+if selected_service_id is None:
+    st.info("Selecteer eerst een dienst.")
 else:
-    selected_service_id = st.selectbox(
-        "Dienst",
-        [r.service_id for r in overview.services],
-        format_func=lambda sid: f"{_datum_met_dag(service_by_id[sid].starts_at)} · {service_by_id[sid].service_type} · {service_by_id[sid].starts_at:%H:%M}",
-    )
     service = service_by_id[selected_service_id]
     need = need_by_service[selected_service_id]
     cases, planned = _demo_proposals(service, need)
@@ -120,39 +132,50 @@ else:
     if not planned:
         st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt of er zijn geen geschikte kandidaten.")
     else:
-        st.dataframe([{
-            "Rang": item.proposal.priority_rank,
-            "Kandidaat": case_by_person[item.proposal.person_id].person.name,
-            "Resterende uren": item.proposal.E,
-            "Doel": "Minimumbezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvullende capaciteit",
-            "Wedstrijdcontext": item.proposal.match_relation,
-            "Waarom": "; ".join(item.proposal.applied_priority_rules),
-        } for item in planned], use_container_width=True, hide_index=True)
+        st.caption(f"Selecteer maximaal {need.remaining_capacity} kandidaat/kandidaten. Niet geselecteerde kandidaten blijven beschikbaar voor een volgende planning.")
+        selected_proposal_ids = []
+        header = st.columns((0.7, 0.7, 2.2, 1.1, 1.8, 2.0, 2.4, 0.9))
+        for col, text in zip(header, ("Kies", "Rang", "Kandidaat", "Uren E", "Doel", "Wedstrijdcontext", "Waarom", "Meer")):
+            col.markdown(f"**{text}**")
+        for item in planned:
+            proposal = item.proposal
+            cols = st.columns((0.7, 0.7, 2.2, 1.1, 1.8, 2.0, 2.4, 0.9))
+            if cols[0].checkbox("Selecteer", key=f"pick-{selected_service_id}-{proposal.proposal_id}", label_visibility="collapsed"):
+                selected_proposal_ids.append(proposal.proposal_id)
+            cols[1].write(proposal.priority_rank)
+            cols[2].write(case_by_person[proposal.person_id].person.name)
+            cols[3].write(proposal.E)
+            cols[4].write("Minimumbezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot maximum")
+            cols[5].write(_vriendelijke_wedstrijdcontext(proposal.match_relation))
+            cols[6].write(_vriendelijke_waarom(proposal.applied_priority_rules))
+            with cols[7].popover("⋯"):
+                st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
+                with st.form(f"exception-{proposal.proposal_id}"):
+                    reason_label = st.selectbox("Reden", tuple(REJECTION_LABELS), key=f"reasoncat-{proposal.proposal_id}")
+                    reason = st.text_input("Toelichting", key=f"reason-{proposal.proposal_id}")
+                    submitted = st.form_submit_button("Uitzondering vastleggen")
+                    if submitted:
+                        if not reason.strip():
+                            st.error("Een toelichting is verplicht.")
+                        else:
+                            result = ProposalDecisionApplicationService(identity).reject(proposal, case_by_person[proposal.person_id], reason_category=REJECTION_LABELS[reason_label], reason=reason)
+                            st.session_state[f"exception-result-{proposal.proposal_id}"] = result
+                if st.session_state.get(f"exception-result-{proposal.proposal_id}"):
+                    st.warning("Uitzondering vastgelegd. De urenpositie blijft ongewijzigd; deze persoon kan bij een volgende planning opnieuw worden voorgesteld.")
 
-        proposal_ids = [item.proposal.proposal_id for item in planned]
-        chosen_id = st.selectbox("Kandidaat beoordelen", proposal_ids, format_func=lambda pid: case_by_person[next(i.proposal.person_id for i in planned if i.proposal.proposal_id == pid)].person.name)
-        chosen = next(item.proposal for item in planned if item.proposal.proposal_id == chosen_id)
-        chosen_case = case_by_person[chosen.person_id]
-        st.caption("De DVK doet een voorstel. Pas na jouw expliciete goedkeuring ontstaat een DutyAssignment.")
-        left, right = st.columns(2)
-        with left:
-            if st.button("Goedkeuren", type="primary", use_container_width=True):
-                result = ProposalDecisionApplicationService(identity).approve(chosen, service, chosen_case, assignment_id=f"UI-{uuid4()}")
-                st.session_state[f"decision-{chosen.proposal_id}"] = result
-        with right:
-            with st.form(f"reject-{chosen.proposal_id}"):
-                reason_label = st.selectbox("Redencategorie", tuple(REJECTION_LABELS))
-                reason = st.text_input("Toelichting afwijzing")
-                rejected = st.form_submit_button("Afwijzen", use_container_width=True)
-                if rejected:
-                    if not reason.strip(): st.error("Een toelichting is verplicht bij afwijzen.")
-                    else:
-                        result = ProposalDecisionApplicationService(identity).reject(chosen, chosen_case, reason_category=REJECTION_LABELS[reason_label], reason=reason)
-                        st.session_state[f"decision-{chosen.proposal_id}"] = result
-        result = st.session_state.get(f"decision-{chosen.proposal_id}")
-        if result:
-            if result.decision.decision == "approved": st.success(f"Goedgekeurd door {result.decision.decided_by}. DutyAssignment {result.assignment.assignment_id} is aangemaakt.")
-            else: st.warning(f"Afgewezen door {result.decision.decided_by}: {result.decision.reason}")
+        if len(selected_proposal_ids) > need.remaining_capacity:
+            st.error(f"Je hebt {len(selected_proposal_ids)} kandidaten geselecteerd. Voor deze dienst zijn nog maximaal {need.remaining_capacity} plaatsen beschikbaar.")
+        st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
+        if st.button("Selectie bevestigen", type="primary", disabled=(not selected_proposal_ids or len(selected_proposal_ids) > need.remaining_capacity)):
+            results = []
+            for proposal_id in selected_proposal_ids:
+                proposal = next(item.proposal for item in planned if item.proposal.proposal_id == proposal_id)
+                results.append(ProposalDecisionApplicationService(identity).approve(proposal, service, case_by_person[proposal.person_id], assignment_id=f"UI-{uuid4()}"))
+            st.session_state[f"confirmed-{selected_service_id}"] = results
+        confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
+        if confirmed:
+            names = [case_by_person[result.assignment.person_id].person.name for result in confirmed if result.assignment]
+            st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
 
 st.markdown("### Wedstrijden")
 if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
@@ -163,4 +186,4 @@ st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("
 st.markdown("### Datakwaliteit")
 if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
 else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-st.caption("Gate 8 gebruikt demonstratiedata. Kandidaatselectie, prioritering en beslisregels zitten buiten Streamlit; mutaties lopen via ProposalDecisionApplicationService en autorisatie.")
+st.caption("Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing. Uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie; kandidaatselectie, prioritering en beslisregels blijven buiten Streamlit.")
