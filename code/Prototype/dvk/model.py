@@ -107,10 +107,24 @@ class SportlinkDutyRegistration:
 
 
 @dataclass(frozen=True)
+class FunctionExemptionPolicy:
+    """CKC policy for one Sportlink function, separate from the source role fact."""
+
+    role: str
+    self_exempt: bool
+    household_exempt: bool
+
+
+@dataclass(frozen=True)
 class DutyPolicy:
-    """Explicit CKC policy; the norm is not a source fact or duty qualification."""
+    """Explicit, versionable CKC duty policy; source facts remain separate."""
 
     required_hours: int = 10
+    version: str = "legacy-v0.4"
+    function_exemptions: tuple[FunctionExemptionPolicy, ...] = ()
+
+    def function_policy(self, role: str) -> FunctionExemptionPolicy | None:
+        return next((item for item in self.function_exemptions if item.role == role), None)
 
 
 @dataclass(frozen=True)
