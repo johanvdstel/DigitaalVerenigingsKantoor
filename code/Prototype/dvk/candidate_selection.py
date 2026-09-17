@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from .duty import derive_duty_qualification, derive_executor_category
 from .model import PrototypeCase
 from .workstream_model import CandidateAssessment, DutyService, Match, TeamMembership
+
+# v0.5 planning assumption: a match occupies two hours from kick-off
+# (2x45 minutes, 15 minutes half-time, 15 minutes run-out).
+MATCH_PLANNING_DURATION = timedelta(hours=2)
 
 
 def _active_team_membership(
@@ -37,8 +41,10 @@ def _match_for_team_on_service_date(
     )
 
 
-def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
-    return service.starts_at <= match.starts_at < service.ends_at
+def _match_overlaps_service(match: Match, service: DutyService) -> bool:
+    """True when the service and the v0.5 two-hour match window share time."""
+    match_ends_at = match.starts_at + MATCH_PLANNING_DURATION
+    return service.starts_at < match_ends_at and service.ends_at > match.starts_at
 
 
 def _youth_service_window_allowed(service: DutyService) -> bool:
@@ -66,8 +72,6 @@ def assess_candidate(
             None, None, "not_assessed", "none", qualification.reason,
         )
 
-    # Youth duties are fulfilled by a parent/guardian. They are available on
-    # weekdays and for weekend services that start no later than 12:30.
     if executor_category == "parent_guardian" and not _youth_service_window_allowed(service):
         return CandidateAssessment(
             person_id, service.service_id, False, executor_category,
@@ -89,11 +93,9 @@ def assess_candidate(
             team.team_id, None, "no_match_that_day", "neutral",
         )
 
-    overlap = _match_start_overlaps_service(match, service)
+    overlap = _match_overlaps_service(match, service)
     home_away = match.home_away.lower()
 
-    # Away match: overlap is a hard exclusion for both youth and seniors.
-    # Without overlap the candidate remains available only as an emergency option.
     if home_away == "away":
         if overlap:
             return CandidateAssessment(
@@ -107,9 +109,6 @@ def assess_candidate(
         )
 
     if home_away == "home":
-        # Youth member: the parent/guardian performs the duty, so overlap with
-        # the child's home match is allowed. A senior performs the duty personally
-        # and is therefore excluded when the home match overlaps.
         if overlap:
             if executor_category == "parent_guardian":
                 return CandidateAssessment(
