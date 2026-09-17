@@ -2,7 +2,7 @@ from datetime import date, datetime
 
 import pytest
 
-from dvk.assignments import create_duty_assignment
+from dvk.assignments import apply_assignment_to_case, create_duty_assignment
 from dvk.candidate_selection import assess_candidate
 from dvk.proposal_planning import plan_proposals
 from dvk.proposals import assess_proposal, create_assignment_proposal
@@ -30,9 +30,9 @@ def _engine_run():
     )
 
 
-def _proposal(proposal_id: str = "P-G8", *, with_run_context: bool = False):
+def _proposal(proposal_id: str = "P-G8", *, with_run_context: bool = False, service: DutyService | None = None):
     case = W_CASE_BY_ID["W08"]
-    service = DutyService(
+    service = service or DutyService(
         "BAR-WO-G8", "bardienst",
         datetime(2026, 9, 16, 19), datetime(2026, 9, 16, 22),
         "Clubhuis", 1,
@@ -62,9 +62,7 @@ def test_v06_distinguishes_minimum_coverage_from_optional_capacity():
     proposal2 = proposal2.__class__(**{**proposal2.__dict__, "priority_rank": 2})
     need = StaffingNeed(service.service_id, 1, 2, 0, 1, 2)
     planned = plan_proposals((proposal2, proposal1), need)
-    assert [item.staffing_purpose for item in planned] == [
-        "minimum_coverage", "optional_capacity"
-    ]
+    assert [item.staffing_purpose for item in planned] == ["minimum_coverage", "optional_capacity"]
 
 
 def test_v06_when_minimum_is_met_candidate_is_optional_capacity():
@@ -90,11 +88,8 @@ def test_v07_approval_creates_decision_and_assignment():
 def test_v07_approval_retains_engine_snapshot_policy_and_time_context():
     _, service, proposal = _proposal(with_run_context=True)
     decided_at = datetime(2026, 9, 16, 9, 30)
-    decision = assess_proposal(
-        proposal, "approved", "planner-1", decided_at=decided_at
-    )
+    decision = assess_proposal(proposal, "approved", "planner-1", decided_at=decided_at)
     assignment = create_duty_assignment("A-G8-CONTEXT", proposal, decision, service)
-
     assert proposal.engine_run_id == "RUN-G8"
     assert proposal.snapshot_ids == ("SNAP-LEDEN-G8", "SNAP-VRIJW-G8")
     assert proposal.policy_version == "policy-g8"
@@ -110,12 +105,34 @@ def test_v07_approval_retains_engine_snapshot_policy_and_time_context():
     assert assignment.decided_at == decided_at
 
 
+def test_v07_allows_service_longer_than_remaining_hours_and_negative_position():
+    service = DutyService("BAR-4H-G8", "bardienst", datetime(2026, 9, 16, 18), datetime(2026, 9, 16, 22), "Clubhuis", 1)
+    case, service, proposal = _proposal("P-G8-OVER", service=service)
+    proposal = proposal.__class__(**{**proposal.__dict__, "E": 3})
+    decision = assess_proposal(proposal, "approved", "planner-1")
+    assignment = create_duty_assignment("A-G8-OVER", proposal, decision, service)
+    assert assignment is not None
+    assert assignment.scheduled_hours == 4
+    updated = apply_assignment_to_case(case, assignment)
+    original_e = case.sportlink_duty.required_hours - case.sportlink_duty.correction_hours - case.sportlink_duty.completed_hours - case.sportlink_duty.scheduled_hours
+    updated_e = updated.sportlink_duty.required_hours - updated.sportlink_duty.correction_hours - updated.sportlink_duty.completed_hours - updated.sportlink_duty.scheduled_hours
+    assert updated_e == original_e - 4
+
+
+def test_v07_allows_half_hour_service_duration():
+    service = DutyService("CK-45H-G8", "gastvrouw/heer", datetime(2026, 9, 16, 12, 30), datetime(2026, 9, 16, 17), "Commissiekamer", 1)
+    case, service, proposal = _proposal("P-G8-HALF", service=service)
+    decision = assess_proposal(proposal, "approved", "planner-1")
+    assignment = create_duty_assignment("A-G8-HALF", proposal, decision, service)
+    assert assignment is not None
+    assert assignment.scheduled_hours == 4.5
+    updated = apply_assignment_to_case(case, assignment)
+    assert updated.sportlink_duty.scheduled_hours == case.sportlink_duty.scheduled_hours + 4.5
+
+
 def test_v08_rejection_is_auditable_and_creates_no_assignment():
     _, service, proposal = _proposal()
-    decision = assess_proposal(
-        proposal, "rejected", "planner-1",
-        "personal_circumstance", "Kan deze avond niet",
-    )
+    decision = assess_proposal(proposal, "rejected", "planner-1", "personal_circumstance", "Kan deze avond niet")
     assignment = create_duty_assignment("A-NOT-CREATED", proposal, decision, service)
     assert decision.reason_category == "personal_circumstance"
     assert decision.reason == "Kan deze avond niet"
@@ -125,6 +142,4 @@ def test_v08_rejection_is_auditable_and_creates_no_assignment():
 def test_v08_rejection_requires_reason():
     _, _, proposal = _proposal()
     with pytest.raises(ValueError, match="rejection reason"):
-        assess_proposal(
-            proposal, "rejected", "planner-1", "personal_circumstance", ""
-        )
+        assess_proposal(proposal, "rejected", "planner-1", "personal_circumstance", "")
