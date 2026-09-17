@@ -55,6 +55,7 @@ class EngineRun:
     snapshot_ids: tuple[str, ...]
     source_fetch_ids: tuple[str, ...]
     policy_version: str
+    config_version: str
     engine_version: str
     completed_at: datetime | None = None
 
@@ -63,8 +64,8 @@ class EngineRun:
             raise ValueError("period_end cannot precede period_start")
         if not self.initiated_by.strip():
             raise ValueError("initiated_by is required")
-        if not self.policy_version.strip() or not self.engine_version.strip():
-            raise ValueError("policy_version and engine_version are required")
+        if not self.policy_version.strip() or not self.config_version.strip() or not self.engine_version.strip():
+            raise ValueError("policy_version, config_version and engine_version are required")
         if self.status is EngineRunStatus.STARTED and self.completed_at is not None:
             raise ValueError("started run cannot already have completed_at")
         if self.status is not EngineRunStatus.STARTED and self.completed_at is None:
