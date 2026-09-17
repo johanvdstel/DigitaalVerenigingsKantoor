@@ -21,7 +21,7 @@ from dvk.workstream_model import DutyService, Match, TeamMembership
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
 REJECTION_LABELS = {"Persoonlijke omstandigheid": "personal_circumstance", "Niet geschikt voor deze dienst": "unsuitable_for_service", "Brongegevens kloppen niet": "source_data_incorrect", "Andere bijzonderheid": "other"}
-MATCH_LABELS = {"no_match_context": "Geen wedstrijd", "no_match_that_day": "Geen wedstrijd", "home_overlap": "Thuiswedstrijd overlapt", "home_same_day": "Thuiswedstrijd", "away_overlap": "Uitwedstrijd overlapt", "away_same_day": "Uitwedstrijd"}
+MATCH_LABELS = {"no_match_context": "Geen wedstrijd", "no_match_that_day": "Geen wedstrijd", "home_match_overlaps_service": "Thuiswedstrijd overlapt", "home_match_same_day": "Thuiswedstrijd", "away_match_overlaps_service": "Uitwedstrijd overlapt", "away_match_same_day": "Uitwedstrijd"}
 RULE_LABELS = {"previous_season_backlog_before_december": "Openstaande uren uit vorig seizoen meegewogen", "home_match_overlap": "Thuiswedstrijd sluit aan op dienst", "home_match_same_day": "Thuiswedstrijd op dezelfde dag", "away_match_emergency": "Uitwedstrijd meegewogen als noodoptie"}
 
 
@@ -115,7 +115,9 @@ if selected_service_id is None: st.info("Selecteer eerst één dienst in de tabe
 else:
     service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
     cases, planned = _demo_proposals(service, need, matches); case_by_person = {c.person.person_id: c for c in cases}
-    if not planned: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt of er zijn geen geschikte kandidaten.")
+    if not planned:
+        if need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
+        else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
     else:
         st.caption(f"Er zijn nog {need.remaining_capacity} plaatsen beschikbaar. Niet geselecteerde kandidaten blijven beschikbaar voor een volgende planning.")
         selected_proposal_ids = []
