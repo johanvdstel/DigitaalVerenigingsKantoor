@@ -1,5 +1,7 @@
 from datetime import date, datetime, timezone
 
+import pytest
+
 from dvk.import_management import ImportBatch, ImportStatus, SnapshotRecord
 from dvk.import_workflow import confirm_import
 from dvk.persistence import SQLiteDatabase
@@ -10,6 +12,10 @@ START = date(2026, 9, 14)
 END = date(2026, 9, 20)
 
 
+def run(run_id="R1", status=EngineRunStatus.COMPLETED, fetches=(), snapshots=()):
+    return EngineRun(run_id, NOW, "planner", START, END, status, snapshots, fetches, "policy-v0.5", "shift-catalog-v1", "dvk-0.5", NOW)
+
+
 def test_successful_empty_fetch_is_distinct_from_failed_fetch():
     empty = SourceFetch("F1", "Sportlink", "Programma", NOW, NOW, START, END, SourceFetchStatus.SUCCEEDED, 0)
     failed = SourceFetch("F2", "Sportlink", "Programma", NOW, NOW, START, END, SourceFetchStatus.FAILED, None, "CONNECTION_FAILURE")
@@ -17,29 +23,34 @@ def test_successful_empty_fetch_is_distinct_from_failed_fetch():
     assert failed.record_count is None and failed.error_category == "CONNECTION_FAILURE"
 
 
-def test_engine_run_persists_snapshot_live_fetch_policy_and_engine_context(tmp_path):
+def test_engine_run_requires_explicit_config_version():
+    with pytest.raises(ValueError, match="config_version"):
+        EngineRun("R1", NOW, "planner", START, END, EngineRunStatus.COMPLETED, (), (), "policy-v0.5", " ", "dvk-0.5", NOW)
+
+
+def test_engine_run_persists_snapshot_live_fetch_policy_config_and_engine_context(tmp_path):
     db = SQLiteDatabase(tmp_path / "dvk.sqlite")
     batch = ImportBatch("B1", "Sportlink", "leden", "2026-2027", NOW, "tester", ImportStatus.AWAITING_CONFIRMATION, "ok")
-    with db.unit_of_work() as uow:
-        uow.import_batches.add(batch); uow.commit()
-    with db.unit_of_work() as uow:
-        confirm_import(uow, batch, (SnapshotRecord("PREVIEW", "P1", "raw", "canonical", "prov"),), snapshot_id="S1", confirmed_at=NOW, confirmed_by="planner")
+    with db.unit_of_work() as uow: uow.import_batches.add(batch); uow.commit()
+    with db.unit_of_work() as uow: confirm_import(uow, batch, (SnapshotRecord("PREVIEW", "P1", "raw", "canonical", "prov"),), snapshot_id="S1", confirmed_at=NOW, confirmed_by="planner")
     fetch = SourceFetch("F1", "Sportlink", "Programma", NOW, NOW, START, END, SourceFetchStatus.SUCCEEDED, 12)
-    run = EngineRun("R1", NOW, "planner", START, END, EngineRunStatus.COMPLETED, ("S1",), ("F1",), "policy-v0.5", "dvk-0.5", NOW)
-    with db.unit_of_work() as uow:
-        uow.source_fetches.add(fetch); uow.engine_runs.add(run); uow.commit()
+    engine_run = run(fetches=("F1",), snapshots=("S1",))
+    with db.unit_of_work() as uow: uow.source_fetches.add(fetch); uow.engine_runs.add(engine_run); uow.commit()
     with db.unit_of_work() as uow:
         assert uow.source_fetches.get("F1") == fetch
-        assert uow.engine_runs.get("R1") == run
+        restored = uow.engine_runs.get("R1")
+        assert restored == engine_run
+        assert restored.policy_version == "policy-v0.5"
+        assert restored.config_version == "shift-catalog-v1"
+        assert restored.engine_version == "dvk-0.5"
 
 
 def test_engine_run_can_reference_multiple_read_only_live_sources(tmp_path):
     db = SQLiteDatabase(tmp_path / "dvk.sqlite")
     programma = SourceFetch("FP", "Sportlink", "Programma", NOW, NOW, START, END, SourceFetchStatus.SUCCEEDED, 8)
     vrijwilligers = SourceFetch("FV", "Sportlink", "Vrijwilligers", NOW, NOW, START, END, SourceFetchStatus.SUCCEEDED, 3)
-    run = EngineRun("R1", NOW, "planner", START, END, EngineRunStatus.COMPLETED, (), ("FP", "FV"), "policy-v0.5", "dvk-0.5", NOW)
-    with db.unit_of_work() as uow:
-        uow.source_fetches.add(programma); uow.source_fetches.add(vrijwilligers); uow.engine_runs.add(run); uow.commit()
+    engine_run = run(fetches=("FP", "FV"))
+    with db.unit_of_work() as uow: uow.source_fetches.add(programma); uow.source_fetches.add(vrijwilligers); uow.engine_runs.add(engine_run); uow.commit()
     with db.unit_of_work() as uow:
         restored = uow.engine_runs.get("R1")
         assert set(restored.source_fetch_ids) == {"FP", "FV"}
@@ -50,9 +61,8 @@ def test_engine_run_can_reference_multiple_read_only_live_sources(tmp_path):
 def test_failed_live_fetch_remains_historical_context_not_empty_data(tmp_path):
     db = SQLiteDatabase(tmp_path / "dvk.sqlite")
     failed = SourceFetch("F1", "Sportlink", "Vrijwilligers", NOW, NOW, START, END, SourceFetchStatus.FAILED, None, "HTTP_503")
-    run = EngineRun("R1", NOW, "planner", START, END, EngineRunStatus.FAILED, (), ("F1",), "policy-v0.5", "dvk-0.5", NOW)
-    with db.unit_of_work() as uow:
-        uow.source_fetches.add(failed); uow.engine_runs.add(run); uow.commit()
+    engine_run = run(status=EngineRunStatus.FAILED, fetches=("F1",))
+    with db.unit_of_work() as uow: uow.source_fetches.add(failed); uow.engine_runs.add(engine_run); uow.commit()
     with db.unit_of_work() as uow:
         restored = uow.source_fetches.get("F1")
         assert restored.status is SourceFetchStatus.FAILED
