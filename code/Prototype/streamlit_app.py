@@ -25,18 +25,18 @@ REJECTION_LABELS = {
     "Andere bijzonderheid": "other",
 }
 MATCH_LABELS = {
-    "no_match_context": "Geen wedstrijdcontext nodig",
-    "no_match_that_day": "Geen wedstrijd op deze dag",
-    "home_overlap": "Thuiswedstrijd overlapt met dienst",
-    "home_same_day": "Thuiswedstrijd op dezelfde dag",
-    "away_overlap": "Uitwedstrijd overlapt met dienst",
-    "away_same_day": "Uitwedstrijd op dezelfde dag",
+    "no_match_context": "Geen wedstrijd voor kandidaat",
+    "no_match_that_day": "Geen wedstrijd voor kandidaat",
+    "home_overlap": "Thuiswedstrijd overlapt",
+    "home_same_day": "Thuiswedstrijd dezelfde dag",
+    "away_overlap": "Uitwedstrijd overlapt",
+    "away_same_day": "Uitwedstrijd dezelfde dag",
 }
 RULE_LABELS = {
-    "higher_current_E": "Veel openstaande vrijwilligersuren",
-    "previous_season_backlog_before_december": "Achterstand vorig seizoen meegewogen",
+    "previous_season_backlog_before_december": "Openstaande uren uit vorig seizoen meegewogen",
     "home_match_overlap": "Thuiswedstrijd sluit aan op dienst",
     "home_match_same_day": "Thuiswedstrijd op dezelfde dag",
+    "away_match_emergency": "Uitwedstrijd meegewogen als noodoptie",
 }
 
 
@@ -48,10 +48,17 @@ def _vriendelijke_wedstrijdcontext(value: str) -> str:
     return MATCH_LABELS.get(value, value.replace("_", " ").capitalize())
 
 
-def _vriendelijke_waarom(rules: tuple[str, ...]) -> str:
-    if not rules:
-        return "Geschikt volgens de planningsregels"
-    return "; ".join(RULE_LABELS.get(rule, rule.replace("_", " ").capitalize()) for rule in rules)
+def _vriendelijke_waarom(proposal) -> str:
+    details: list[str] = []
+    if proposal.previous_season_backlog > 0 and proposal.previous_season_considered:
+        details.append(f"Nog {proposal.previous_season_backlog} openstaande uren uit vorig seizoen")
+    for rule in proposal.applied_priority_rules:
+        if rule == "higher_current_E" or rule == "previous_season_backlog_before_december":
+            continue
+        label = RULE_LABELS.get(rule)
+        if label and label not in details:
+            details.append(label)
+    return "; ".join(details) if details else "—"
 
 
 def _demo_data(start: date):
@@ -124,15 +131,7 @@ if not overview.services:
 else:
     previous_service = st.session_state.get("selected_service_id")
     service_rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Locatie": r.location, "Min": r.minimum_staff, "Max": r.maximum_staff, "Bevestigd": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
-    edited_services = st.data_editor(
-        pd.DataFrame(service_rows),
-        hide_index=True,
-        use_container_width=True,
-        height=210,
-        disabled=["service_id", "Datum", "Tijd", "Dienst", "Locatie", "Min", "Max", "Bevestigd", "Open minimum", "Vrije capaciteit"],
-        column_config={"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", help="Selecteer één dienst")},
-        key="services_editor",
-    )
+    edited_services = st.data_editor(pd.DataFrame(service_rows), hide_index=True, use_container_width=True, height=210, disabled=["service_id", "Datum", "Tijd", "Dienst", "Locatie", "Min", "Max", "Bevestigd", "Open minimum", "Vrije capaciteit"], column_config={"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", help="Selecteer één dienst")}, key="services_editor")
     selected_rows = edited_services[edited_services["Kies"]]
     if len(selected_rows) > 1:
         st.error("Selecteer maximaal één dienst.")
@@ -169,7 +168,7 @@ else:
                 cols[3].write(proposal.E)
                 cols[4].write("Minimumbezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot maximum")
                 cols[5].write(_vriendelijke_wedstrijdcontext(proposal.match_relation))
-                cols[6].write(_vriendelijke_waarom(proposal.applied_priority_rules))
+                cols[6].write(_vriendelijke_waarom(proposal))
                 with cols[7].popover("⋯"):
                     st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
                     with st.form(f"exception-{proposal.proposal_id}"):
@@ -203,12 +202,7 @@ st.markdown("### Wedstrijden")
 if not overview.matches:
     st.info("Geen wedstrijden in de gekozen periode.")
 else:
-    st.dataframe(
-        [{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches],
-        use_container_width=True,
-        hide_index=True,
-        height=230,
-    )
+    st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
 
 st.markdown("### Databronnen")
 st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True)
