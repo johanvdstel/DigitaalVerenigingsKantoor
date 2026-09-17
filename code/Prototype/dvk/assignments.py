@@ -15,9 +15,8 @@ def create_duty_assignment(
     """Turn an approved proposal into a factual scheduled duty.
 
     A rejected proposal deliberately yields no assignment. The assignment records
-    scheduled hours; applying those hours to the administrative duty position is
-    a separate explicit operation. v0.5 also retains the proposal's EngineRun
-    context so the factual assignment remains reconstructible.
+    the full service duration. A member may therefore be scheduled for more hours
+    than remain open; a negative remaining position is valid CKC administration.
     """
     if decision.proposal_id != proposal.proposal_id:
         raise ValueError("human decision does not belong to proposal")
@@ -29,11 +28,8 @@ def create_duty_assignment(
         raise ValueError("DutyAssignment requires an approved proposal")
 
     duration = service.duration_hours
-    if duration <= 0 or not duration.is_integer():
-        raise ValueError("prototype requires a positive whole-hour duty duration")
-    scheduled_hours = int(duration)
-    if scheduled_hours > proposal.E:
-        raise ValueError("duty duration exceeds remaining unscheduled hours")
+    if duration <= 0:
+        raise ValueError("duty duration must be positive")
 
     return DutyAssignment(
         assignment_id=assignment_id,
@@ -41,7 +37,7 @@ def create_duty_assignment(
         service_id=proposal.service_id,
         person_id=proposal.person_id,
         executor_category=proposal.executor_category,
-        scheduled_hours=scheduled_hours,
+        scheduled_hours=duration,
         approved_by=decision.decided_by,
         engine_run_id=proposal.engine_run_id,
         snapshot_ids=proposal.snapshot_ids,
