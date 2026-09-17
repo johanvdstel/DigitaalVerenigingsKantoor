@@ -4,6 +4,7 @@ from typing import Any, Protocol
 
 from ..import_management import ImportBatch, SnapshotRecord, SourceSnapshot
 from ..run_context import EngineRun, SourceFetch
+from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
 
 
 class RecordRepository(Protocol):
@@ -32,3 +33,18 @@ class SourceFetchRepository(Protocol):
 class EngineRunRepository(Protocol):
     def add(self, run: EngineRun) -> None: ...
     def get(self, engine_run_id: str) -> EngineRun | None: ...
+
+
+class PolicyVersionRepository(Protocol):
+    def add(self, version: PolicyVersion) -> None: ...
+    def get(self, version_id: str) -> PolicyVersion | None: ...
+
+
+class ConfigVersionRepository(Protocol):
+    def add(self, version: ConfigVersion) -> None: ...
+    def get(self, version_id: str) -> ConfigVersion | None: ...
+
+
+class SoftwareVersionRepository(Protocol):
+    def add(self, version: SoftwareVersion) -> None: ...
+    def get(self, version_id: str) -> SoftwareVersion | None: ...
