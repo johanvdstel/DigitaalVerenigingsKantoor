@@ -22,44 +22,96 @@ class ImportPreviewResult:
 
 
 class ImportApplicationService:
-    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None): self.uow = uow; self.identity = identity; self.authorizer = authorizer or Authorizer()
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
+        self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
     def preview(self, batch: ImportBatch, records: tuple[SnapshotRecord, ...]) -> ImportPreviewResult:
-        self.authorizer.require(self.identity, Permission.PREVIEW_IMPORT); return ImportPreviewResult(batch, tuple(preview_differences(self.uow, batch, records)))
+        self.authorizer.require(self.identity, Permission.PREVIEW_IMPORT)
+        return ImportPreviewResult(batch, tuple(preview_differences(self.uow, batch, records)))
+
     def confirm(self, batch: ImportBatch, records: tuple[SnapshotRecord, ...], *, snapshot_id: str, confirmed_at: datetime) -> SourceSnapshot:
-        self.authorizer.require(self.identity, Permission.CONFIRM_IMPORT); return confirm_import(self.uow, batch, records, snapshot_id=snapshot_id, confirmed_at=confirmed_at, confirmed_by=self.identity.subject_id)
+        self.authorizer.require(self.identity, Permission.CONFIRM_IMPORT)
+        return confirm_import(self.uow, batch, records, snapshot_id=snapshot_id, confirmed_at=confirmed_at, confirmed_by=self.identity.subject_id)
 
 
 class EngineRunApplicationService:
-    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None): self.uow = uow; self.identity = identity; self.authorizer = authorizer or Authorizer()
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
+        self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
     def record(self, run: EngineRun) -> EngineRun:
         self.authorizer.require(self.identity, Permission.RECORD_ENGINE_RUN)
-        if run.initiated_by != self.identity.subject_id: raise ValueError("EngineRun initiated_by must match authenticated identity")
-        self.uow.engine_runs.add(run); self.uow.commit(); return run
+        if run.initiated_by != self.identity.subject_id:
+            raise ValueError("EngineRun initiated_by must match authenticated identity")
+        self.uow.engine_runs.add(run)
+        self.uow.commit()
+        return run
 
 
 class PlanningApplicationService:
-    def __init__(self, identity: Identity, authorizer: Authorizer | None = None): self.identity = identity; self.authorizer = authorizer or Authorizer()
+    def __init__(self, identity: Identity, authorizer: Authorizer | None = None):
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
     def build_overview(self, *, period: PlanningPeriod, services: tuple[DutyService, ...], staffing_needs: tuple[StaffingNeed, ...], matches: tuple[Match, ...] = (), source_statuses: tuple[PlanningSourceStatus, ...] = (), data_quality_signals: tuple[DataQualitySignal, ...] = ()) -> PlanningOverview:
-        self.authorizer.require(self.identity, Permission.VIEW_PLANNING); return build_planning_overview(period=period, services=services, staffing_needs=staffing_needs, matches=matches, source_statuses=source_statuses, data_quality_signals=data_quality_signals)
+        self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
+        return build_planning_overview(period=period, services=services, staffing_needs=staffing_needs, matches=matches, source_statuses=source_statuses, data_quality_signals=data_quality_signals)
 
 
 class ProposalDecisionApplicationService:
-    """Authorized, atomic persistence boundary for human proposal decisions."""
-    def __init__(self, identity: Identity, authorizer: Authorizer | None = None, uow=None):
-        self.identity = identity; self.authorizer = authorizer or Authorizer(); self.uow = uow
+    """Authorized persistence boundary for human proposal decisions."""
 
-    def _persist(self, proposal: AssignmentProposal, result: DashboardActionResult) -> None:
-        if self.uow is None: return
+    def __init__(self, identity: Identity, authorizer: Authorizer | None = None, uow=None):
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+        self.uow = uow
+
+    def _add_without_commit(self, proposal: AssignmentProposal, result: DashboardActionResult) -> None:
+        if self.uow is None:
+            return
         self.uow.proposals.add(proposal)
         self.uow.decisions.add(result.decision)
-        if result.assignment is not None: self.uow.assignments.add(result.assignment)
-        self.uow.commit()
+        if result.assignment is not None:
+            self.uow.assignments.add(result.assignment)
+
+    def _persist(self, proposal: AssignmentProposal, result: DashboardActionResult) -> None:
+        self._add_without_commit(proposal, result)
+        if self.uow is not None:
+            self.uow.commit()
 
     def approve(self, proposal: AssignmentProposal, service: DutyService, case: PrototypeCase, *, assignment_id: str) -> DashboardActionResult:
         self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
         result = approve_from_dashboard(proposal, service, case, self.identity.subject_id, assignment_id)
         self._persist(proposal, result)
         return result
+
+    def approve_many(self, selections: tuple[tuple[AssignmentProposal, PrototypeCase, str], ...], service: DutyService, staffing_need: StaffingNeed) -> tuple[DashboardActionResult, ...]:
+        """Confirm one planner selection as a single transaction, bounded by remaining capacity."""
+        self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
+        if not selections:
+            raise ValueError("at least one candidate must be selected")
+        if len(selections) > staffing_need.remaining_capacity:
+            raise ValueError("selection exceeds remaining service capacity")
+        if staffing_need.service_id != service.service_id:
+            raise ValueError("staffing need does not belong to service")
+        if any(proposal.service_id != service.service_id for proposal, _, _ in selections):
+            raise ValueError("all proposals must belong to the selected service")
+        proposal_ids = [proposal.proposal_id for proposal, _, _ in selections]
+        if len(set(proposal_ids)) != len(proposal_ids):
+            raise ValueError("a proposal can only be selected once")
+
+        results = tuple(
+            approve_from_dashboard(proposal, service, case, self.identity.subject_id, assignment_id)
+            for proposal, case, assignment_id in selections
+        )
+        for (proposal, _, _), result in zip(selections, results):
+            self._add_without_commit(proposal, result)
+        if self.uow is not None:
+            self.uow.commit()
+        return results
 
     def reject(self, proposal: AssignmentProposal, case: PrototypeCase, *, reason_category: str, reason: str) -> DashboardActionResult:
         self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
