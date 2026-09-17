@@ -8,6 +8,7 @@ from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, 
 from .import_workflow import confirm_import, preview_differences
 from .model import PrototypeCase
 from .run_context import EngineRun
+from .security import Authorizer, Identity, Permission
 from .workstream_model import AssignmentProposal, DutyService
 
 
@@ -18,12 +19,15 @@ class ImportPreviewResult:
 
 
 class ImportApplicationService:
-    """Application boundary for previewing and confirming validated source imports."""
+    """Authorized application boundary for previewing and confirming source imports."""
 
-    def __init__(self, uow):
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
         self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
 
     def preview(self, batch: ImportBatch, records: tuple[SnapshotRecord, ...]) -> ImportPreviewResult:
+        self.authorizer.require(self.identity, Permission.PREVIEW_IMPORT)
         return ImportPreviewResult(batch, tuple(preview_differences(self.uow, batch, records)))
 
     def confirm(
@@ -33,28 +37,37 @@ class ImportApplicationService:
         *,
         snapshot_id: str,
         confirmed_at: datetime,
-        confirmed_by: str,
     ) -> SourceSnapshot:
+        self.authorizer.require(self.identity, Permission.CONFIRM_IMPORT)
         return confirm_import(
             self.uow, batch, records, snapshot_id=snapshot_id,
-            confirmed_at=confirmed_at, confirmed_by=confirmed_by,
+            confirmed_at=confirmed_at, confirmed_by=self.identity.subject_id,
         )
 
 
 class EngineRunApplicationService:
-    """Application boundary for persisting an already-computed engine run context."""
+    """Authorized application boundary for persisting an already-computed engine run context."""
 
-    def __init__(self, uow):
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
         self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
 
     def record(self, run: EngineRun) -> EngineRun:
+        self.authorizer.require(self.identity, Permission.RECORD_ENGINE_RUN)
+        if run.initiated_by != self.identity.subject_id:
+            raise ValueError("EngineRun initiated_by must match authenticated identity")
         self.uow.engine_runs.add(run)
         self.uow.commit()
         return run
 
 
 class ProposalDecisionApplicationService:
-    """Application orchestration for human proposal decisions; domain rules remain outside the UI."""
+    """Authorized orchestration for human proposal decisions; domain rules remain outside the UI."""
+
+    def __init__(self, identity: Identity, authorizer: Authorizer | None = None):
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
 
     def approve(
         self,
@@ -62,18 +75,22 @@ class ProposalDecisionApplicationService:
         service: DutyService,
         case: PrototypeCase,
         *,
-        decided_by: str,
         assignment_id: str,
     ) -> DashboardActionResult:
-        return approve_from_dashboard(proposal, service, case, decided_by, assignment_id)
+        self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
+        return approve_from_dashboard(
+            proposal, service, case, self.identity.subject_id, assignment_id
+        )
 
     def reject(
         self,
         proposal: AssignmentProposal,
         case: PrototypeCase,
         *,
-        decided_by: str,
         reason_category: str,
         reason: str,
     ) -> DashboardActionResult:
-        return reject_from_dashboard(proposal, case, decided_by, reason_category, reason)
+        self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
+        return reject_from_dashboard(
+            proposal, case, self.identity.subject_id, reason_category, reason
+        )
