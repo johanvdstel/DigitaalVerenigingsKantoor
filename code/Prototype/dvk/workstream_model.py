@@ -81,6 +81,11 @@ class AssignmentProposal:
     applied_priority_rules: tuple[str, ...]
     uncertainties: tuple[str, ...] = ()
     status: str = "proposed"
+    engine_run_id: str | None = None
+    snapshot_ids: tuple[str, ...] = ()
+    policy_version: str | None = None
+    config_version: str | None = None
+    software_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,6 +95,7 @@ class HumanDecision:
     decided_by: str
     reason_category: str | None = None
     reason: str | None = None
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +108,12 @@ class DutyAssignment:
     scheduled_hours: int
     approved_by: str
     status: str = "scheduled"
+    engine_run_id: str | None = None
+    snapshot_ids: tuple[str, ...] = ()
+    policy_version: str | None = None
+    config_version: str | None = None
+    software_version: str | None = None
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)
