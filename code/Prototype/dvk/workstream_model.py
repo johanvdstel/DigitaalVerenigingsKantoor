@@ -105,7 +105,7 @@ class DutyAssignment:
     service_id: str
     person_id: str
     executor_category: str | None
-    scheduled_hours: int
+    scheduled_hours: float
     approved_by: str
     status: str = "scheduled"
     engine_run_id: str | None = None
