@@ -64,14 +64,14 @@ def _demo_data(start: date):
     return services, needs, matches, statuses
 
 
-def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...]):
+def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
     cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
     memberships = tuple(TeamMembership(case.person.person_id, "SEN-8", service.starts_at.date() - timedelta(days=60), service.starts_at.date() + timedelta(days=300)) for case in cases)
     assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
     eligible = tuple(a for a in assessments if a.eligible)
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date())
     by_person = {p.person_id: p for p in priorities}
-    proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
+    proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
 
 

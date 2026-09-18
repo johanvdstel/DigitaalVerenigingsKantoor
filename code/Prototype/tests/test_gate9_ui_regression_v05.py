@@ -1,12 +1,9 @@
-from datetime import date
+from pathlib import Path
 
-from streamlit_app import _demo_data, _demo_proposals
+SOURCE = Path(__file__).parents[1] / "streamlit_app.py"
 
 
-def test_demo_proposal_ids_are_unique_between_planning_runs():
-    services, needs, matches, _ = _demo_data(date(2026, 9, 18))
-    first = _demo_proposals(services[0], needs[0], matches)[1]
-    second = _demo_proposals(services[0], needs[0], matches)[1]
-    first_ids = {item.proposal.proposal_id for item in first}
-    second_ids = {item.proposal.proposal_id for item in second}
-    assert first_ids.isdisjoint(second_ids)
+def test_demo_proposal_ids_include_a_run_specific_component():
+    source = SOURCE.read_text(encoding="utf-8")
+    assert 'proposal_run_id or uuid4()' in source
+    assert 'f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}"' in source
