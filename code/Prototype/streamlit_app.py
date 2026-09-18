@@ -7,8 +7,9 @@ from uuid import uuid4
 import pandas as pd
 import streamlit as st
 
-from dvk.application_services import PlanningApplicationService, ProposalDecisionApplicationService
+from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
 from dvk.candidate_selection import assess_candidate
+from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
 from dvk.proposal_planning import plan_proposals
@@ -88,7 +89,7 @@ with st.sidebar:
     else:
         until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected); period = PlanningPeriod(selected, until)
 
-identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL}))
+identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
 database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
 database.initialize()
 services, needs, matches, statuses = _demo_data(period.start)
@@ -152,6 +153,46 @@ else:
         if confirmed:
             names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
 
+st.markdown("### No-shows")
+st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")
+with database.unit_of_work() as uow:
+    assignment_rows = uow._connection.execute(
+        "SELECT assignment_id, payload FROM duty_assignments ORDER BY rowid DESC LIMIT 50"
+    ).fetchall()
+if not assignment_rows:
+    st.info("Nog geen inroosteringen beschikbaar waarop een no-show kan worden geregistreerd.")
+else:
+    import json
+    assignment_options = {}
+    for assignment_id, payload in assignment_rows:
+        data = json.loads(payload)
+        assignment_options[assignment_id] = f"{assignment_id} — {data['person_id']} — dienst {data['service_id']}"
+    with st.form("no-show-form"):
+        assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
+        occurred_date = st.date_input("Datum no-show", value=date.today())
+        occurred_time = st.time_input("Tijd", value=time(12, 0))
+        submitted_no_show = st.form_submit_button("No-show registreren", type="primary")
+    if submitted_no_show:
+        with database.unit_of_work() as uow:
+            assignment = uow.assignments.get(assignment_id)
+            occurred_at = datetime.combine(occurred_date, occurred_time)
+            event = NoShowEvent(
+                f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id,
+                occurred_at, datetime.now().astimezone(), identity.subject_id,
+                season_id(occurred_date),
+            )
+            assessment = NoShowApplicationService(uow, identity).register(event)
+        st.session_state["last-no-show"] = assessment
+    assessment = st.session_state.get("last-no-show")
+    if assessment:
+        if assessment.counter == 1:
+            st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
+        else:
+            card = "gele kaart" if assessment.card == "yellow" else "rode kaart"
+            follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
+            st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
+        st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
+
 st.markdown("### Wedstrijden")
 if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
 else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
@@ -160,4 +201,4 @@ st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("
 st.markdown("### Datakwaliteit")
 if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
 else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-st.caption("Gate 8 gebruikt demonstratiedata. Wedstrijden toont alle thuis- en uitwedstrijden binnen de gekozen periode. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+st.caption("Gate 9 gebruikt voor de no-showregistratie bestaande inroosteringen uit de lokale DVK-database. Gate 8 gebruikt demonstratiedata. Wedstrijden toont alle thuis- en uitwedstrijden binnen de gekozen periode. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
