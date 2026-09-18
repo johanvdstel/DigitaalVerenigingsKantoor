@@ -11,6 +11,7 @@ from .no_show import NoShowEvent, SanctionAssessment, assess_sanction, season_id
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
+from .replacement_duty import ActiveSanctionState, ReplacementDuty, active_sanction_state
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyService, Match
@@ -65,6 +66,61 @@ class NoShowApplicationService:
         self.uow.commit()
         return revoked
 
+
+
+class ReplacementDutyApplicationService:
+    """Authorized VC boundary for linking and confirming replacement duties."""
+
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
+        self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
+    def register_replacement(self, replacement: ReplacementDuty) -> ActiveSanctionState:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        if replacement.registered_by != self.identity.subject_id:
+            raise ValueError("replacement registered_by must match authenticated identity")
+        if replacement.completed:
+            raise ValueError("replacement must be registered before it can be confirmed completed")
+        no_show = self.uow.no_shows.get(replacement.no_show_id)
+        if no_show is None or no_show.status != "valid":
+            raise ValueError("replacement must reference a valid no-show")
+        assignment = self.uow.assignments.get(replacement.assignment_id)
+        if assignment is None:
+            raise ValueError("replacement must reference an existing inroostering")
+        if no_show.person_id != replacement.person_id or assignment.person_id != replacement.person_id:
+            raise ValueError("replacement person must match no-show and inroostering")
+        if no_show.season != replacement.season:
+            raise ValueError("replacement season must match no-show season")
+        state_before = self._state(replacement.person_id, replacement.season)
+        if state_before.counter != 1 or state_before.assessment is None or state_before.assessment.no_show_id != no_show.no_show_id:
+            raise ValueError("only the active first no-show can receive a replacement duty")
+        self.uow.replacements.add(replacement)
+        self.uow.commit()
+        return self._state(replacement.person_id, replacement.season)
+
+    def complete_replacement(self, replacement_id: str, *, completed_at: datetime) -> ActiveSanctionState:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        current = self.uow.replacements.get(replacement_id)
+        if current is None:
+            raise ValueError("unknown replacement duty")
+        if current.completed:
+            raise ValueError("replacement duty is already completed")
+        completed = ReplacementDuty(
+            current.replacement_id, current.no_show_id, current.assignment_id,
+            current.person_id, current.season, current.registered_at, current.registered_by,
+            completed_at, self.identity.subject_id,
+        )
+        self.uow.replacements.update(completed)
+        self.uow.commit()
+        return self._state(completed.person_id, completed.season)
+
+    def _state(self, person_id: str, season: str) -> ActiveSanctionState:
+        return active_sanction_state(
+            person_id, season,
+            self.uow.no_shows.for_person_season(person_id, season),
+            self.uow.replacements.for_person_season(person_id, season),
+        )
 
 
 @dataclass(frozen=True)
