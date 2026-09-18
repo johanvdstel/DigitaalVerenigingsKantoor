@@ -11,6 +11,7 @@ class Permission(str, Enum):
     CONFIRM_IMPORT = "confirm_import"
     RECORD_ENGINE_RUN = "record_engine_run"
     DECIDE_PROPOSAL = "decide_proposal"
+    MANAGE_NO_SHOWS = "manage_no_shows"
     VIEW_AUDIT = "view_audit"
     ADMINISTER_SECURITY = "administer_security"
 

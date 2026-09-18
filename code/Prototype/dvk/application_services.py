@@ -7,12 +7,58 @@ from .dashboard_actions import DashboardActionResult, approve_from_dashboard, re
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
 from .import_workflow import confirm_import, preview_differences
 from .model import PrototypeCase
+from .no_show import NoShowEvent, SanctionAssessment, assess_sanction, season_id
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyService, Match
+
+
+class NoShowApplicationService:
+    """Authorized Gate 9 boundary for registering and correcting no-shows."""
+
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
+        self.uow = uow
+        self.identity = identity
+        self.authorizer = authorizer or Authorizer()
+
+    def register(self, event: NoShowEvent) -> SanctionAssessment:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        if event.recorded_by != self.identity.subject_id:
+            raise ValueError("no-show recorded_by must match authenticated identity")
+        assignment = self.uow.assignments.get(event.assignment_id)
+        if assignment is None:
+            raise ValueError("no-show must reference an existing inroostering")
+        if assignment.person_id != event.person_id:
+            raise ValueError("no-show person must match inroostering")
+        prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
+        assessment = assess_sanction(event, prior)
+        self.uow.no_shows.add(event)
+        self.uow.sanctions.add(assessment)
+        self.uow.commit()
+        return assessment
+
+    def revoke(self, no_show_id: str, *, reason: str, corrected_at: datetime) -> NoShowEvent:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        if not reason.strip():
+            raise ValueError("correction reason is required")
+        current = self.uow.no_shows.get(no_show_id)
+        if current is None:
+            raise ValueError("unknown no-show")
+        if current.status == "revoked":
+            raise ValueError("no-show is already revoked")
+        revoked = NoShowEvent(
+            current.no_show_id, current.assignment_id, current.person_id,
+            current.occurred_at, current.recorded_at, current.recorded_by,
+            current.season, "revoked", reason.strip(), corrected_at,
+            self.identity.subject_id,
+        )
+        self.uow.no_shows.update(revoked)
+        self.uow.commit()
+        return revoked
+
 
 
 @dataclass(frozen=True)
