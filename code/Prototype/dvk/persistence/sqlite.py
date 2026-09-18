@@ -12,6 +12,7 @@ from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
 from .migrations import migrate
 from .planning_records import SQLiteAssignmentProposalRepository, SQLiteDutyAssignmentRepository, SQLiteHumanDecisionRepository
 from .no_show_records import SQLiteNoShowRepository, SQLiteSanctionAssessmentRepository
+from .replacement_records import SQLiteReplacementDutyRepository
 
 
 class SQLiteRecordRepository:
@@ -92,7 +93,7 @@ class SQLiteUnitOfWork:
     def __enter__(self):
         self._connection = sqlite3.connect(self._database_path); self._connection.execute("PRAGMA foreign_keys=ON"); migrate(self._connection); self._connection.commit()
         self.records = SQLiteRecordRepository(self._connection); self.import_batches = SQLiteImportBatchRepository(self._connection); self.snapshots = SQLiteSnapshotRepository(self._connection); self.source_fetches = SQLiteSourceFetchRepository(self._connection); self.engine_runs = SQLiteEngineRunRepository(self._connection)
-        self.proposals = SQLiteAssignmentProposalRepository(self._connection); self.decisions = SQLiteHumanDecisionRepository(self._connection); self.assignments = SQLiteDutyAssignmentRepository(self._connection); self.no_shows = SQLiteNoShowRepository(self._connection); self.sanctions = SQLiteSanctionAssessmentRepository(self._connection)
+        self.proposals = SQLiteAssignmentProposalRepository(self._connection); self.decisions = SQLiteHumanDecisionRepository(self._connection); self.assignments = SQLiteDutyAssignmentRepository(self._connection); self.no_shows = SQLiteNoShowRepository(self._connection); self.sanctions = SQLiteSanctionAssessmentRepository(self._connection); self.replacements = SQLiteReplacementDutyRepository(self._connection)
         self.policy_versions = SQLitePolicyVersionRepository(self._connection); self.config_versions = SQLiteConfigVersionRepository(self._connection); self.software_versions = SQLiteSoftwareVersionRepository(self._connection); self._committed = False; return self
     def commit(self) -> None:
         if self._connection is None: raise RuntimeError("Unit of work is not active")

@@ -103,7 +103,20 @@ def _migration_008(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE UNIQUE INDEX idx_no_show_assignment ON no_show_events(assignment_id)")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008)
+def _migration_009(connection: sqlite3.Connection) -> None:
+    """Persist Gate 10 replacement duties with one repair path per first no-show."""
+    connection.execute("""CREATE TABLE replacement_duties (
+        replacement_id TEXT PRIMARY KEY,
+        no_show_id TEXT NOT NULL UNIQUE REFERENCES no_show_events(no_show_id),
+        assignment_id TEXT NOT NULL UNIQUE REFERENCES duty_assignments(assignment_id),
+        person_id TEXT NOT NULL,
+        season TEXT NOT NULL,
+        completed_at TEXT,
+        payload TEXT NOT NULL)""")
+    connection.execute("CREATE INDEX idx_replacement_person_season ON replacement_duties(person_id, season)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009)
 
 
 def migrate(connection: sqlite3.Connection) -> int:
