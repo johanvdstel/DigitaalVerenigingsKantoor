@@ -115,7 +115,10 @@ st.markdown("### Kandidaten en voorstellen")
 if selected_service_id is None: st.info("Selecteer eerst één dienst in de tabel hierboven.")
 else:
     service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
-    cases, planned = _demo_proposals(service, need, matches); case_by_person = {c.person.person_id: c for c in cases}
+    proposal_run_key = f"proposal-run-{selected_service_id}"
+    if proposal_run_key not in st.session_state:
+        st.session_state[proposal_run_key] = str(uuid4())
+    cases, planned = _demo_proposals(service, need, matches, proposal_run_id=st.session_state[proposal_run_key]); case_by_person = {c.person.person_id: c for c in cases}
     if not planned:
         if need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
         else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
@@ -148,6 +151,7 @@ else:
                 with database.unit_of_work() as uow:
                     results = ProposalDecisionApplicationService(identity, uow=uow).approve_many(selections, service, need)
                 st.session_state[f"confirmed-{selected_service_id}"] = results
+                st.session_state[proposal_run_key] = str(uuid4())
             except ValueError as exc: st.error(str(exc))
         confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
         if confirmed:
@@ -166,7 +170,12 @@ else:
     assignment_options = {}
     for assignment_id, payload in assignment_rows:
         data = json.loads(payload)
-        assignment_options[assignment_id] = f"{assignment_id} — {data['person_id']} — dienst {data['service_id']}"
+        service_info = service_by_id.get(data["service_id"])
+        person_name = next((case.person.name for case in W_CASE_BY_ID.values() if case.person.person_id == data["person_id"]), data["person_id"])
+        if service_info:
+            assignment_options[assignment_id] = f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type} — {person_name}"
+        else:
+            assignment_options[assignment_id] = f"{data['service_id']} — {person_name}"
     with st.form("no-show-form"):
         assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
         occurred_date = st.date_input("Datum no-show", value=date.today())
