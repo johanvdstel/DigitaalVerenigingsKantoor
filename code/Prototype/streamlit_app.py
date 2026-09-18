@@ -7,12 +7,13 @@ from uuid import uuid4
 import pandas as pd
 import streamlit as st
 
-from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
+from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService, ReplacementDutyApplicationService
 from dvk.candidate_selection import assess_candidate
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
 from dvk.proposal_planning import plan_proposals
+from dvk.replacement_duty import ReplacementDuty
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
@@ -198,6 +199,71 @@ else:
             st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
         st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
 
+st.markdown("### Vervangende inzet")
+st.caption("Na een eerste no-show regelt de betrokkene zelf een nieuwe dienst. Een bevoegd lid van de Vrijwilligerscommissie koppelt die inroostering en bevestigt na afloop of de vervangende inzet is uitgevoerd.")
+with database.unit_of_work() as uow:
+    recent_assignments = NoShowApplicationService(uow, identity).available_assignments()
+    first_no_shows = []
+    for assignment in recent_assignments:
+        no_show = uow.no_shows.for_assignment(assignment.assignment_id)
+        if no_show is None or no_show.status != "valid" or uow.replacements.for_no_show(no_show.no_show_id) is not None:
+            continue
+        state = ReplacementDutyApplicationService(uow, identity)._state(no_show.person_id, no_show.season)
+        if state.counter == 1 and state.assessment and state.assessment.no_show_id == no_show.no_show_id:
+            first_no_shows.append(no_show)
+    pending_replacements = tuple(
+        replacement
+        for no_show in first_no_shows
+        for replacement in ()
+    )
+    all_replacements = tuple(
+        replacement
+        for no_show in (uow.no_shows.for_assignment(a.assignment_id) for a in recent_assignments)
+        if no_show is not None
+        for replacement in (uow.replacements.for_no_show(no_show.no_show_id),)
+        if replacement is not None and not replacement.completed
+    )
+
+if first_no_shows:
+    no_show_labels = {n.no_show_id: f"{n.occurred_at:%d-%m-%Y} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == n.person_id), n.person_id)}" for n in first_no_shows}
+    with st.form("replacement-link-form"):
+        repair_no_show_id = st.selectbox("Eerste no-show", tuple(no_show_labels), format_func=no_show_labels.get)
+        selected_no_show = next(n for n in first_no_shows if n.no_show_id == repair_no_show_id)
+        eligible_assignments = tuple(a for a in recent_assignments if a.person_id == selected_no_show.person_id and a.assignment_id != selected_no_show.assignment_id)
+        replacement_labels = {a.assignment_id: f"{a.service_id} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == a.person_id), a.person_id)}" for a in eligible_assignments}
+        replacement_assignment_id = st.selectbox("Zelf geregelde vervangende inroostering", tuple(replacement_labels), format_func=replacement_labels.get) if replacement_labels else None
+        link_submitted = st.form_submit_button("Vervangende inzet koppelen", disabled=not replacement_labels)
+    if link_submitted and replacement_assignment_id:
+        with database.unit_of_work() as uow:
+            state = ReplacementDutyApplicationService(uow, identity).register_replacement(
+                ReplacementDuty(f"RV-{uuid4()}", repair_no_show_id, replacement_assignment_id, selected_no_show.person_id, selected_no_show.season, datetime.now().astimezone(), identity.subject_id)
+            )
+        st.success("Vervangende inzet geregeld. De actieve teller blijft 1 totdat uitvoering is bevestigd.")
+        st.rerun()
+
+if all_replacements:
+    st.write("**Uitvoering nog te bevestigen**")
+    replacement_labels = {r.replacement_id: f"{r.assignment_id} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == r.person_id), r.person_id)}" for r in all_replacements}
+    selected_replacement_id = st.selectbox("Vervangende inzet", tuple(replacement_labels), format_func=replacement_labels.get)
+    c_done, c_noshow = st.columns(2)
+    if c_done.button("Uitgevoerd bevestigen", type="primary"):
+        with database.unit_of_work() as uow:
+            state = ReplacementDutyApplicationService(uow, identity).complete_replacement(selected_replacement_id, completed_at=datetime.now().astimezone())
+        st.success("Vervangende inzet uitgevoerd. Actieve no-showteller is teruggezet naar 0.")
+        st.rerun()
+    if c_noshow.button("No-show vastleggen voor vervangende inzet"):
+        replacement = next(r for r in all_replacements if r.replacement_id == selected_replacement_id)
+        with database.unit_of_work() as uow:
+            assignment = uow.assignments.get(replacement.assignment_id)
+            now = datetime.now().astimezone()
+            assessment = NoShowApplicationService(uow, identity).register(
+                NoShowEvent(f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id, now, now, identity.subject_id, season_id(now.date()))
+            )
+        st.warning(f"No-show {assessment.counter} geregistreerd. De vervangende inzet heeft de eerdere no-show niet hersteld.")
+        st.rerun()
+elif not first_no_shows:
+    st.info("Geen openstaande vervangende inzet na een eerste no-show.")
+
 st.markdown("### Wedstrijden")
 if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
 else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
@@ -206,4 +272,4 @@ st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("
 st.markdown("### Datakwaliteit")
 if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
 else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-st.caption("Gate 9 gebruikt voor de no-showregistratie bestaande inroosteringen uit de lokale DVK-database. Gate 8 gebruikt demonstratiedata. Wedstrijden toont alle thuis- en uitwedstrijden binnen de gekozen periode. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+st.caption("Gate 10 ondersteunt de door de Vrijwilligerscommissie bevestigde no-show en vervangende inzet. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
