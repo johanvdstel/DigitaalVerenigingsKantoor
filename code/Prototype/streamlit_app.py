@@ -71,7 +71,7 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     eligible = tuple(a for a in assessments if a.eligible)
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date())
     by_person = {p.person_id: p for p in priorities}
-    proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
+    proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
 
 
