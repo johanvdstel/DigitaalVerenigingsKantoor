@@ -175,17 +175,19 @@ else:
             assignment_options[assignment.assignment_id] = f"{assignment.service_id} — {person_name}"
     with st.form("no-show-form"):
         assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
-        occurred_date = st.date_input("Datum no-show", value=date.today())
-        occurred_time = st.time_input("Tijd", value=time(12, 0))
-        submitted_no_show = st.form_submit_button("No-show registreren", type="primary")
+        submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
     if submitted_no_show:
         with database.unit_of_work() as uow:
             assignment = uow.assignments.get(assignment_id)
-            occurred_at = datetime.combine(occurred_date, occurred_time)
+            service_info = service_by_id.get(assignment.service_id)
+            if service_info is None:
+                st.error("De datum/tijd van deze inroostering is niet beschikbaar in de huidige planning.")
+                st.stop()
+            occurred_at = service_info.starts_at
             event = NoShowEvent(
                 f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id,
                 occurred_at, datetime.now().astimezone(), identity.subject_id,
-                season_id(occurred_date),
+                season_id(occurred_at.date()),
             )
             assessment = NoShowApplicationService(uow, identity).register(event)
         st.session_state["last-no-show"] = assessment
