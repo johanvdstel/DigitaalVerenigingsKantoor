@@ -67,13 +67,23 @@ def _demo_data(start: date):
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
     cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
-    # Demo-only: keep W08 available across services so Gate 10 can be tested end-to-end.
-    # Production eligibility remains entirely in assess_candidate; no business rule is changed.
-    memberships = tuple(TeamMembership(case.person.person_id, "SEN-8", service.starts_at.date() - timedelta(days=60), service.starts_at.date() + timedelta(days=300)) for case in cases)
+    # Demo team memberships mirror the match context instead of assigning every
+    # candidate to the same team. This keeps the UI demo on the real Gate-8 rules.
+    demo_teams = {
+        W_CASE_BY_ID["W08"].person.person_id: "Senioren 1",
+        W_CASE_BY_ID["W07"].person.person_id: "SEN-8",
+        W_CASE_BY_ID["W09"].person.person_id: "JO17-1",
+    }
+    memberships = tuple(
+        TeamMembership(
+            case.person.person_id,
+            demo_teams[case.person.person_id],
+            service.starts_at.date() - timedelta(days=60),
+            service.starts_at.date() + timedelta(days=300),
+        )
+        for case in cases
+    )
     assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
-    if service.service_id == "BAR-WO-1":
-        # The weekday demo service has no match context and is deliberately suitable for W08.
-        assessments = tuple(a if a.person_id != W_CASE_BY_ID["W08"].person.person_id else type(a)(a.person_id, a.service_id, True, a.executor_category, a.team_id, None, "no_match_that_day", "normal", None) for a in assessments)
     eligible = tuple(a for a in assessments if a.eligible)
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date())
     by_person = {p.person_id: p for p in priorities}
