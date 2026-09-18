@@ -62,3 +62,8 @@ class SQLiteDutyAssignmentRepository:
     def get(self, assignment_id: str) -> DutyAssignment | None:
         row = self._connection.execute("SELECT payload FROM duty_assignments WHERE assignment_id=?", (assignment_id,)).fetchone()
         return None if row is None else _load(DutyAssignment, row[0])
+    def recent(self, limit: int = 50) -> tuple[DutyAssignment, ...]:
+        rows = self._connection.execute(
+            "SELECT payload FROM duty_assignments ORDER BY rowid DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return tuple(_load(DutyAssignment, row[0]) for row in rows)

@@ -93,7 +93,17 @@ def _migration_007(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX idx_no_show_person_season ON no_show_events(person_id, season, occurred_at)")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007)
+def _migration_008(connection: sqlite3.Connection) -> None:
+    """Harden Gate 9: one no-show fact per concrete inroostering."""
+    duplicates = connection.execute(
+        "SELECT assignment_id FROM no_show_events GROUP BY assignment_id HAVING COUNT(*) > 1 LIMIT 1"
+    ).fetchone()
+    if duplicates is not None:
+        raise ValueError("cannot enforce one no-show per inroostering: duplicate historical records exist")
+    connection.execute("CREATE UNIQUE INDEX idx_no_show_assignment ON no_show_events(assignment_id)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008)
 
 
 def migrate(connection: sqlite3.Connection) -> int:

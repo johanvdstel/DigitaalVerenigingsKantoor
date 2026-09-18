@@ -24,6 +24,10 @@ class NoShowApplicationService:
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
 
+    def available_assignments(self, limit: int = 50):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        return self.uow.assignments.recent(limit)
+
     def register(self, event: NoShowEvent) -> SanctionAssessment:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         if event.recorded_by != self.identity.subject_id:
@@ -33,6 +37,8 @@ class NoShowApplicationService:
             raise ValueError("no-show must reference an existing inroostering")
         if assignment.person_id != event.person_id:
             raise ValueError("no-show person must match inroostering")
+        if self.uow.no_shows.for_assignment(event.assignment_id) is not None:
+            raise ValueError("voor deze inroostering is al een no-show geregistreerd")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
         assessment = assess_sanction(event, prior)
         self.uow.no_shows.add(event)

@@ -27,6 +27,12 @@ class SQLiteNoShowRepository:
         row = self._connection.execute("SELECT payload FROM no_show_events WHERE no_show_id=?", (no_show_id,)).fetchone()
         return None if row is None else _event(json.loads(row[0]))
 
+    def for_assignment(self, assignment_id: str) -> NoShowEvent | None:
+        row = self._connection.execute(
+            "SELECT payload FROM no_show_events WHERE assignment_id=?", (assignment_id,)
+        ).fetchone()
+        return None if row is None else _event(json.loads(row[0]))
+
     def for_person_season(self, person_id: str, season: str) -> tuple[NoShowEvent, ...]:
         rows = self._connection.execute(
             "SELECT payload FROM no_show_events WHERE person_id=? AND season=? ORDER BY occurred_at, no_show_id",
@@ -46,7 +52,11 @@ class SQLiteSanctionAssessmentRepository:
         )
 
     def get(self, no_show_id: str) -> SanctionAssessment | None:
-        row = self._connection.execute("SELECT payload FROM sanction_assessments WHERE no_show_id=?", (no_show_id,)).fetchone()
+        row = self._connection.execute(
+            """SELECT s.payload FROM sanction_assessments s
+               JOIN no_show_events n ON n.no_show_id=s.no_show_id
+               WHERE s.no_show_id=? AND n.status='valid'""", (no_show_id,)
+        ).fetchone()
         return None if row is None else SanctionAssessment(**json.loads(row[0]))
 
 

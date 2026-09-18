@@ -160,22 +160,18 @@ else:
 st.markdown("### No-shows")
 st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")
 with database.unit_of_work() as uow:
-    assignment_rows = uow._connection.execute(
-        "SELECT assignment_id, payload FROM duty_assignments ORDER BY rowid DESC LIMIT 50"
-    ).fetchall()
+    assignment_rows = NoShowApplicationService(uow, identity).available_assignments()
 if not assignment_rows:
     st.info("Nog geen inroosteringen beschikbaar waarop een no-show kan worden geregistreerd.")
 else:
-    import json
     assignment_options = {}
-    for assignment_id, payload in assignment_rows:
-        data = json.loads(payload)
-        service_info = service_by_id.get(data["service_id"])
-        person_name = next((case.person.name for case in W_CASE_BY_ID.values() if case.person.person_id == data["person_id"]), data["person_id"])
+    for assignment in assignment_rows:
+        service_info = service_by_id.get(assignment.service_id)
+        person_name = next((case.person.name for case in W_CASE_BY_ID.values() if case.person.person_id == assignment.person_id), assignment.person_id)
         if service_info:
-            assignment_options[assignment_id] = f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type} — {person_name}"
+            assignment_options[assignment.assignment_id] = f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type} — {person_name}"
         else:
-            assignment_options[assignment_id] = f"{data['service_id']} — {person_name}"
+            assignment_options[assignment.assignment_id] = f"{assignment.service_id} — {person_name}"
     with st.form("no-show-form"):
         assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
         occurred_date = st.date_input("Datum no-show", value=date.today())
