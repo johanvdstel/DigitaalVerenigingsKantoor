@@ -66,13 +66,13 @@ def _demo_data(start: date):
 
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
-    cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
-    # Demo team memberships mirror the match context instead of assigning every
-    # candidate to the same team. This keeps the UI demo on the real Gate-8 rules.
+    # Representative demo population: senior home, senior away and youth.
+    # These are existing accepted W-cases; only their demo team context is defined here.
+    cases = (W_CASE_BY_ID["W03"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W04"])
     demo_teams = {
-        W_CASE_BY_ID["W08"].person.person_id: "Senioren 1",
+        W_CASE_BY_ID["W03"].person.person_id: "Senioren 1",
         W_CASE_BY_ID["W07"].person.person_id: "SEN-8",
-        W_CASE_BY_ID["W09"].person.person_id: "JO17-1",
+        W_CASE_BY_ID["W04"].person.person_id: "JO17-1",
     }
     memberships = tuple(
         TeamMembership(
@@ -85,7 +85,15 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     )
     assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
     eligible = tuple(a for a in assessments if a.eligible)
-    priorities = prioritize_candidates(eligible, cases, service.starts_at.date())
+    demo_previous_season = {
+        W_CASE_BY_ID["W03"].person.person_id: 4,
+        W_CASE_BY_ID["W07"].person.person_id: 2,
+        W_CASE_BY_ID["W04"].person.person_id: 6,
+    }
+    priorities = prioritize_candidates(
+        eligible, cases, service.starts_at.date(),
+        previous_season_backlog=demo_previous_season,
+    )
     by_person = {p.person_id: p for p in priorities}
     proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
