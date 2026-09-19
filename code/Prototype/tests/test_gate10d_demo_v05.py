@@ -1,6 +1,6 @@
 from datetime import date,datetime,timedelta,time
 from dvk.candidate_selection import assess_candidate
-from dvk.demo_candidates import demo_candidate_cases,demo_previous_season_backlog,demo_team_memberships
+from dvk.demo_data_v05 import demo_candidate_cases,demo_previous_season_backlog,demo_team_memberships,demo_planning_data
 from dvk.prioritization import prioritize_candidates
 from dvk.workstream_cases import TODAY
 from dvk.workstream_model import DutyService,Match
@@ -33,3 +33,11 @@ def test_saturday_team_context():
     assert not ck["W08P"].eligible and ck["W08P"].match_relation=="home_match_overlaps_service"
     assert not ck["W07P"].eligible and ck["W07P"].match_relation=="away_match_overlaps_service"
     assert ck["W04P"].eligible
+
+
+def test_central_demo_dataset_contains_all_planning_inputs():
+    services, needs, matches, statuses = demo_planning_data(date(2026,9,14))
+    assert {s.service_id for s in services} == {"BAR-WO-1","BAR-ZA-1","CK-ZA-1"}
+    assert {n.service_id for n in needs} == {"BAR-WO-1","BAR-ZA-1","CK-ZA-1"}
+    assert {m.team_id for m in matches} == {"Senioren 1","SEN-8","JO17-1"}
+    assert len(statuses) == 3

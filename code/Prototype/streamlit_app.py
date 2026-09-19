@@ -18,7 +18,7 @@ from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
 from dvk.staffing import StaffingNeed
-from dvk.workstream_cases import TODAY, W_CASE_BY_ID\nfrom dvk.demo_candidates import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships
+from dvk.workstream_cases import TODAY, W_CASE_BY_ID\nfrom dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships, demo_planning_data
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
@@ -49,21 +49,7 @@ def _vriendelijke_waarom(proposal) -> str:
 
 
 def _demo_data(start: date):
-    monday = start - timedelta(days=start.weekday())
-    services = (
-        DutyService("BAR-WO-1", "Bardienst", datetime.combine(monday + timedelta(days=2), time(19)), datetime.combine(monday + timedelta(days=2), time(22)), "Clubhuis", 2),
-        DutyService("BAR-ZA-1", "Bardienst", datetime.combine(monday + timedelta(days=5), time(9)), datetime.combine(monday + timedelta(days=5), time(13)), "Clubhuis", 3),
-        DutyService("CK-ZA-1", "Gastvrouw/heer", datetime.combine(monday + timedelta(days=5), time(12, 30)), datetime.combine(monday + timedelta(days=5), time(17)), "Commissiekamer", 1),
-    )
-    needs = (StaffingNeed("BAR-WO-1", 2, 3, 1, 1, 2), StaffingNeed("BAR-ZA-1", 3, 5, 3, 0, 2), StaffingNeed("CK-ZA-1", 1, 2, 0, 1, 2))
-    matches = (
-        Match("W-001", "Senioren 1", datetime.combine(monday + timedelta(days=5), time(14, 30)), "home"),
-        Match("W-002", "SEN-8", datetime.combine(monday + timedelta(days=5), time(12, 15)), "away"),
-        Match("W-003", "JO17-1", datetime.combine(monday + timedelta(days=6), time(10, 30)), "away"),
-    )
-    statuses = (PlanningSourceStatus("Sportlink Wedstrijden", datetime.now() - timedelta(minutes=18), "actueel"), PlanningSourceStatus("Sportlink Diensten", datetime.now() - timedelta(minutes=12), "actueel"), PlanningSourceStatus("Leden- en vrijwilligersgegevens", datetime.now() - timedelta(days=1), "bevestigd"))
-    return services, needs, matches, statuses
-
+    return demo_planning_data(start)
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
     cases = demo_candidate_cases()
