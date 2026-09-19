@@ -18,7 +18,8 @@ from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
 from dvk.staffing import StaffingNeed
-from dvk.workstream_cases import TODAY, W_CASE_BY_ID\nfrom dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships, demo_planning_data
+from dvk.workstream_cases import TODAY, W_CASE_BY_ID
+from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships, demo_planning_data
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
