@@ -44,9 +44,9 @@ DEMO_PREVIOUS_SEASON_BACKLOG={"W08P":4,"W07P":2,"W04P":6}
 
 def demo_candidate_cases():
     return (
-        replace(W_CASE_BY_ID["W08"], title="Senioren 1 — thuiswedstrijd"),
-        replace(W_CASE_BY_ID["W07"], title="SEN-8 — uitwedstrijd"),
-        replace(W_CASE_BY_ID["W04"], title="JO17-1 — jeugdlid/oudersituatie", sportlink_duty=SportlinkDutyRegistration("W04P",10,0,3,1)),
+        replace(W_CASE_BY_ID["W08"], description="Senioren 1 — thuiswedstrijd"),
+        replace(W_CASE_BY_ID["W07"], description="SEN-8 — uitwedstrijd"),
+        replace(W_CASE_BY_ID["W04"], description="JO17-1 — jeugdlid/oudersituatie", sportlink_duty=SportlinkDutyRegistration("W04P",10,0,3,1)),
     )
 
 def demo_team_memberships(service, cases=None):
