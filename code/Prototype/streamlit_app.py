@@ -18,7 +18,7 @@ from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
 from dvk.staffing import StaffingNeed
-from dvk.workstream_cases import TODAY, W_CASE_BY_ID
+from dvk.workstream_cases import TODAY, W_CASE_BY_ID\nfrom dvk.demo_candidates import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
@@ -66,38 +66,14 @@ def _demo_data(start: date):
 
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
-    # Representative demo population with complete current duty positions.
-    # W08 = Senioren 1, W07 = SEN-8, W09 = JO17-1 in this presentation fixture.
-    cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
-    demo_teams = {
-        W_CASE_BY_ID["W08"].person.person_id: "Senioren 1",
-        W_CASE_BY_ID["W07"].person.person_id: "SEN-8",
-        W_CASE_BY_ID["W09"].person.person_id: "JO17-1",
-    }
-    memberships = tuple(
-        TeamMembership(
-            case.person.person_id,
-            demo_teams[case.person.person_id],
-            service.starts_at.date() - timedelta(days=60),
-            service.starts_at.date() + timedelta(days=300),
-        )
-        for case in cases
-    )
+    cases = demo_candidate_cases()
+    memberships = demo_team_memberships(service, cases)
     assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
     eligible = tuple(a for a in assessments if a.eligible)
-    demo_previous_season = {
-        W_CASE_BY_ID["W08"].person.person_id: 4,
-        W_CASE_BY_ID["W07"].person.person_id: 2,
-        W_CASE_BY_ID["W09"].person.person_id: 6,
-    }
-    priorities = prioritize_candidates(
-        eligible, cases, service.starts_at.date(),
-        previous_season_backlog=demo_previous_season,
-    )
+    priorities = prioritize_candidates(eligible, cases, service.starts_at.date(), previous_season_backlog=demo_previous_season_backlog())
     by_person = {p.person_id: p for p in priorities}
     proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
-
 
 st.set_page_config(page_title="DVK — Ledendienst Planning", page_icon="📋", layout="wide")
 st.title("CKC Digitaal Verenigings Kantoor (DVK)")
