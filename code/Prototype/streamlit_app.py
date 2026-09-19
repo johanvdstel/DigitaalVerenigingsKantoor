@@ -66,13 +66,13 @@ def _demo_data(start: date):
 
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
-    # Representative demo population: senior home, senior away and youth.
-    # These are existing accepted W-cases; only their demo team context is defined here.
-    cases = (W_CASE_BY_ID["W03"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W04"])
+    # Representative demo population with complete current duty positions.
+    # W08 = Senioren 1, W07 = SEN-8, W09 = JO17-1 in this presentation fixture.
+    cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
     demo_teams = {
-        W_CASE_BY_ID["W03"].person.person_id: "Senioren 1",
+        W_CASE_BY_ID["W08"].person.person_id: "Senioren 1",
         W_CASE_BY_ID["W07"].person.person_id: "SEN-8",
-        W_CASE_BY_ID["W04"].person.person_id: "JO17-1",
+        W_CASE_BY_ID["W09"].person.person_id: "JO17-1",
     }
     memberships = tuple(
         TeamMembership(
@@ -86,9 +86,9 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
     eligible = tuple(a for a in assessments if a.eligible)
     demo_previous_season = {
-        W_CASE_BY_ID["W03"].person.person_id: 4,
+        W_CASE_BY_ID["W08"].person.person_id: 4,
         W_CASE_BY_ID["W07"].person.person_id: 2,
-        W_CASE_BY_ID["W04"].person.person_id: 6,
+        W_CASE_BY_ID["W09"].person.person_id: 6,
     }
     priorities = prioritize_candidates(
         eligible, cases, service.starts_at.date(),

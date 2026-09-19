@@ -19,8 +19,8 @@ def _context():
         Match("W-002", "SEN-8", datetime.combine(monday + timedelta(days=5), time(12,15)), "away"),
         Match("W-003", "JO17-1", datetime.combine(monday + timedelta(days=6), time(10,30)), "away"),
     )
-    cases = (W_CASE_BY_ID["W03"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W04"])
-    teams = {"W03P":"Senioren 1","W07P":"SEN-8","W04P":"JO17-1"}
+    cases = (W_CASE_BY_ID["W08"], W_CASE_BY_ID["W07"], W_CASE_BY_ID["W09"])
+    teams = {"W08P":"Senioren 1","W07P":"SEN-8","W09P":"JO17-1"}
     memberships = tuple(TeamMembership(c.person.person_id, teams[c.person.person_id], monday-timedelta(days=60), monday+timedelta(days=300)) for c in cases)
     return services, matches, cases, memberships
 
@@ -28,13 +28,13 @@ def _context():
 def test_representative_demo_population_exercises_three_teams():
     _, _, cases, memberships = _context()
     assert {m.team_id for m in memberships} == {"Senioren 1", "SEN-8", "JO17-1"}
-    assert {c.person.name for c in cases} == {"Senior Thuiswedstrijd", "Senior Urenpositie", "Jeugdlid Thuis"}
+    assert {c.person.name for c in cases} == {"Senior Grote E", "Senior Urenpositie", "Senior Oude Achterstand"}
 
 
 def test_senioren_1_home_without_overlap_is_eligible_for_bar_service():
     services, matches, cases, memberships = _context()
     service = next(s for s in services if s.service_id == "BAR-ZA-1")
-    case = W_CASE_BY_ID["W03"]
+    case = W_CASE_BY_ID["W08"]
     assessment = assess_candidate(case, service, memberships, matches, TODAY)
     assert assessment.eligible
     assert assessment.team_id == "Senioren 1"
@@ -45,7 +45,7 @@ def test_senioren_1_home_without_overlap_is_eligible_for_bar_service():
 def test_youth_candidate_is_available_on_weekday_without_match_context():
     services, matches, cases, memberships = _context()
     service = next(s for s in services if s.service_id == "BAR-WO-1")
-    assessment = assess_candidate(W_CASE_BY_ID["W04"], service, memberships, matches, TODAY)
+    assessment = assess_candidate(W_CASE_BY_ID["W09"], service, memberships, matches, TODAY)
     assert assessment.eligible
     assert assessment.team_id == "JO17-1"
     assert assessment.match_relation == "no_match_that_day"
