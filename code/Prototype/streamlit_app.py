@@ -18,7 +18,7 @@ from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
 from dvk.staffing import StaffingNeed
-from dvk.workstream_cases import TODAY, W_CASE_BY_ID
+from dvk.workstream_cases import TODAY
 from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships, demo_planning_data
 from dvk.workstream_model import DutyService, Match, TeamMembership
 
@@ -30,6 +30,14 @@ RULE_LABELS = {"previous_season_backlog_before_december": "Openstaande uren uit 
 
 def _datum_met_dag(moment: datetime) -> str:
     return f"{DAGEN[moment.weekday()]} {moment:%d-%m}"
+
+
+def _assignment_label(context) -> str:
+    service_info = context.service
+    person_name = context.person_name or "Persoon onbekend"
+    if service_info is None:
+        return f"Datum/tijd en dienst onbekend — {person_name}"
+    return f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type or 'Dienst onbekend'} — {person_name}"
 
 
 def _vriendelijke_wedstrijdcontext(value: str) -> str:
@@ -147,25 +155,22 @@ else:
 st.markdown("### No-shows")
 st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")
 with database.unit_of_work() as uow:
-    assignment_rows = NoShowApplicationService(uow, identity).available_assignments()
+    assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
+        services=services, persons=tuple(c.person for c in demo_candidate_cases()),
+    )
 if not assignment_rows:
     st.info("Nog geen inroosteringen beschikbaar waarop een no-show kan worden geregistreerd.")
 else:
-    assignment_options = {}
-    for assignment in assignment_rows:
-        service_info = service_by_id.get(assignment.service_id)
-        person_name = next((case.person.name for case in W_CASE_BY_ID.values() if case.person.person_id == assignment.person_id), assignment.person_id)
-        if service_info:
-            assignment_options[assignment.assignment_id] = f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type} — {person_name}"
-        else:
-            assignment_options[assignment.assignment_id] = f"{assignment.service_id} — {person_name}"
+    assignment_by_id = {c.assignment.assignment_id: c for c in assignment_rows}
+    assignment_options = {key: _assignment_label(c) for key, c in assignment_by_id.items()}
     with st.form("no-show-form"):
         assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
         submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
     if submitted_no_show:
         with database.unit_of_work() as uow:
-            assignment = uow.assignments.get(assignment_id)
-            service_info = service_by_id.get(assignment.service_id)
+            context = assignment_by_id[assignment_id]
+            assignment = context.assignment
+            service_info = context.service
             if service_info is None:
                 st.error("De datum/tijd van deze inroostering is niet beschikbaar in de huidige planning.")
                 st.stop()
@@ -190,35 +195,17 @@ else:
 st.markdown("### Vervangende inzet")
 st.caption("Na een eerste no-show regelt de betrokkene zelf een nieuwe dienst. Een bevoegd lid van de Vrijwilligerscommissie koppelt die inroostering en bevestigt na afloop of de vervangende inzet is uitgevoerd.")
 with database.unit_of_work() as uow:
-    recent_assignments = NoShowApplicationService(uow, identity).available_assignments()
-    first_no_shows = []
-    for assignment in recent_assignments:
-        no_show = uow.no_shows.for_assignment(assignment.assignment_id)
-        if no_show is None or no_show.status != "valid" or uow.replacements.for_no_show(no_show.no_show_id) is not None:
-            continue
-        state = ReplacementDutyApplicationService(uow, identity)._state(no_show.person_id, no_show.season)
-        if state.counter == 1 and state.assessment and state.assessment.no_show_id == no_show.no_show_id:
-            first_no_shows.append(no_show)
-    pending_replacements = tuple(
-        replacement
-        for no_show in first_no_shows
-        for replacement in ()
-    )
-    all_replacements = tuple(
-        replacement
-        for no_show in (uow.no_shows.for_assignment(a.assignment_id) for a in recent_assignments)
-        if no_show is not None
-        for replacement in (uow.replacements.for_no_show(no_show.no_show_id),)
-        if replacement is not None and not replacement.completed
+    replacement_overview = ReplacementDutyApplicationService(uow, identity).overview(
+        services=services, persons=tuple(c.person for c in demo_candidate_cases()),
     )
 
-if first_no_shows:
-    no_show_labels = {n.no_show_id: f"{n.occurred_at:%d-%m-%Y} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == n.person_id), n.person_id)}" for n in first_no_shows}
+if replacement_overview.link_options:
+    no_show_labels = {option.no_show.no_show_id: _assignment_label(option.original_assignment) for option in replacement_overview.link_options}
     with st.form("replacement-link-form"):
         repair_no_show_id = st.selectbox("Eerste no-show", tuple(no_show_labels), format_func=no_show_labels.get)
-        selected_no_show = next(n for n in first_no_shows if n.no_show_id == repair_no_show_id)
-        eligible_assignments = tuple(a for a in recent_assignments if a.person_id == selected_no_show.person_id and a.assignment_id != selected_no_show.assignment_id)
-        replacement_labels = {a.assignment_id: f"{a.service_id} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == a.person_id), a.person_id)}" for a in eligible_assignments}
+        selected_option = next(option for option in replacement_overview.link_options if option.no_show.no_show_id == repair_no_show_id)
+        selected_no_show = selected_option.no_show
+        replacement_labels = {c.assignment.assignment_id: _assignment_label(c) for c in selected_option.available_assignments}
         replacement_assignment_id = st.selectbox("Zelf geregelde vervangende inroostering", tuple(replacement_labels), format_func=replacement_labels.get) if replacement_labels else None
         link_submitted = st.form_submit_button("Vervangende inzet koppelen", disabled=not replacement_labels)
     if link_submitted and replacement_assignment_id:
@@ -229,27 +216,33 @@ if first_no_shows:
         st.success("Vervangende inzet geregeld. De actieve teller blijft 1 totdat uitvoering is bevestigd.")
         st.rerun()
 
-if all_replacements:
+for row in replacement_overview.with_no_show:
+    st.warning(f"{_assignment_label(row.assignment)} — No-show geregistreerd op vervangende dienst.")
+
+if replacement_overview.pending:
     st.write("**Uitvoering nog te bevestigen**")
-    replacement_labels = {r.replacement_id: f"{r.assignment_id} — {next((c.person.name for c in W_CASE_BY_ID.values() if c.person.person_id == r.person_id), r.person_id)}" for r in all_replacements}
+    replacement_labels = {row.replacement.replacement_id: _assignment_label(row.assignment) for row in replacement_overview.pending}
     selected_replacement_id = st.selectbox("Vervangende inzet", tuple(replacement_labels), format_func=replacement_labels.get)
+    selected_replacement = next(row for row in replacement_overview.pending if row.replacement.replacement_id == selected_replacement_id)
     c_done, c_noshow = st.columns(2)
     if c_done.button("Uitgevoerd bevestigen", type="primary"):
         with database.unit_of_work() as uow:
             state = ReplacementDutyApplicationService(uow, identity).complete_replacement(selected_replacement_id, completed_at=datetime.now().astimezone())
-        st.success("Vervangende inzet uitgevoerd. Actieve no-showteller is teruggezet naar 0.")
+        if state.counter == 0:
+            st.success("Vervangende inzet uitgevoerd. Actieve no-showteller is teruggezet naar 0.")
+        else:
+            st.success(f"Vervangende inzet uitgevoerd. Actieve no-showteller: {state.counter}.")
         st.rerun()
     if c_noshow.button("No-show vastleggen voor vervangende inzet"):
-        replacement = next(r for r in all_replacements if r.replacement_id == selected_replacement_id)
         with database.unit_of_work() as uow:
-            assignment = uow.assignments.get(replacement.assignment_id)
+            assignment = selected_replacement.assignment.assignment
             now = datetime.now().astimezone()
             assessment = NoShowApplicationService(uow, identity).register(
                 NoShowEvent(f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id, now, now, identity.subject_id, season_id(now.date()))
             )
         st.warning(f"No-show {assessment.counter} geregistreerd. De vervangende inzet heeft de eerdere no-show niet hersteld.")
         st.rerun()
-elif not first_no_shows:
+elif not replacement_overview.link_options and not replacement_overview.with_no_show:
     st.info("Geen openstaande vervangende inzet na een eerste no-show.")
 
 st.markdown("### Wedstrijden")
