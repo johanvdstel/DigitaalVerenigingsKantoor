@@ -6,7 +6,7 @@ from datetime import datetime
 from .dashboard_actions import DashboardActionResult, approve_from_dashboard, reject_from_dashboard
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
 from .import_workflow import confirm_import, preview_differences
-from .model import PrototypeCase
+from .model import Person, PrototypeCase
 from .no_show import NoShowEvent, SanctionAssessment, assess_sanction, season_id
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
@@ -14,7 +14,45 @@ from .run_context import EngineRun
 from .replacement_duty import ActiveSanctionState, ReplacementDuty, active_sanction_state
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
-from .workstream_model import AssignmentProposal, DutyService, Match
+from .workstream_model import AssignmentProposal, DutyAssignment, DutyService, Match
+
+
+@dataclass(frozen=True)
+class AssignmentContext:
+    assignment: DutyAssignment
+    service: DutyService | None
+    person_name: str | None
+
+
+def _assignment_context(assignment, services, persons) -> AssignmentContext:
+    # Only an exact, unique identifier match supplies human context.
+    matching_services = tuple(s for s in services if s.service_id == assignment.service_id)
+    matching_persons = tuple(p for p in persons if p.person_id == assignment.person_id)
+    return AssignmentContext(
+        assignment,
+        matching_services[0] if len(matching_services) == 1 else None,
+        matching_persons[0].name if len(matching_persons) == 1 else None,
+    )
+
+
+@dataclass(frozen=True)
+class ReplacementLinkContext:
+    no_show: NoShowEvent
+    original_assignment: AssignmentContext
+    available_assignments: tuple[AssignmentContext, ...]
+
+
+@dataclass(frozen=True)
+class ReplacementStatusContext:
+    replacement: ReplacementDuty
+    assignment: AssignmentContext
+
+
+@dataclass(frozen=True)
+class ReplacementOverview:
+    link_options: tuple[ReplacementLinkContext, ...]
+    pending: tuple[ReplacementStatusContext, ...]
+    with_no_show: tuple[ReplacementStatusContext, ...]
 
 
 class NoShowApplicationService:
@@ -28,6 +66,9 @@ class NoShowApplicationService:
     def available_assignments(self, limit: int = 50):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         return self.uow.assignments.recent(limit)
+
+    def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> tuple[AssignmentContext, ...]:
+        return tuple(_assignment_context(a, services, persons) for a in self.available_assignments(limit))
 
     def register(self, event: NoShowEvent) -> SanctionAssessment:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
@@ -75,6 +116,44 @@ class ReplacementDutyApplicationService:
         self.uow = uow
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
+
+    def overview(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> ReplacementOverview:
+        """Read the existing recent-assignment scope without changing sanctions.
+
+        A valid no-show on the replacement is a separate presentation state,
+        including when completion has already been recorded. Command validation
+        and chronological sanction derivation remain independent of this query.
+        """
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        assignments = self.uow.assignments.recent(limit)
+        contexts = tuple(_assignment_context(a, services, persons) for a in assignments)
+        link_options = []
+        pending = []
+        with_no_show = []
+        for context in contexts:
+            assignment = context.assignment
+            no_show = self.uow.no_shows.for_assignment(assignment.assignment_id)
+            if no_show is None:
+                continue
+            replacement = self.uow.replacements.for_no_show(no_show.no_show_id)
+            if replacement is None:
+                if no_show.status != "valid":
+                    continue
+                state = self._state(no_show.person_id, no_show.season)
+                if state.counter == 1 and state.assessment and state.assessment.no_show_id == no_show.no_show_id:
+                    choices = tuple(c for c in contexts if c.assignment.person_id == no_show.person_id and c.assignment.assignment_id != no_show.assignment_id)
+                    link_options.append(ReplacementLinkContext(no_show, context, choices))
+                continue
+            replacement_assignment = self.uow.assignments.get(replacement.assignment_id)
+            if replacement_assignment is None:
+                raise ValueError("replacement references an unknown inroostering")
+            row = ReplacementStatusContext(replacement, _assignment_context(replacement_assignment, services, persons))
+            replacement_no_show = self.uow.no_shows.for_assignment(replacement.assignment_id)
+            if replacement_no_show is not None and replacement_no_show.status == "valid":
+                with_no_show.append(row)
+            elif not replacement.completed:
+                pending.append(row)
+        return ReplacementOverview(tuple(link_options), tuple(pending), tuple(with_no_show))
 
     def register_replacement(self, replacement: ReplacementDuty) -> ActiveSanctionState:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
