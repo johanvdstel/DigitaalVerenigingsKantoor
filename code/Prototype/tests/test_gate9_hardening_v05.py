@@ -38,9 +38,10 @@ def test_revoked_no_show_has_no_effective_sanction(tmp_path):
     with db.unit_of_work() as uow: _seed(uow)
     with db.unit_of_work() as uow: NoShowApplicationService(uow, IDENTITY).register(_event())
     with db.unit_of_work() as uow:
-        NoShowApplicationService(uow, IDENTITY).revoke("N-H", reason="fout geregistreerd", corrected_at=datetime(2026, 9, 18, 12))
+        NoShowApplicationService(uow, IDENTITY).revoke("N-H", reason="fout geregistreerd", revoked_at=datetime(2026, 9, 18, 12))
     with db.unit_of_work() as uow:
-        assert uow.no_shows.get("N-H").status == "revoked"
+        assert uow.no_shows.get("N-H") == _event()
+        assert uow.no_show_revocations.for_no_show("N-H").reason == "fout geregistreerd"
         assert uow.sanctions.get("N-H") is None
 
 

@@ -2,11 +2,11 @@ from datetime import datetime
 
 import pytest
 
-from dvk.no_show import NoShowEvent, assess_sanction, season_id
+from dvk.no_show import NoShowEvent, NoShowRevocation, assess_sanction, season_id
 
 
-def event(identifier, when, *, person="P1", status="valid"):
-    return NoShowEvent(identifier, f"A-{identifier}", person, when, when, "planner", season_id(when.date()), status)
+def event(identifier, when, *, person="P1"):
+    return NoShowEvent(identifier, f"A-{identifier}", person, when, when, "planner", season_id(when.date()))
 
 
 def test_season_runs_from_july_through_june():
@@ -41,11 +41,13 @@ def test_previous_season_no_show_does_not_count():
 
 
 def test_revoked_no_show_does_not_count():
-    revoked = event("N1", datetime(2026, 9, 1, 10), status="revoked")
+    original = event("N1", datetime(2026, 9, 1, 10))
+    revoked = NoShowRevocation("R1", "N1", "registratiefout", datetime(2026, 9, 3), "planner")
     current = event("N2", datetime(2026, 9, 2, 10))
-    assert assess_sanction(current, (revoked,)).counter == 1
+    assert assess_sanction(current, (original,), (revoked,)).counter == 1
 
 
 def test_revoked_current_event_cannot_create_sanction():
     with pytest.raises(ValueError):
-        assess_sanction(event("N1", datetime(2026, 9, 1, 10), status="revoked"), ())
+        assess_sanction(event("N1", datetime(2026, 9, 1, 10)), (),
+                        (NoShowRevocation("R1", "N1", "registratiefout", datetime(2026, 9, 3), "planner"),))

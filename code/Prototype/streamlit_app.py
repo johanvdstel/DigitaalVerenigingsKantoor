@@ -7,13 +7,12 @@ from uuid import uuid4
 import pandas as pd
 import streamlit as st
 
-from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService, ReplacementDutyApplicationService
+from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
 from dvk.candidate_selection import assess_candidate
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
 from dvk.proposal_planning import plan_proposals
-from dvk.replacement_duty import ReplacementDuty
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
 from dvk.security import Identity, Permission
@@ -180,8 +179,12 @@ else:
                 occurred_at, datetime.now().astimezone(), identity.subject_id,
                 season_id(occurred_at.date()),
             )
-            assessment = NoShowApplicationService(uow, identity).register(event)
-        st.session_state["last-no-show"] = assessment
+            try:
+                assessment = NoShowApplicationService(uow, identity).register(event)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state["last-no-show"] = assessment
     assessment = st.session_state.get("last-no-show")
     if assessment:
         if assessment.counter == 1:
@@ -192,58 +195,41 @@ else:
             st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
         st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
 
-st.markdown("### Vervangende inzet")
-st.caption("Na een eerste no-show regelt de betrokkene zelf een nieuwe dienst. Een bevoegd lid van de Vrijwilligerscommissie koppelt die inroostering en bevestigt na afloop of de vervangende inzet is uitgevoerd.")
 with database.unit_of_work() as uow:
-    replacement_overview = ReplacementDutyApplicationService(uow, identity).overview(
+    revocable_rows = NoShowApplicationService(uow, identity).revocable_no_shows(
         services=services, persons=tuple(c.person for c in demo_candidate_cases()),
     )
 
-if replacement_overview.link_options:
-    no_show_labels = {option.no_show.no_show_id: _assignment_label(option.original_assignment) for option in replacement_overview.link_options}
-    with st.form("replacement-link-form"):
-        repair_no_show_id = st.selectbox("Eerste no-show", tuple(no_show_labels), format_func=no_show_labels.get)
-        selected_option = next(option for option in replacement_overview.link_options if option.no_show.no_show_id == repair_no_show_id)
-        selected_no_show = selected_option.no_show
-        replacement_labels = {c.assignment.assignment_id: _assignment_label(c) for c in selected_option.available_assignments}
-        replacement_assignment_id = st.selectbox("Zelf geregelde vervangende inroostering", tuple(replacement_labels), format_func=replacement_labels.get) if replacement_labels else None
-        link_submitted = st.form_submit_button("Vervangende inzet koppelen", disabled=not replacement_labels)
-    if link_submitted and replacement_assignment_id:
-        with database.unit_of_work() as uow:
-            state = ReplacementDutyApplicationService(uow, identity).register_replacement(
-                ReplacementDuty(f"RV-{uuid4()}", repair_no_show_id, replacement_assignment_id, selected_no_show.person_id, selected_no_show.season, datetime.now().astimezone(), identity.subject_id)
-            )
-        st.success("Vervangende inzet geregeld. De actieve teller blijft 1 totdat uitvoering is bevestigd.")
-        st.rerun()
+if st.session_state.pop("clear-no-show-revocation-reason", False):
+    st.session_state["no-show-revocation-reason"] = ""
 
-for row in replacement_overview.with_no_show:
-    st.warning(f"{_assignment_label(row.assignment)} — No-show geregistreerd op vervangende dienst.")
+if revocable_rows:
+    no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
+    with st.form("no-show-revocation-form"):
+        revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get)
+        revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
+        revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
+    if revoke_submitted:
+        try:
+            with database.unit_of_work() as uow:
+                app = NoShowApplicationService(uow, identity)
+                app.revoke(revoke_no_show_id, reason=revocation_reason, revoked_at=datetime.now().astimezone())
+                selected_row = next(row for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
+                selected_no_show = selected_row.no_show
+                state = app.current_state(selected_no_show.person_id, selected_no_show.season)
+            person_label = selected_row.assignment.person_name or "dit lid (naam onbekend)"
+            st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
+            st.session_state["clear-no-show-revocation-reason"] = True
+            st.session_state.pop("last-no-show", None)
+            st.rerun()
+        except ValueError as exc:
+            st.error(str(exc))
+else:
+    st.info("Geen geregistreerde no-shows beschikbaar voor intrekking.")
 
-if replacement_overview.pending:
-    st.write("**Uitvoering nog te bevestigen**")
-    replacement_labels = {row.replacement.replacement_id: _assignment_label(row.assignment) for row in replacement_overview.pending}
-    selected_replacement_id = st.selectbox("Vervangende inzet", tuple(replacement_labels), format_func=replacement_labels.get)
-    selected_replacement = next(row for row in replacement_overview.pending if row.replacement.replacement_id == selected_replacement_id)
-    c_done, c_noshow = st.columns(2)
-    if c_done.button("Uitgevoerd bevestigen", type="primary"):
-        with database.unit_of_work() as uow:
-            state = ReplacementDutyApplicationService(uow, identity).complete_replacement(selected_replacement_id, completed_at=datetime.now().astimezone())
-        if state.counter == 0:
-            st.success("Vervangende inzet uitgevoerd. Actieve no-showteller is teruggezet naar 0.")
-        else:
-            st.success(f"Vervangende inzet uitgevoerd. Actieve no-showteller: {state.counter}.")
-        st.rerun()
-    if c_noshow.button("No-show vastleggen voor vervangende inzet"):
-        with database.unit_of_work() as uow:
-            assignment = selected_replacement.assignment.assignment
-            now = datetime.now().astimezone()
-            assessment = NoShowApplicationService(uow, identity).register(
-                NoShowEvent(f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id, now, now, identity.subject_id, season_id(now.date()))
-            )
-        st.warning(f"No-show {assessment.counter} geregistreerd. De vervangende inzet heeft de eerdere no-show niet hersteld.")
-        st.rerun()
-elif not replacement_overview.link_options and not replacement_overview.with_no_show:
-    st.info("Geen openstaande vervangende inzet na een eerste no-show.")
+revocation_result = st.session_state.pop("no-show-revocation-result", None)
+if revocation_result:
+    st.success(revocation_result)
 
 st.markdown("### Wedstrijden")
 if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
@@ -253,4 +239,4 @@ st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("
 st.markdown("### Datakwaliteit")
 if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
 else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-st.caption("Gate 10 ondersteunt de door de Vrijwilligerscommissie bevestigde no-show en vervangende inzet. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")

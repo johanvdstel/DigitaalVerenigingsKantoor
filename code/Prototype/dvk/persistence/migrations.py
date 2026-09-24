@@ -116,7 +116,41 @@ def _migration_009(connection: sqlite3.Connection) -> None:
     connection.execute("CREATE INDEX idx_replacement_person_season ON replacement_duties(person_id, season)")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009)
+def _migration_010(connection: sqlite3.Connection) -> None:
+    """Replace the abandoned repair model with separate immutable revocations.
+
+    Explicit CKC decision: discard legacy revoked prototype facts and only their
+    assessments; keep valid facts/payloads and all assignments/decisions intact.
+    Never infer revocations from legacy corrections or replacement duties.
+    """
+    if not connection.in_transaction:
+        connection.execute("BEGIN")
+    connection.execute("SAVEPOINT no_show_revocation_migration")
+    try:
+        connection.execute("DROP TABLE replacement_duties")
+        connection.execute("""DELETE FROM sanction_assessments WHERE no_show_id IN (
+            SELECT no_show_id FROM no_show_events WHERE status='revoked')""")
+        connection.execute("DELETE FROM no_show_events WHERE status='revoked'")
+        connection.execute("ALTER TABLE no_show_events DROP COLUMN status")
+        connection.execute("""CREATE TABLE no_show_revocations (
+            revocation_id TEXT PRIMARY KEY,
+            no_show_id TEXT NOT NULL UNIQUE REFERENCES no_show_events(no_show_id),
+            reason TEXT NOT NULL,
+            revoked_at TEXT NOT NULL,
+            revoked_by TEXT NOT NULL)""")
+        for table in ("no_show_events", "no_show_revocations"):
+            for operation in ("UPDATE", "DELETE"):
+                connection.execute(f"""CREATE TRIGGER {table}_no_{operation.lower()}
+                    BEFORE {operation} ON {table} BEGIN
+                    SELECT RAISE(ABORT, 'no-show facts are immutable'); END""")
+    except Exception:
+        connection.execute("ROLLBACK TO no_show_revocation_migration")
+        connection.execute("RELEASE no_show_revocation_migration")
+        raise
+    connection.execute("RELEASE no_show_revocation_migration")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010)
 
 
 def migrate(connection: sqlite3.Connection) -> int:

@@ -1,7 +1,6 @@
 from datetime import datetime
-from uuid import uuid4
 
-from dvk.no_show import NoShowEvent, assess_sanction, season_id
+from dvk.no_show import NoShowEvent, NoShowRevocation, assess_sanction, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
 
@@ -30,21 +29,20 @@ def test_no_show_and_sanction_survive_database_reopen(tmp_path):
         assert uow.no_shows.for_person_season("P1", "2026/2027") == (event,)
 
 
-def test_revocation_updates_fact_without_deleting_history(tmp_path):
+def test_revocation_is_separate_fact_without_changing_history(tmp_path):
     db = SQLiteDatabase(tmp_path / "gate9-revoke.sqlite")
     db.initialize()
     when = datetime(2026, 9, 18, 10)
     event = NoShowEvent("N1", "A-NO", "P1", when, when, "planner", "2026/2027")
-    revoked = NoShowEvent("N1", "A-NO", "P1", when, when, "planner", "2026/2027", "revoked", "incorrect registered", datetime(2026, 9, 18, 11), "planner")
+    revoked = NoShowRevocation("R1", "N1", "incorrect registered", datetime(2026, 9, 18, 11), "planner")
     with db.unit_of_work() as uow:
         _seed_assignment(uow)
         uow.no_shows.add(event)
         uow.commit()
     with db.unit_of_work() as uow:
-        uow.no_shows.update(revoked)
+        uow.no_show_revocations.add(revoked)
         uow.commit()
     with db.unit_of_work() as uow:
         stored = uow.no_shows.get("N1")
-        assert stored.status == "revoked"
-        assert stored.correction_reason == "incorrect registered"
-        assert stored.corrected_at is not None
+        assert stored == event
+        assert uow.no_show_revocations.for_no_show("N1") == revoked

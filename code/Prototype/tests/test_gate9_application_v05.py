@@ -70,6 +70,8 @@ def test_revoke_is_authorized_auditable_correction(tmp_path):
     with db.unit_of_work() as uow: seed(uow)
     with db.unit_of_work() as uow: NoShowApplicationService(uow, allowed).register(event())
     with db.unit_of_work() as uow:
-        corrected = NoShowApplicationService(uow, allowed).revoke("N1", reason="ten onrechte geregistreerd", corrected_at=datetime(2026, 9, 18, 12))
-        assert corrected.status == "revoked"
-        assert corrected.corrected_by == "planner"
+        corrected = NoShowApplicationService(uow, allowed).revoke("N1", reason="ten onrechte geregistreerd", revoked_at=datetime(2026, 9, 18, 12))
+        assert corrected.no_show_id == "N1"
+        assert corrected.revoked_by == "planner"
+        assert uow.no_shows.get("N1") == event()
+        assert uow.no_show_revocations.for_no_show("N1") == corrected

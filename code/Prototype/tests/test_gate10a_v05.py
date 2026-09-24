@@ -1,7 +1,9 @@
+from dataclasses import FrozenInstanceError
 from datetime import datetime
 
-from dvk.no_show import NoShowEvent
-from dvk.replacement_duty import ReplacementDuty, active_sanction_state
+import pytest
+
+from dvk.no_show import NoShowEvent, NoShowRevocation, current_sanction_state
 
 
 def ns(identifier, day):
@@ -9,55 +11,51 @@ def ns(identifier, day):
     return NoShowEvent(identifier, f"A-{identifier}", "P1", when, when, "planner", "2026/2027")
 
 
-def replacement(no_show_id, *, completed=True):
-    return ReplacementDuty(
-        f"R-{no_show_id}", no_show_id, f"AR-{no_show_id}", "P1", "2026/2027",
-        datetime(2026, 9, 20, 9), "planner",
-        datetime(2026, 9, 21, 12) if completed else None,
-        "planner" if completed else None,
-    )
+def revocation(identifier):
+    return NoShowRevocation(f"R-{identifier}", identifier, "vrije toelichting", datetime(2026, 10, 1), "planner")
 
 
-def test_first_no_show_without_completed_replacement_stays_at_one():
-    state = active_sanction_state("P1", "2026/2027", (ns("N1", 18),), ())
-    assert state.counter == 1
-    assert state.assessment.replacement_service_required is True
+@pytest.mark.parametrize("number", [1, 2, 3, 4, 5])
+def test_any_no_show_can_be_revoked_without_mutating_originals(number):
+    events = tuple(ns(f"N{i}", i) for i in range(1, 6))
+    state = current_sanction_state("P1", "2026/2027", events, (revocation(f"N{number}"),))
+    assert state.counter == 4
+    assert events == tuple(ns(f"N{i}", i) for i in range(1, 6))
+    assert (state.assessment.card, state.assessment.fine_eur, state.assessment.suspension_matches) == ("red", 100, 3)
 
 
-def test_scheduled_but_not_completed_replacement_does_not_reset_counter():
-    state = active_sanction_state("P1", "2026/2027", (ns("N1", 18),), (replacement("N1", completed=False),))
-    assert state.counter == 1
+def test_three_no_shows_then_revoking_second_gives_two():
+    events = (ns("N1", 1), ns("N2", 2), ns("N3", 3))
+    before = current_sanction_state("P1", "2026/2027", events)
+    assert (before.counter, before.assessment.suspension_matches) == (3, 2)
+    after = current_sanction_state("P1", "2026/2027", events, (revocation("N2"),))
+    assert (after.counter, after.assessment.card, after.assessment.fine_eur, after.assessment.suspension_matches) == (2, "yellow", 75, 1)
 
 
-def test_completed_replacement_resets_first_no_show_to_zero_but_preserves_history_reference():
-    state = active_sanction_state("P1", "2026/2027", (ns("N1", 18),), (replacement("N1"),))
+def test_all_revoked_leaves_zero_and_no_sanction():
+    state = current_sanction_state("P1", "2026/2027", (ns("N1", 1),), (revocation("N1"),))
     assert state.counter == 0
     assert state.assessment is None
-    assert state.repaired_no_show_ids == ("N1",)
 
 
-def test_next_no_show_after_successful_repair_is_first_stage_again():
-    state = active_sanction_state(
-        "P1", "2026/2027", (ns("N1", 18), ns("N2", 25)), (replacement("N1"),)
-    )
-    assert state.counter == 1
-    assert state.assessment.no_show_id == "N2"
-    assert state.assessment.replacement_service_required is True
+def test_current_state_counts_distinct_facts_even_with_equal_occurrence_times():
+    state = current_sanction_state("P1", "2026/2027", (ns("N1", 1), ns("N2", 1)))
+    assert state.counter == state.assessment.counter == 2
 
 
-def test_unrepaired_first_no_show_makes_next_no_show_stage_two():
-    state = active_sanction_state("P1", "2026/2027", (ns("N1", 18), ns("N2", 25)), ())
-    assert state.counter == 2
-    assert state.assessment.card == "yellow"
-    assert state.assessment.fine_eur == 75
-    assert state.assessment.suspension_matches == 1
+def test_other_person_and_season_do_not_count():
+    assert current_sanction_state("P2", "2026/2027", (ns("N1", 1),)).counter == 0
+    assert current_sanction_state("P1", "2027/2028", (ns("N1", 1),)).counter == 0
 
 
-def test_completed_replacement_cannot_repair_stage_two():
-    # N1 is not repaired before N2 occurs, so N2 is stage 2. A replacement
-    # linked to N2 must not reset that later-stage sanction.
-    state = active_sanction_state(
-        "P1", "2026/2027", (ns("N1", 18), ns("N2", 25)), (replacement("N2"),)
-    )
-    assert state.counter == 2
-    assert state.repaired_no_show_ids == ()
+@pytest.mark.parametrize("reason", ["", " ", "\t\n", "\u2003"])
+def test_whitespace_reason_is_invalid(reason):
+    with pytest.raises(ValueError, match="reason"):
+        NoShowRevocation("R", "N1", reason, datetime(2026, 10, 1), "planner")
+
+
+def test_event_and_revocation_are_immutable():
+    with pytest.raises(FrozenInstanceError):
+        ns("N1", 1).recorded_by = "other"
+    with pytest.raises(FrozenInstanceError):
+        revocation("N1").reason = "changed"
