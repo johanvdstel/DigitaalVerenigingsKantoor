@@ -200,20 +200,26 @@ with database.unit_of_work() as uow:
         services=services, persons=tuple(c.person for c in demo_candidate_cases()),
     )
 
+if st.session_state.pop("clear-no-show-revocation-reason", False):
+    st.session_state["no-show-revocation-reason"] = ""
+
 if revocable_rows:
     no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
     with st.form("no-show-revocation-form"):
         revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get)
-        revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)")
+        revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
         revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
     if revoke_submitted:
         try:
             with database.unit_of_work() as uow:
                 app = NoShowApplicationService(uow, identity)
                 app.revoke(revoke_no_show_id, reason=revocation_reason, revoked_at=datetime.now().astimezone())
-                selected_no_show = next(row.no_show for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
+                selected_row = next(row for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
+                selected_no_show = selected_row.no_show
                 state = app.current_state(selected_no_show.person_id, selected_no_show.season)
-            st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele teller voor seizoen {state.season}: {state.counter}."
+            person_label = selected_row.assignment.person_name or "dit lid (naam onbekend)"
+            st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
+            st.session_state["clear-no-show-revocation-reason"] = True
             st.session_state.pop("last-no-show", None)
             st.rerun()
         except ValueError as exc:

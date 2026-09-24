@@ -120,7 +120,8 @@ def test_revocation_ui_requires_explicit_confirmation_and_shows_current_season_c
         assert uow.no_show_revocations.for_no_show("technical-no-show-2") is None
     _confirm(app).click().run()
     assert not app.exception
-    assert any("Actuele teller voor seizoen 2026/2027: 1" in message.value for message in app.success)
+    assert any(message.value == "No-show ingetrokken. Actuele no-showteller voor Jeugdlid Thuis in seizoen 2026/2027: 1." for message in app.success)
+    assert app.text_area[0].value == ""
     assert len(_revocation_selector(app).options) == 1
     with db.unit_of_work() as uow:
         assert uow.no_shows.get("technical-no-show-2") == original
@@ -140,6 +141,7 @@ def test_revocation_ui_reports_service_validation_without_partial_write(rendered
     _confirm(app).click().run()
     assert not app.exception
     assert any("toelichting" in message.value for message in app.error)
+    assert app.text_area[0].value == "   "
     with db.unit_of_work() as uow:
         assert uow.no_show_revocations.for_no_show("technical-no-show-1") is None
 
@@ -172,3 +174,41 @@ def test_duplicate_no_show_registration_shows_message_without_second_event(rende
         assert uow.no_shows.all() == before
         assert uow.no_shows.for_assignment(assignment_id) == original
         assert sum(event.assignment_id == assignment_id for event in uow.no_shows.all()) == 1
+
+
+def test_successful_revocation_does_not_reuse_reason_for_next_no_show(rendered_app):
+    app, db = rendered_app
+    app.text_area[0].set_value("Toelichting voor de eerste intrekking")
+    _confirm(app).click().run()
+    assert not app.exception
+    assert app.text_area[0].value == ""
+    remaining_id = _revocation_selector(app).value
+    app.run()
+    assert app.text_area[0].value == ""
+    _confirm(app).click().run()
+    assert not app.exception
+    assert any("toelichting" in message.value for message in app.error)
+    with db.unit_of_work() as uow:
+        assert uow.no_show_revocations.for_no_show(remaining_id) is None
+
+
+def test_revocation_success_does_not_guess_missing_person_name(rendered_app, monkeypatch):
+    app, db = rendered_app
+    original_query = NoShowApplicationService.revocable_no_shows
+
+    def without_person_context(self, **kwargs):
+        return tuple(replace(row, assignment=replace(row.assignment, person_name=None))
+                     for row in original_query(self, **kwargs))
+
+    monkeypatch.setattr(NoShowApplicationService, "revocable_no_shows", without_person_context)
+    app.run()
+    no_show_id = _revocation_selector(app).value
+    with db.unit_of_work() as uow:
+        person_id = uow.no_shows.get(no_show_id).person_id
+    app.text_area[0].set_value("Expliciet besluit")
+    _confirm(app).click().run()
+    assert not app.exception
+    message = next(message.value for message in app.success if "No-show ingetrokken" in message.value)
+    assert message == "No-show ingetrokken. Actuele no-showteller voor dit lid (naam onbekend) in seizoen 2026/2027: 1."
+    assert person_id not in message
+    assert "Jeugdlid Thuis" not in message
