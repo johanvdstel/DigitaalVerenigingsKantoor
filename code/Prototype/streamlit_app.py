@@ -179,8 +179,12 @@ else:
                 occurred_at, datetime.now().astimezone(), identity.subject_id,
                 season_id(occurred_at.date()),
             )
-            assessment = NoShowApplicationService(uow, identity).register(event)
-        st.session_state["last-no-show"] = assessment
+            try:
+                assessment = NoShowApplicationService(uow, identity).register(event)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state["last-no-show"] = assessment
     assessment = st.session_state.get("last-no-show")
     if assessment:
         if assessment.counter == 1:

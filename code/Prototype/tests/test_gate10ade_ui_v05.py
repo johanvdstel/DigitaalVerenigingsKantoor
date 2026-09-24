@@ -146,3 +146,29 @@ def test_revocation_ui_reports_service_validation_without_partial_write(rendered
 
 def test_streamlit_source_compiles_without_importing_or_starting_app():
     compile(SOURCE.read_text(), str(SOURCE), "exec")
+
+
+def test_duplicate_no_show_registration_shows_message_without_second_event(rendered_app):
+    app, db = rendered_app
+    context = _context()
+    assignment_id = "technical-assignment-registration"
+    with db.unit_of_work() as uow:
+        services, _, _, _ = demo_planning_data(datetime(2026, 9, 14).date())
+        uow.assignments.add(replace(context.assignment, assignment_id=assignment_id, proposal_id="technical-proposal-1", service_id=services[0].service_id))
+        uow.commit()
+    app.run()
+    next(widget for widget in app.selectbox if widget.label == "Inroostering").select(assignment_id)
+    next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()
+    assert not app.exception
+    assert not app.error
+    with db.unit_of_work() as uow:
+        original = uow.no_shows.for_assignment(assignment_id)
+        assert original is not None
+        before = uow.no_shows.all()
+    next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()
+    assert not app.exception
+    assert any("voor deze inroostering is al een no-show geregistreerd" in message.value for message in app.error)
+    with db.unit_of_work() as uow:
+        assert uow.no_shows.all() == before
+        assert uow.no_shows.for_assignment(assignment_id) == original
+        assert sum(event.assignment_id == assignment_id for event in uow.no_shows.all()) == 1
