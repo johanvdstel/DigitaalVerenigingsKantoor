@@ -1,161 +1,169 @@
+from dataclasses import replace
 from datetime import datetime
+
 import pytest
-from dvk.application_services import NoShowApplicationService, ReplacementDutyApplicationService
-from dvk.no_show import NoShowEvent
+
+from dvk.application_services import NoShowApplicationService
+from dvk.demo_data_v05 import demo_candidate_cases, demo_planning_data
+from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
-from dvk.replacement_duty import ReplacementDuty
 from dvk.security import AuthorizationError, Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
 
 VC = Identity("vc1", "Vrijwilligerscommissie", frozenset({Permission.MANAGE_NO_SHOWS}))
 OTHER = Identity("other", "Onbevoegd", frozenset())
 
-def _proposal(pid, sid):
-    return AssignmentProposal(pid, sid, "P1", "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ())
 
 def _seed(db):
     with db.unit_of_work() as uow:
-        for pid, aid, sid in (("P0", "A0", "S0"), ("P1R", "AR", "SR"), ("P2", "A2", "S2")):
-            uow.proposals.add(_proposal(pid, sid))
-            uow.assignments.add(DutyAssignment(aid, pid, sid, "P1", "member", 4, "vc1"))
+        for i in range(1, 7):
+            uow.proposals.add(AssignmentProposal(f"P{i}", f"S{i}", "MEM1", "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
+            uow.assignments.add(DutyAssignment(f"A{i}", f"P{i}", f"S{i}", "MEM1", "member", 4, "vc1"))
         uow.commit()
-    when = datetime(2026, 9, 18, 10)
-    with db.unit_of_work() as uow:
-        NoShowApplicationService(uow, VC).register(NoShowEvent("N1", "A0", "P1", when, when, "vc1", "2026/2027"))
 
-def _replacement():
-    return ReplacementDuty("R1", "N1", "AR", "P1", "2026/2027", datetime(2026, 9, 19, 9), "vc1")
 
-def test_linking_replacement_keeps_counter_at_one(tmp_path):
-    db = SQLiteDatabase(tmp_path / "link.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow:
-        state = ReplacementDutyApplicationService(uow, VC).register_replacement(_replacement())
-        assert state.counter == 1
+def _event(i, when=None):
+    when = when or datetime(2026, 9, i, 10)
+    return NoShowEvent(f"N{i}", f"A{i}", "MEM1", when, when, "vc1", season_id(when.date()))
 
-def test_authorized_completion_resets_active_counter_to_zero(tmp_path):
-    db = SQLiteDatabase(tmp_path / "complete.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow: ReplacementDutyApplicationService(uow, VC).register_replacement(_replacement())
-    with db.unit_of_work() as uow:
-        state = ReplacementDutyApplicationService(uow, VC).complete_replacement("R1", completed_at=datetime(2026, 9, 25, 22))
-        assert state.counter == 0
-        assert state.repaired_no_show_ids == ("N1",)
-        assert uow.replacements.get("R1").completed_by == "vc1"
 
-def test_unauthorized_member_cannot_confirm_replacement(tmp_path):
-    db = SQLiteDatabase(tmp_path / "auth.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow: ReplacementDutyApplicationService(uow, VC).register_replacement(_replacement())
+@pytest.fixture
+def database(tmp_path):
+    db = SQLiteDatabase(tmp_path / "no-shows.sqlite")
+    db.initialize()
+    _seed(db)
     with db.unit_of_work() as uow:
+        for i in range(1, 6):
+            NoShowApplicationService(uow, VC).register(_event(i))
+    return db
+
+
+@pytest.mark.parametrize("number", [1, 2, 3, 4, 5])
+def test_authorized_revocation_of_any_stage_is_separate_and_survives_reopen(database, number):
+    with database.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, VC)
+        original = uow.no_shows.get(f"N{number}")
+        payload_before = uow._connection.execute("SELECT payload FROM no_show_events WHERE no_show_id=?", (original.no_show_id,)).fetchone()
+        revocation = app.revoke(original.no_show_id, reason="  expliciet besluit  ", revoked_at=datetime(2026, 9, 30, 12))
+        assert (revocation.revoked_by, revocation.reason, revocation.revoked_at) == ("vc1", "expliciet besluit", datetime(2026, 9, 30, 12))
+    with database.unit_of_work() as uow:
+        assert uow.no_shows.get(original.no_show_id) == original
+        assert uow._connection.execute("SELECT payload FROM no_show_events WHERE no_show_id=?", (original.no_show_id,)).fetchone() == payload_before
+        assert uow.no_show_revocations.for_no_show(original.no_show_id) == revocation
+        assert NoShowApplicationService(uow, VC).current_state("MEM1", "2026/2027").counter == 4
+        with pytest.raises(ValueError, match="al ingetrokken"):
+            NoShowApplicationService(uow, VC).revoke(original.no_show_id, reason="nogmaals", revoked_at=datetime(2026, 10, 1))
+        assert len(uow.no_show_revocations.for_person_season("MEM1", "2026/2027")) == 1
+
+
+@pytest.mark.parametrize("reason", ["", " ", "\t\n"])
+def test_empty_reason_has_no_partial_write(database, reason):
+    with database.unit_of_work() as uow:
+        with pytest.raises(ValueError, match="toelichting"):
+            NoShowApplicationService(uow, VC).revoke("N2", reason=reason, revoked_at=datetime(2026, 9, 30))
+        assert uow.no_show_revocations.for_no_show("N2") is None
+        assert uow.no_shows.get("N2") == _event(2)
+
+
+def test_unauthorized_revocation_has_no_partial_write(database):
+    with database.unit_of_work() as uow:
         with pytest.raises(AuthorizationError):
-            ReplacementDutyApplicationService(uow, OTHER).complete_replacement("R1", completed_at=datetime(2026, 9, 25, 22))
-
-def test_no_show_on_replacement_assignment_does_not_reset_and_becomes_stage_two(tmp_path):
-    db = SQLiteDatabase(tmp_path / "replacement-no-show.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow: ReplacementDutyApplicationService(uow, VC).register_replacement(_replacement())
-    when = datetime(2026, 9, 25, 20)
-    with db.unit_of_work() as uow:
-        assessment = NoShowApplicationService(uow, VC).register(NoShowEvent("N2", "AR", "P1", when, when, "vc1", "2026/2027"))
-        assert assessment.counter == 2
-    with db.unit_of_work() as uow:
-        assert uow.replacements.get("R1").completed is False
+            NoShowApplicationService(uow, OTHER).revoke("N2", reason="besluit", revoked_at=datetime(2026, 9, 30))
+        assert uow.no_show_revocations.for_no_show("N2") is None
+        assert uow.no_shows.get("N2") == _event(2)
 
 
-def test_public_overview_preserves_link_choices_pending_and_completed_flow(tmp_path):
-    db = SQLiteDatabase(tmp_path / "overview.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow:
-        app = ReplacementDutyApplicationService(uow, VC)
-        before = uow._connection.total_changes
-        overview = app.overview()
-        assert uow._connection.total_changes == before
-        assert [o.no_show.no_show_id for o in overview.link_options] == ["N1"]
-        option = overview.link_options[0]
-        assert option.original_assignment.assignment.assignment_id == "A0"
-        assert [c.assignment.assignment_id for c in option.available_assignments] == ["A2", "AR"]
-        assert not overview.pending and not overview.with_no_show
-        app.register_replacement(_replacement())
-        linked = app.overview()
-        assert not linked.link_options
-        assert [r.replacement.replacement_id for r in linked.pending] == ["R1"]
-        assert linked.pending[0].assignment.assignment.assignment_id == "AR"
-        assert not linked.with_no_show
-        state = app.complete_replacement("R1", completed_at=datetime(2026, 9, 25, 22))
-        assert state.counter == 0
-        completed = app.overview()
-        assert not completed.link_options and not completed.pending and not completed.with_no_show
+def test_unknown_no_show_is_rejected(database):
+    with database.unit_of_work() as uow:
+        with pytest.raises(ValueError, match="Onbekende"):
+            NoShowApplicationService(uow, VC).revoke("missing", reason="besluit", revoked_at=datetime(2026, 9, 30))
+        assert uow.no_show_revocations.for_person_season("MEM1", "2026/2027") == ()
 
 
-def test_valid_replacement_no_show_is_separate_and_revocation_restores_pending(tmp_path):
-    db = SQLiteDatabase(tmp_path / "overview-no-show.sqlite"); db.initialize(); _seed(db)
-    when = datetime(2026, 9, 25, 20)
-    with db.unit_of_work() as uow:
-        app = ReplacementDutyApplicationService(uow, VC)
-        app.register_replacement(_replacement())
-        NoShowApplicationService(uow, VC).register(NoShowEvent("N2", "AR", "P1", when, when, "vc1", "2026/2027"))
-    # Query after reopen: status comes from persisted facts, not UI session state.
-    with db.unit_of_work() as uow:
-        app = ReplacementDutyApplicationService(uow, VC)
-        overview = app.overview()
-        assert not overview.pending
-        assert [r.replacement.replacement_id for r in overview.with_no_show] == ["R1"]
-        assert overview.with_no_show[0].assignment.assignment.assignment_id == "AR"
-        assert uow.replacements.get("R1").completed is False
-        NoShowApplicationService(uow, VC).revoke("N2", reason="registratiefout", corrected_at=datetime(2026, 9, 26))
-        corrected = app.overview()
-        assert not corrected.with_no_show
-        assert [r.replacement.replacement_id for r in corrected.pending] == ["R1"]
-
-
-def test_overview_does_not_hide_no_show_when_completion_is_already_stored(tmp_path):
-    db = SQLiteDatabase(tmp_path / "completed-no-show.sqlite"); db.initialize(); _seed(db)
-    when = datetime(2026, 9, 25, 20)
-    with db.unit_of_work() as uow:
-        app = ReplacementDutyApplicationService(uow, VC)
-        app.register_replacement(_replacement())
-        app.complete_replacement("R1", completed_at=datetime(2026, 9, 25, 22))
-        NoShowApplicationService(uow, VC).register(NoShowEvent("N2", "AR", "P1", when, when, "vc1", "2026/2027"))
-        overview = app.overview()
-        assert not overview.pending
-        assert [r.replacement.replacement_id for r in overview.with_no_show] == ["R1"]
-        assert uow.replacements.get("R1").completed is True
-
-
-def test_public_queries_require_existing_no_show_permission_before_reading():
-    # None as UoW proves authorization fails before repository access.
-    with pytest.raises(AuthorizationError):
-        ReplacementDutyApplicationService(None, OTHER).overview()
-    with pytest.raises(AuthorizationError):
-        NoShowApplicationService(None, OTHER).assignment_contexts()
-
-
-def test_revoked_original_no_show_is_not_offered_for_linking(tmp_path):
-    db = SQLiteDatabase(tmp_path / "revoked-original.sqlite"); db.initialize(); _seed(db)
-    with db.unit_of_work() as uow:
-        NoShowApplicationService(uow, VC).revoke("N1", reason="registratiefout", corrected_at=datetime(2026, 9, 19))
-        assert not ReplacementDutyApplicationService(uow, VC).overview().link_options
-
-
-def test_assignment_context_uses_only_unique_exact_ids_and_preserves_recent_limit(tmp_path):
-    from dataclasses import replace
-    from dvk.demo_data_v05 import demo_candidate_cases, demo_planning_data
-    db = SQLiteDatabase(tmp_path / "human-context.sqlite"); db.initialize(); _seed(db)
-    services, _, _, _ = demo_planning_data(datetime(2026, 9, 14).date())
-    service = replace(services[2], service_id="SR")
-    person = replace(demo_candidate_cases()[2].person, person_id="P1")
+def test_current_three_to_two_and_next_registration_uses_remaining_facts(tmp_path):
+    db = SQLiteDatabase(tmp_path / "three.sqlite"); db.initialize(); _seed(db)
     with db.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
+        for i in range(1, 4):
+            app.register(_event(i))
+        assert app.current_state("MEM1", "2026/2027").counter == 3
+        app.revoke("N2", reason="besluit", revoked_at=datetime(2026, 9, 30))
+        state = app.current_state("MEM1", "2026/2027")
+        assert (state.counter, state.assessment.fine_eur, state.assessment.suspension_matches) == (2, 75, 1)
+        # Historical assessment is retained, current state is derived separately.
+        assert uow.sanctions.get("N3").counter == 3
+        assert app.register(_event(4)).counter == 3
+
+
+def test_season_transition_preserves_both_facts_without_reset(tmp_path):
+    db = SQLiteDatabase(tmp_path / "seasons.sqlite"); db.initialize(); _seed(db)
+    old1 = _event(1, datetime(2026, 6, 29, 10))
+    old2 = _event(2, datetime(2026, 6, 30, 10))
+    with db.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, VC)
+        app.register(old1); app.register(old2)
+        revoked = app.revoke("N2", reason="besluit vorig seizoen", revoked_at=datetime(2026, 7, 2))
+        assert app.current_state("MEM1", "2026/2027").counter == 0
+        assert app.current_state("MEM1", "2025/2026").counter == 1
+        assert app.register(_event(3, datetime(2026, 7, 1, 10))).counter == 1
+    with db.unit_of_work() as uow:
+        assert uow.no_shows.for_person_season("MEM1", "2025/2026") == (old1, old2)
+        assert uow.no_show_revocations.for_person_season("MEM1", "2025/2026") == (revoked,)
+        assert uow.no_show_revocations.for_person_season("MEM1", "2026/2027") == ()
+        assert NoShowApplicationService(uow, VC).current_state("MEM1", "2026/2027").counter == 1
+
+
+def test_other_assignments_and_no_shows_never_infer_revocation(tmp_path):
+    db = SQLiteDatabase(tmp_path / "no-inference.sqlite"); db.initialize(); _seed(db)
+    with db.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, VC)
+        app.register(_event(1))
+        assert len(app.available_assignments()) == 6
+        assert app.current_state("MEM1", "2026/2027").counter == 1
+        app.register(_event(2))
+        app.revocable_no_shows()
+        assert app.current_state("MEM1", "2026/2027").counter == 2
+        assert uow.no_show_revocations.for_person_season("MEM1", "2026/2027") == ()
+
+
+def test_public_queries_require_permission_before_reading():
+    app = NoShowApplicationService(None, OTHER)
+    for query in (app.assignment_contexts, app.revocable_no_shows, lambda: app.current_state("MEM1", "2026/2027")):
+        with pytest.raises(AuthorizationError):
+            query()
+    with pytest.raises(AuthorizationError):
+        app.revoke("N1", reason="besluit", revoked_at=datetime(2026, 9, 30))
+
+
+def test_public_revocation_query_is_read_only_and_excludes_revoked(database):
+    with database.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, VC)
+        before = uow._connection.total_changes
+        assert len(app.revocable_no_shows()) == 5
+        assert uow._connection.total_changes == before
+        app.revoke("N2", reason="besluit", revoked_at=datetime(2026, 9, 30))
+    with database.unit_of_work() as uow:
+        assert [r.no_show.no_show_id for r in NoShowApplicationService(uow, VC).revocable_no_shows()] == ["N1", "N3", "N4", "N5"]
+
+
+def test_assignment_context_uses_only_unique_exact_ids_and_preserves_recent_limit(database):
+    services, _, _, _ = demo_planning_data(datetime(2026, 9, 14).date())
+    service = replace(services[2], service_id="S1")
+    person = replace(demo_candidate_cases()[2].person, person_id="MEM1")
+    with database.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, VC)
         contexts = app.assignment_contexts(services=(service,), persons=(person,))
-        replacement_context = next(c for c in contexts if c.assignment.assignment_id == "AR")
-        assert replacement_context.service == service
-        assert replacement_context.person_name == "Jeugdlid Thuis"
-        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == ["A2"]
+        context = next(c for c in contexts if c.assignment.assignment_id == "A1")
+        assert context.service == service
+        assert context.person_name == "Jeugdlid Thuis"
+        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == ["A6"]
         for supplied_services, supplied_persons in (
             ((), ()),
             ((replace(service, service_id="OTHER"),), (replace(person, person_id="OTHER"),)),
             ((service, replace(service, location="andere locatie")), (person, replace(person, name="andere naam"))),
         ):
-            missing = next(c for c in app.assignment_contexts(services=supplied_services, persons=supplied_persons) if c.assignment.assignment_id == "AR")
+            missing = next(c for c in app.assignment_contexts(services=supplied_services, persons=supplied_persons) if c.assignment.assignment_id == "A1")
             assert missing.service is None
             assert missing.person_name is None
-        replacement_app = ReplacementDutyApplicationService(uow, VC)
-        replacement_app.register_replacement(_replacement())
-        overview = replacement_app.overview(services=(service,), persons=(person,))
-        assert overview.pending[0].assignment == replacement_context
+        rows = app.revocable_no_shows(services=(service,), persons=(person,))
+        assert rows[0].assignment == context

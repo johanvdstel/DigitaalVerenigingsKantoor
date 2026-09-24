@@ -2,16 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from uuid import uuid4
 
 from .dashboard_actions import DashboardActionResult, approve_from_dashboard, reject_from_dashboard
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
 from .import_workflow import confirm_import, preview_differences
 from .model import Person, PrototypeCase
-from .no_show import NoShowEvent, SanctionAssessment, assess_sanction, season_id
+from .no_show import (
+    CurrentSanctionState, NoShowEvent, NoShowRevocation, SanctionAssessment,
+    assess_sanction, current_sanction_state, season_id,
+)
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
-from .replacement_duty import ActiveSanctionState, ReplacementDuty, active_sanction_state
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyAssignment, DutyService, Match
@@ -36,27 +39,13 @@ def _assignment_context(assignment, services, persons) -> AssignmentContext:
 
 
 @dataclass(frozen=True)
-class ReplacementLinkContext:
+class NoShowContext:
     no_show: NoShowEvent
-    original_assignment: AssignmentContext
-    available_assignments: tuple[AssignmentContext, ...]
-
-
-@dataclass(frozen=True)
-class ReplacementStatusContext:
-    replacement: ReplacementDuty
     assignment: AssignmentContext
 
 
-@dataclass(frozen=True)
-class ReplacementOverview:
-    link_options: tuple[ReplacementLinkContext, ...]
-    pending: tuple[ReplacementStatusContext, ...]
-    with_no_show: tuple[ReplacementStatusContext, ...]
-
-
 class NoShowApplicationService:
-    """Authorized Gate 9 boundary for registering and correcting no-shows."""
+    """Authorized boundary for no-show facts, revocations and current sanctions."""
 
     def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
         self.uow = uow
@@ -82,124 +71,47 @@ class NoShowApplicationService:
         if self.uow.no_shows.for_assignment(event.assignment_id) is not None:
             raise ValueError("voor deze inroostering is al een no-show geregistreerd")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
-        assessment = assess_sanction(event, prior)
+        revocations = self.uow.no_show_revocations.for_person_season(event.person_id, event.season)
+        assessment = assess_sanction(event, prior, revocations)
         self.uow.no_shows.add(event)
         self.uow.sanctions.add(assessment)
         self.uow.commit()
         return assessment
 
-    def revoke(self, no_show_id: str, *, reason: str, corrected_at: datetime) -> NoShowEvent:
+    def revocable_no_shows(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = ()) -> tuple[NoShowContext, ...]:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        if not reason.strip():
-            raise ValueError("correction reason is required")
-        current = self.uow.no_shows.get(no_show_id)
-        if current is None:
-            raise ValueError("unknown no-show")
-        if current.status == "revoked":
-            raise ValueError("no-show is already revoked")
-        revoked = NoShowEvent(
-            current.no_show_id, current.assignment_id, current.person_id,
-            current.occurred_at, current.recorded_at, current.recorded_by,
-            current.season, "revoked", reason.strip(), corrected_at,
-            self.identity.subject_id,
-        )
-        self.uow.no_shows.update(revoked)
-        self.uow.commit()
-        return revoked
-
-
-
-class ReplacementDutyApplicationService:
-    """Authorized VC boundary for linking and confirming replacement duties."""
-
-    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
-        self.uow = uow
-        self.identity = identity
-        self.authorizer = authorizer or Authorizer()
-
-    def overview(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> ReplacementOverview:
-        """Read the existing recent-assignment scope without changing sanctions.
-
-        A valid no-show on the replacement is a separate presentation state,
-        including when completion has already been recorded. Command validation
-        and chronological sanction derivation remain independent of this query.
-        """
-        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        assignments = self.uow.assignments.recent(limit)
-        contexts = tuple(_assignment_context(a, services, persons) for a in assignments)
-        link_options = []
-        pending = []
-        with_no_show = []
-        for context in contexts:
-            assignment = context.assignment
-            no_show = self.uow.no_shows.for_assignment(assignment.assignment_id)
-            if no_show is None:
+        rows = []
+        for event in self.uow.no_shows.all():
+            if self.uow.no_show_revocations.for_no_show(event.no_show_id) is not None:
                 continue
-            replacement = self.uow.replacements.for_no_show(no_show.no_show_id)
-            if replacement is None:
-                if no_show.status != "valid":
-                    continue
-                state = self._state(no_show.person_id, no_show.season)
-                if state.counter == 1 and state.assessment and state.assessment.no_show_id == no_show.no_show_id:
-                    choices = tuple(c for c in contexts if c.assignment.person_id == no_show.person_id and c.assignment.assignment_id != no_show.assignment_id)
-                    link_options.append(ReplacementLinkContext(no_show, context, choices))
-                continue
-            replacement_assignment = self.uow.assignments.get(replacement.assignment_id)
-            if replacement_assignment is None:
-                raise ValueError("replacement references an unknown inroostering")
-            row = ReplacementStatusContext(replacement, _assignment_context(replacement_assignment, services, persons))
-            replacement_no_show = self.uow.no_shows.for_assignment(replacement.assignment_id)
-            if replacement_no_show is not None and replacement_no_show.status == "valid":
-                with_no_show.append(row)
-            elif not replacement.completed:
-                pending.append(row)
-        return ReplacementOverview(tuple(link_options), tuple(pending), tuple(with_no_show))
+            assignment = self.uow.assignments.get(event.assignment_id)
+            if assignment is None:
+                raise ValueError("no-show references an unknown inroostering")
+            rows.append(NoShowContext(event, _assignment_context(assignment, services, persons)))
+        return tuple(rows)
 
-    def register_replacement(self, replacement: ReplacementDuty) -> ActiveSanctionState:
+    def current_state(self, person_id: str, season: str) -> CurrentSanctionState:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        if replacement.registered_by != self.identity.subject_id:
-            raise ValueError("replacement registered_by must match authenticated identity")
-        if replacement.completed:
-            raise ValueError("replacement must be registered before it can be confirmed completed")
-        no_show = self.uow.no_shows.get(replacement.no_show_id)
-        if no_show is None or no_show.status != "valid":
-            raise ValueError("replacement must reference a valid no-show")
-        assignment = self.uow.assignments.get(replacement.assignment_id)
-        if assignment is None:
-            raise ValueError("replacement must reference an existing inroostering")
-        if no_show.person_id != replacement.person_id or assignment.person_id != replacement.person_id:
-            raise ValueError("replacement person must match no-show and inroostering")
-        if no_show.season != replacement.season:
-            raise ValueError("replacement season must match no-show season")
-        state_before = self._state(replacement.person_id, replacement.season)
-        if state_before.counter != 1 or state_before.assessment is None or state_before.assessment.no_show_id != no_show.no_show_id:
-            raise ValueError("only the active first no-show can receive a replacement duty")
-        self.uow.replacements.add(replacement)
-        self.uow.commit()
-        return self._state(replacement.person_id, replacement.season)
-
-    def complete_replacement(self, replacement_id: str, *, completed_at: datetime) -> ActiveSanctionState:
-        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        current = self.uow.replacements.get(replacement_id)
-        if current is None:
-            raise ValueError("unknown replacement duty")
-        if current.completed:
-            raise ValueError("replacement duty is already completed")
-        completed = ReplacementDuty(
-            current.replacement_id, current.no_show_id, current.assignment_id,
-            current.person_id, current.season, current.registered_at, current.registered_by,
-            completed_at, self.identity.subject_id,
-        )
-        self.uow.replacements.update(completed)
-        self.uow.commit()
-        return self._state(completed.person_id, completed.season)
-
-    def _state(self, person_id: str, season: str) -> ActiveSanctionState:
-        return active_sanction_state(
+        return current_sanction_state(
             person_id, season,
             self.uow.no_shows.for_person_season(person_id, season),
-            self.uow.replacements.for_person_season(person_id, season),
+            self.uow.no_show_revocations.for_person_season(person_id, season),
         )
+
+    def revoke(self, no_show_id: str, *, reason: str, revoked_at: datetime) -> NoShowRevocation:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        if not reason.strip():
+            raise ValueError("Een toelichting voor intrekking is verplicht.")
+        if self.uow.no_shows.get(no_show_id) is None:
+            raise ValueError("Onbekende no-show.")
+        if self.uow.no_show_revocations.for_no_show(no_show_id) is not None:
+            raise ValueError("Deze no-show is al ingetrokken.")
+        revocation = NoShowRevocation(
+            str(uuid4()), no_show_id, reason.strip(), revoked_at, self.identity.subject_id,
+        )
+        self.uow.no_show_revocations.add(revocation)
+        self.uow.commit()
+        return revocation
 
 
 @dataclass(frozen=True)

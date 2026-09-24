@@ -3,10 +3,16 @@ from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
-from dvk.application_services import AssignmentContext, ReplacementLinkContext, ReplacementOverview, ReplacementStatusContext
+from dvk.application_services import AssignmentContext
 from dvk.demo_data_v05 import demo_candidate_cases, demo_planning_data
-from dvk.replacement_duty import ReplacementDuty
 from dvk.no_show import NoShowEvent
+from dvk.application_services import NoShowApplicationService
+from dvk.persistence import SQLiteDatabase
+from dvk.security import Identity, Permission
+from dvk.workstream_model import AssignmentProposal
+
+import pytest
+from streamlit.testing.v1 import AppTest
 from dvk.workstream_model import DutyAssignment
 
 
@@ -57,87 +63,85 @@ def test_streamlit_uses_public_services_instead_of_repositories_or_private_state
     assert not any(isinstance(node.value, ast.Name) and node.value.id == "uow" for node in attributes)
     assert not any(node.attr.startswith("_") for node in attributes)
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
-    assert any(node.func.attr == "overview" for node in calls)
+    assert any(node.func.attr == "revocable_no_shows" for node in calls)
     assert any(node.func.attr == "assignment_contexts" for node in calls)
 
 
-class _Display:
-    def __init__(self):
-        self.warnings = []
-        self.infos = []
-        self.choices = []
-        self.buttons = []
-
-    def warning(self, text): self.warnings.append(text)
-    def info(self, text): self.infos.append(text)
-    def write(self, text): pass
-    def form(self, key): return self
-    def __enter__(self): return self
-    def __exit__(self, *args): return False
-    def form_submit_button(self, label, **kwargs): return False
-
-    def selectbox(self, label, options, *, format_func):
-        self.choices.append((tuple(options), tuple(format_func(key) for key in options)))
-        return options[0]
-
-    def columns(self, count): return (self,) * count
-
-    def button(self, label, **kwargs):
-        self.buttons.append(label)
-        return False
-
-
-def _render_replacement_status(overview):
-    """Exercise the actual status/selection block with a small display double."""
-    tree = ast.parse(SOURCE.read_text())
-    start = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.For)
-                 and isinstance(node.iter, ast.Attribute) and node.iter.attr == "with_no_show")
-    block = ast.Module(body=tree.body[start:start + 2], type_ignores=[])
-    namespace = _presentation_namespace()
-    display = _Display()
-    namespace.update(st=display, replacement_overview=overview)
-    exec(compile(block, str(SOURCE), "exec"), namespace)
-    return display
-
-
-def _row(replacement_id="R1"):
+@pytest.fixture
+def rendered_app(tmp_path):
+    # Run the real app against a disposable SQLite database, never the local demo.
+    script = tmp_path / "streamlit_app.py"
+    script.write_text(SOURCE.read_text())
+    db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
+    db.initialize()
     context = _context()
-    replacement = ReplacementDuty(replacement_id, "N1", context.assignment.assignment_id,
-                                  context.assignment.person_id, "2026/2027", datetime(2026, 9, 18), "vc1")
-    return ReplacementStatusContext(replacement, context)
+    with db.unit_of_work() as uow:
+        for i in range(1, 3):
+            aid, pid = f"technical-assignment-{i}", f"technical-proposal-{i}"
+            uow.proposals.add(AssignmentProposal(pid, context.service.service_id, context.assignment.person_id, "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
+            uow.assignments.add(replace(context.assignment, assignment_id=aid, proposal_id=pid))
+        uow.commit()
+        for i in range(1, 3):
+            when = context.service.starts_at
+            NoShowApplicationService(uow, Identity("vc1", "VC", frozenset({Permission.MANAGE_NO_SHOWS}))).register(
+                NoShowEvent(f"technical-no-show-{i}", f"technical-assignment-{i}", context.assignment.person_id, when, when, "vc1", "2026/2027"))
+    app = AppTest.from_file(str(script), default_timeout=15).run()
+    app.date_input[0].set_value(datetime(2026, 9, 14).date()).run()
+    assert not app.exception
+    return app, db
 
 
-def test_replacement_no_show_is_visible_without_pending_selector_or_completion_button():
-    display = _render_replacement_status(ReplacementOverview((), (), (_row(),)))
-    assert display.warnings == ["za 19-09 12:30–17:00 — Gastvrouw/heer — Jeugdlid Thuis — No-show geregistreerd op vervangende dienst."]
-    assert display.choices == []
-    assert display.buttons == []
-    assert display.infos == []  # Must not also claim there are no open replacements.
+def _revocation_selector(app):
+    return next(widget for widget in app.selectbox if widget.label == "No-show intrekken")
 
 
-def test_only_normal_pending_replacement_is_selectable_using_stable_internal_key():
-    display = _render_replacement_status(ReplacementOverview((), (_row("pending-id"),), (_row("no-show-id"),)))
-    assert display.choices == [(('pending-id',), ("za 19-09 12:30–17:00 — Gastvrouw/heer — Jeugdlid Thuis",))]
-    assert display.buttons == ["Uitgevoerd bevestigen", "No-show vastleggen voor vervangende inzet"]
-    assert len(display.warnings) == 1
+def _confirm(app):
+    return next(widget for widget in app.button if widget.label == "Intrekking bevestigen")
 
 
-def test_link_choices_keep_distinct_assignment_ids_even_with_equal_human_labels():
-    context = _context()
-    other = replace(context, assignment=replace(context.assignment, assignment_id="second-assignment"))
-    when = datetime(2026, 9, 18, 10)
-    event = NoShowEvent("N1", "original", context.assignment.person_id, when, when, "vc1", "2026/2027")
-    option = ReplacementLinkContext(event, context, (context, other))
-    tree = ast.parse(SOURCE.read_text())
-    block = next(node for node in tree.body if isinstance(node, ast.If)
-                 and isinstance(node.test, ast.Attribute) and node.test.attr == "link_options")
-    display = _Display()
-    namespace = _presentation_namespace()
-    namespace.update(st=display, replacement_overview=ReplacementOverview((option,), (), ()))
-    exec(compile(ast.Module(body=[block], type_ignores=[]), str(SOURCE), "exec"), namespace)
-    keys, labels = display.choices[1]
-    assert keys == ("UI-technical-assignment", "second-assignment")
-    assert labels == ("za 19-09 12:30–17:00 — Gastvrouw/heer — Jeugdlid Thuis",) * 2
+def test_revocation_ui_uses_human_labels_and_distinct_internal_keys(rendered_app):
+    app, db = rendered_app
+    selector = _revocation_selector(app)
+    assert selector.options == ["za 19-09 12:30–17:00 — Gastvrouw/heer — Jeugdlid Thuis"] * 2
+    assert selector.value == "technical-no-show-1"
+    selector.select("technical-no-show-2").run()
+    assert _revocation_selector(app).value == "technical-no-show-2"
+    assert app.text_area[0].label == "Toelichting voor intrekking (verplicht)"
+    with db.unit_of_work() as uow:
+        assert uow.no_show_revocations.for_no_show("technical-no-show-2") is None
+
+
+def test_revocation_ui_requires_explicit_confirmation_and_shows_current_season_counter(rendered_app):
+    app, db = rendered_app
+    _revocation_selector(app).select("technical-no-show-2")
+    app.text_area[0].set_value("Uitdrukkelijk besluit").run()
+    with db.unit_of_work() as uow:
+        original = uow.no_shows.get("technical-no-show-2")
+        assert uow.no_show_revocations.for_no_show("technical-no-show-2") is None
+    _confirm(app).click().run()
+    assert not app.exception
+    assert any("Actuele teller voor seizoen 2026/2027: 1" in message.value for message in app.success)
+    assert len(_revocation_selector(app).options) == 1
+    with db.unit_of_work() as uow:
+        assert uow.no_shows.get("technical-no-show-2") == original
+        revocation = uow.no_show_revocations.for_no_show("technical-no-show-2")
+        assert revocation.reason == "Uitdrukkelijk besluit"
+        assert revocation.revoked_by == "demo-planner"
+        assert revocation.revoked_at is not None
+    # Selection options and all visible feedback contain no internal identifiers.
+    texts = [widget.label for widget in app.selectbox] + [text for widget in app.selectbox for text in widget.options]
+    texts += [message.value for kind in (app.error, app.success, app.info, app.warning, app.markdown) for message in kind]
+    assert not any("technical-" in text for text in texts)
+
+
+def test_revocation_ui_reports_service_validation_without_partial_write(rendered_app):
+    app, db = rendered_app
+    app.text_area[0].set_value("   ")
+    _confirm(app).click().run()
+    assert not app.exception
+    assert any("toelichting" in message.value for message in app.error)
+    with db.unit_of_work() as uow:
+        assert uow.no_show_revocations.for_no_show("technical-no-show-1") is None
 
 
 def test_streamlit_source_compiles_without_importing_or_starting_app():
