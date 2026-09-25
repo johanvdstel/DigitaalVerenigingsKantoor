@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import uuid4
 
+from .candidate_selection import assess_candidate
+from .planning_workqueue import TemporaryPlanning, planning_conflict, planning_staffing, validate_planning_selection
 from .dashboard_actions import DashboardActionResult, approve_from_dashboard, reject_from_dashboard
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
 from .import_workflow import confirm_import, preview_differences
@@ -151,13 +153,33 @@ class EngineRunApplicationService:
 
 
 class PlanningApplicationService:
-    def __init__(self, identity: Identity, authorizer: Authorizer | None = None):
+    def __init__(self, identity: Identity, authorizer: Authorizer | None = None, uow=None):
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
+        self.uow = uow
+
+    def active_planning(self) -> tuple[TemporaryPlanning, ...]:
+        self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
+        return () if self.uow is None else self.uow.temporary_planning.all()
+
+    def staffing_needs(self, *, services, source_needs) -> tuple[StaffingNeed, ...]:
+        active = self.active_planning()
+        by_id = {service.service_id: service for service in services}
+        return tuple(planning_staffing(by_id[need.service_id], need, active) for need in source_needs)
+
+    def assess_candidates(self, *, cases, service, team_memberships, matches, today):
+        active = self.active_planning()
+        return tuple(assess_candidate(case, service, team_memberships, matches, today,
+                                      active_planning=active) for case in cases)
+
+    def temporary_assignment_contexts(self, *, persons=()) -> tuple[AssignmentContext, ...]:
+        return tuple(_assignment_context(entry.assignment, (entry.service,), persons)
+                     for entry in self.active_planning())
 
     def build_overview(self, *, period: PlanningPeriod, services: tuple[DutyService, ...], staffing_needs: tuple[StaffingNeed, ...], matches: tuple[Match, ...] = (), source_statuses: tuple[PlanningSourceStatus, ...] = (), data_quality_signals: tuple[DataQualitySignal, ...] = ()) -> PlanningOverview:
         self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
-        return build_planning_overview(period=period, services=services, staffing_needs=staffing_needs, matches=matches, source_statuses=source_statuses, data_quality_signals=data_quality_signals)
+        needs = self.staffing_needs(services=services, source_needs=staffing_needs)
+        return build_planning_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=source_statuses, data_quality_signals=data_quality_signals)
 
 
 class ProposalDecisionApplicationService:
@@ -168,49 +190,73 @@ class ProposalDecisionApplicationService:
         self.authorizer = authorizer or Authorizer()
         self.uow = uow
 
-    def _add_without_commit(self, proposal: AssignmentProposal, result: DashboardActionResult) -> None:
+    def _add_without_commit(self, proposal: AssignmentProposal, result: DashboardActionResult, service: DutyService | None = None) -> None:
         if self.uow is None:
             return
         self.uow.proposals.add(proposal)
         self.uow.decisions.add(result.decision)
         if result.assignment is not None:
-            self.uow.assignments.add(result.assignment)
+            if service is None:
+                raise ValueError("temporary planning requires concrete service context")
+            self.uow.temporary_planning.add(TemporaryPlanning(result.assignment, service))
 
     def _persist(self, proposal: AssignmentProposal, result: DashboardActionResult) -> None:
         self._add_without_commit(proposal, result)
         if self.uow is not None:
             self.uow.commit()
 
-    def approve(self, proposal: AssignmentProposal, service: DutyService, case: PrototypeCase, *, assignment_id: str) -> DashboardActionResult:
-        self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
-        result = approve_from_dashboard(proposal, service, case, self.identity.subject_id, assignment_id)
-        self._persist(proposal, result)
-        return result
+    def approve(self, proposal: AssignmentProposal, service: DutyService, case: PrototypeCase, *, assignment_id: str, staffing_need: StaffingNeed) -> DashboardActionResult:
+        return self.approve_many(((proposal, case, assignment_id),), service, staffing_need)[0]
 
     def approve_many(self, selections: tuple[tuple[AssignmentProposal, PrototypeCase, str], ...], service: DutyService, staffing_need: StaffingNeed) -> tuple[DashboardActionResult, ...]:
-        """Confirm one planner selection as a single transaction, bounded by remaining capacity."""
+        """Confirm against the latest active queue, atomically with persistence.
+
+        staffing_need carries source occupancy and configured bounds. Its cached
+        remaining capacity (possibly from an older UI run) is never trusted.
+        """
         self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
+        if self.uow is None:
+            raise ValueError("persistent unit of work required for temporary planning")
         if not selections:
             raise ValueError("at least one candidate must be selected")
-        if len(selections) > staffing_need.remaining_capacity:
-            raise ValueError("selection exceeds remaining service capacity")
-        if staffing_need.service_id != service.service_id:
-            raise ValueError("staffing need does not belong to service")
         if any(proposal.service_id != service.service_id for proposal, _, _ in selections):
             raise ValueError("all proposals must belong to the selected service")
         proposal_ids = [proposal.proposal_id for proposal, _, _ in selections]
         if len(set(proposal_ids)) != len(proposal_ids):
             raise ValueError("a proposal can only be selected once")
 
-        results = tuple(
-            approve_from_dashboard(proposal, service, case, self.identity.subject_id, assignment_id)
-            for proposal, case, assignment_id in selections
-        )
-        for (proposal, _, _), result in zip(selections, results):
-            self._add_without_commit(proposal, result)
-        if self.uow is not None:
+        self.uow.begin_planning_write()
+        try:
+            active = self.uow.temporary_planning.all()
+            validate_planning_selection(tuple(p.person_id for p, _, _ in selections), service, staffing_need, active)
+            for proposal, _, _ in selections:
+                if planning_conflict(proposal.person_id, service, active) == "same_day" and proposal.suitability != "emergency":
+                    raise ValueError("Beoordeel deze kandidaat opnieuw als nood-/uitwijkkandidaat.")
+            results = tuple(
+                approve_from_dashboard(proposal, service, case, self.identity.subject_id, assignment_id)
+                for proposal, case, assignment_id in selections
+            )
+            for (proposal, _, _), result in zip(selections, results):
+                self._add_without_commit(proposal, result, service)
             self.uow.commit()
-        return results
+            return results
+        except Exception:
+            self.uow.rollback()
+            raise
+
+    def undo(self, assignment_id: str) -> None:
+        """Remove exactly one active position, without an audit/revocation fact."""
+        self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)
+        if self.uow is None:
+            raise ValueError("persistent unit of work required for temporary planning")
+        self.uow.begin_planning_write()
+        try:
+            if not self.uow.temporary_planning.remove(assignment_id):
+                raise ValueError("Deze tijdelijke inroostering is niet meer actief.")
+            self.uow.commit()
+        except Exception:
+            self.uow.rollback()
+            raise
 
     def reject(self, proposal: AssignmentProposal, case: PrototypeCase, *, reason_category: str, reason: str) -> DashboardActionResult:
         self.authorizer.require(self.identity, Permission.DECIDE_PROPOSAL)

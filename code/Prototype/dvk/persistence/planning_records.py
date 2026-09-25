@@ -4,7 +4,8 @@ import json
 from dataclasses import asdict, fields
 from datetime import datetime
 
-from ..workstream_model import AssignmentProposal, DutyAssignment, HumanDecision
+from ..workstream_model import AssignmentProposal, DutyAssignment, DutyService, HumanDecision
+from ..planning_workqueue import TemporaryPlanning
 
 
 def _dump(value) -> str:
@@ -25,6 +26,9 @@ def _load(model, payload: str):
             values["decided_at"] = datetime.fromisoformat(values["decided_at"])
     elif model is HumanDecision and values["decided_at"] is not None:
         values["decided_at"] = datetime.fromisoformat(values["decided_at"])
+    elif model is DutyService:
+        values["starts_at"] = datetime.fromisoformat(values["starts_at"])
+        values["ends_at"] = datetime.fromisoformat(values["ends_at"])
     return model(**{field.name: values[field.name] for field in fields(model)})
 
 
@@ -67,3 +71,24 @@ class SQLiteDutyAssignmentRepository:
             "SELECT payload FROM duty_assignments ORDER BY rowid DESC LIMIT ?", (limit,)
         ).fetchall()
         return tuple(_load(DutyAssignment, row[0]) for row in rows)
+
+
+class SQLiteTemporaryPlanningRepository:
+    def __init__(self, connection): self._connection = connection
+
+    def add(self, entry: TemporaryPlanning) -> None:
+        self._connection.execute(
+            "INSERT INTO temporary_planning VALUES (?, ?, ?)",
+            (entry.assignment.assignment_id, _dump(entry.assignment), _dump(entry.service)),
+        )
+
+    def all(self) -> tuple[TemporaryPlanning, ...]:
+        rows = self._connection.execute(
+            "SELECT assignment_payload, service_payload FROM temporary_planning ORDER BY rowid"
+        ).fetchall()
+        return tuple(TemporaryPlanning(_load(DutyAssignment, row[0]), _load(DutyService, row[1])) for row in rows)
+
+    def remove(self, assignment_id: str) -> bool:
+        return self._connection.execute(
+            "DELETE FROM temporary_planning WHERE assignment_id=?", (assignment_id,)
+        ).rowcount == 1

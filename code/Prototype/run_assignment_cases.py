@@ -29,6 +29,7 @@ def main() -> None:
     assignment = create_duty_assignment("A-W11", proposal, approved, service)
     updated = apply_assignment_to_case(case, assignment)
     after = duty_position_from_registration(updated.sportlink_duty)
+    print("FR-02: tijdelijke DVK-planning; Sportlink A/B/C/D/E blijven bronfeiten en veranderen niet.")
     print("\nW11 — voorstel goedgekeurd")
     print(f"Indeling aangemaakt: {case.person.name} — {service.service_type} {service.starts_at:%d-%m-%Y %H:%M}-{service.ends_at:%H:%M}.")
     print(f"Ingeplande uren: {before.D} → {after.D}; nog in te plannen: {before.E} → {after.E}; uitgevoerd blijft {after.C} uur.")

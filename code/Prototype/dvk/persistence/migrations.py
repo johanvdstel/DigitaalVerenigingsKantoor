@@ -150,7 +150,15 @@ def _migration_010(connection: sqlite3.Connection) -> None:
     connection.execute("RELEASE no_show_revocation_migration")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010)
+def _migration_011(connection: sqlite3.Connection) -> None:
+    """Active work only; deliberately no FK from legacy no-show facts."""
+    connection.execute("""CREATE TABLE temporary_planning (
+        assignment_id TEXT PRIMARY KEY,
+        assignment_payload TEXT NOT NULL,
+        service_payload TEXT NOT NULL)""")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011)
 
 
 def migrate(connection: sqlite3.Connection) -> int:

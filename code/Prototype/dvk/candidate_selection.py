@@ -4,6 +4,7 @@ from datetime import date, time, timedelta
 
 from .duty import derive_duty_qualification, derive_executor_category
 from .model import PrototypeCase
+from .planning_workqueue import TemporaryPlanning, assess_planning_availability
 from .workstream_model import CandidateAssessment, DutyService, Match, TeamMembership
 
 # v0.5 planning assumption: a match occupies two hours from kick-off
@@ -54,7 +55,7 @@ def _youth_service_window_allowed(service: DutyService) -> bool:
     return service.starts_at.time() <= time(12, 30)
 
 
-def assess_candidate(
+def _assess_candidate(
     case: PrototypeCase,
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
@@ -128,14 +129,29 @@ def assess_candidate(
     raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
 
 
+def assess_candidate(
+    case: PrototypeCase,
+    service: DutyService,
+    team_memberships: tuple[TeamMembership, ...],
+    matches: tuple[Match, ...],
+    today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
+) -> CandidateAssessment:
+    return assess_planning_availability(
+        _assess_candidate(case, service, team_memberships, matches, today),
+        service, active_planning,
+    )
+
+
 def select_candidates(
     cases: tuple[PrototypeCase, ...],
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
 ) -> tuple[CandidateAssessment, ...]:
     assessments = tuple(
-        assess_candidate(case, service, team_memberships, matches, today) for case in cases
+        assess_candidate(case, service, team_memberships, matches, today, active_planning=active_planning) for case in cases
     )
     return tuple(assessment for assessment in assessments if assessment.eligible)

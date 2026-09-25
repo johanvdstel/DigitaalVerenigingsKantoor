@@ -43,6 +43,8 @@ class PlanningServiceRow:
     match_id: str | None = None
     match_team_id: str | None = None
     match_starts_at: datetime | None = None
+    source_occupancy: int = 0
+    temporary_occupancy: int = 0
 
 
 @dataclass(frozen=True)
@@ -91,10 +93,11 @@ def build_planning_overview(
         rows.append(PlanningServiceRow(
             service.service_id, service.service_type, service.starts_at, service.ends_at,
             service.location, need.minimum_staff, need.maximum_staff,
-            need.confirmed_occupancy, need.open_need, need.remaining_capacity,
+            need.planning_occupancy, need.open_need, need.remaining_capacity,
             linked_match.match_id if linked_match else None,
             linked_match.team_id if linked_match else None,
             linked_match.starts_at if linked_match else None,
+            need.confirmed_occupancy, need.temporary_occupancy,
         ))
     return PlanningOverview(
         period,

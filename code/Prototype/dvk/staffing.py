@@ -18,6 +18,11 @@ class StaffingNeed:
     confirmed_occupancy: int
     open_need: int
     remaining_capacity: int
+    temporary_occupancy: int = 0
+
+    @property
+    def planning_occupancy(self) -> int:
+        return self.confirmed_occupancy + self.temporary_occupancy
 
     @property
     def candidate_slots(self) -> int:

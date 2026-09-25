@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from datetime import date, datetime
 
 from dvk.application_services import ProposalDecisionApplicationService
@@ -7,13 +8,14 @@ from dvk.persistence import SQLiteDatabase
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.run_context import EngineRun, EngineRunStatus
+from dvk.staffing import StaffingNeed
 from dvk.security import Identity, Permission
 from dvk.versioning import ConfigVersion, PolicyVersion, SoftwareVersion
 from dvk.workstream_cases import TODAY, W_CASE_BY_ID
 from dvk.workstream_model import DutyService, TeamMembership
 
 
-def test_v07_durable_chain_reconstructs_after_database_reopen(tmp_path):
+def test_v07_fr02_active_chain_reconstructs_after_database_reopen(tmp_path):
     path = tmp_path / "dvk.sqlite"
     db = SQLiteDatabase(path)
     now = datetime(2026, 9, 17, 20, 0)
@@ -35,11 +37,12 @@ def test_v07_durable_chain_reconstructs_after_database_reopen(tmp_path):
         uow.import_batches.add(batch)
         uow.snapshots.add(SourceSnapshot("SNAP-V07", "B-V07", "Sportlink", "leden", "2026-2027", now), ())
         uow.engine_runs.add(run)
-        ProposalDecisionApplicationService(identity, uow=uow).approve(proposal, service, case, assignment_id="A-V07")
+        ProposalDecisionApplicationService(identity, uow=uow).approve(proposal, service, case, assignment_id="A-V07", staffing_need=StaffingNeed(service.service_id, 1, 2, 0, 1, 2))
 
     reopened = SQLiteDatabase(path)
     with reopened.unit_of_work() as uow:
-        assignment = uow.assignments.get("A-V07")
+        assignment = uow.temporary_planning.all()[0].assignment
+        assert uow.assignments.get("A-V07") is None
         assert assignment is not None
         decision = uow.decisions.get(assignment.proposal_id)
         proposal2 = uow.proposals.get(assignment.proposal_id)

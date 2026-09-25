@@ -8,7 +8,6 @@ import pandas as pd
 import streamlit as st
 
 from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
-from dvk.candidate_selection import assess_candidate
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
@@ -45,6 +44,8 @@ def _vriendelijke_wedstrijdcontext(value: str) -> str:
 
 def _vriendelijke_waarom(proposal) -> str:
     details: list[str] = []
+    if proposal.suitability == "emergency":
+        details.append("Alleen nood-/uitwijkkandidaat: al tijdelijk ingepland op dezelfde dag")
     if proposal.previous_season_backlog > 0 and proposal.previous_season_considered:
         details.append(f"Nog {proposal.previous_season_backlog} openstaande uren uit vorig seizoen")
     for rule in proposal.applied_priority_rules:
@@ -59,10 +60,10 @@ def _vriendelijke_waarom(proposal) -> str:
 def _demo_data(start: date):
     return demo_planning_data(start)
 
-def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, proposal_run_id: str | None = None):
+def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, planning_app, proposal_run_id: str | None = None):
     cases = demo_candidate_cases()
     memberships = demo_team_memberships(service, cases)
-    assessments = tuple(assess_candidate(case, service, memberships, matches, TODAY) for case in cases)
+    assessments = planning_app.assess_candidates(cases=cases, service=service, team_memberships=memberships, matches=matches, today=TODAY)
     eligible = tuple(a for a in assessments if a.eligible)
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date(), previous_season_backlog=demo_previous_season_backlog())
     by_person = {p.person_id: p for p in priorities}
@@ -87,18 +88,21 @@ identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_P
 database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
 database.initialize()
 services, needs, matches, statuses = _demo_data(period.start)
-overview = PlanningApplicationService(identity).build_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=statuses)
+with database.unit_of_work() as uow:
+    planning_app = PlanningApplicationService(identity, uow=uow)
+    overview = planning_app.build_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=statuses)
+    needs = planning_app.staffing_needs(services=services, source_needs=needs)
 need_by_service = {n.service_id: n for n in needs}; service_by_id = {s.service_id: s for s in services}
 st.write(f"**Periode:** {overview.period.start:%d-%m-%Y} t/m {overview.period.end:%d-%m-%Y}")
-c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services)); c3.metric("Bevestigd", sum(r.confirmed_occupancy for r in overview.services)); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services))
+c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services)); c3.metric("DVK-planningsbezetting", sum(r.confirmed_occupancy for r in overview.services)); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services))
 
 st.markdown("### Diensten")
 selected_service_id = None
 if not overview.services: st.info("Geen diensten in de gekozen periode.")
 else:
     previous_service = st.session_state.get("selected_service_id")
-    rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Locatie": r.location, "Min": r.minimum_staff, "Max": r.maximum_staff, "Bevestigd": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
-    edited = st.data_editor(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=210, disabled=["service_id", "Datum", "Tijd", "Dienst", "Locatie", "Min", "Max", "Bevestigd", "Open minimum", "Vrije capaciteit"], column_config={"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", help="Selecteer één dienst")}, key="services_editor")
+    rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Locatie": r.location, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": r.source_occupancy, "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
+    edited = st.data_editor(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=210, disabled=["service_id", "Datum", "Tijd", "Dienst", "Locatie", "Min", "Max", "Sportlink", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"], column_config={"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", help="Selecteer één dienst")}, key="services_editor")
     picked = edited[edited["Kies"]]
     if len(picked) > 1: st.error("Selecteer maximaal één dienst.")
     elif len(picked) == 1:
@@ -112,7 +116,9 @@ else:
     proposal_run_key = f"proposal-run-{selected_service_id}"
     if proposal_run_key not in st.session_state:
         st.session_state[proposal_run_key] = str(uuid4())
-    cases, planned = _demo_proposals(service, need, matches, proposal_run_id=st.session_state[proposal_run_key]); case_by_person = {c.person.person_id: c for c in cases}
+    with database.unit_of_work() as uow:
+        cases, planned = _demo_proposals(service, need, matches, planning_app=PlanningApplicationService(identity, uow=uow), proposal_run_id=st.session_state[proposal_run_key])
+    case_by_person = {c.person.person_id: c for c in cases}
     if not planned:
         if need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
         else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
@@ -146,10 +152,40 @@ else:
                     results = ProposalDecisionApplicationService(identity, uow=uow).approve_many(selections, service, need)
                 st.session_state[f"confirmed-{selected_service_id}"] = results
                 st.session_state[proposal_run_key] = str(uuid4())
+                st.rerun()
             except ValueError as exc: st.error(str(exc))
         confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
         if confirmed:
             names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
+
+st.markdown("### Actieve tijdelijke DVK-inroosteringen")
+st.caption("Deze werkvoorraad telt mee in de planning; de Sportlink-bronbezetting blijft ongewijzigd.")
+with database.unit_of_work() as uow:
+    temporary_rows = PlanningApplicationService(identity, uow=uow).temporary_assignment_contexts(
+        persons=tuple(c.person for c in demo_candidate_cases()),
+    )
+if temporary_rows:
+    temporary_labels = {row.assignment.assignment_id: _assignment_label(row) for row in temporary_rows}
+    with st.form("undo-temporary-planning"):
+        undo_id = st.selectbox("Tijdelijke inroostering", tuple(temporary_labels), format_func=temporary_labels.get)
+        undo_submitted = st.form_submit_button("Tijdelijke inroostering ongedaan maken")
+    if undo_submitted:
+        try:
+            with database.unit_of_work() as uow:
+                ProposalDecisionApplicationService(identity, uow=uow).undo(undo_id)
+            # A fresh proposal run also permits selecting the undone person again.
+            for key in list(st.session_state):
+                if key.startswith("proposal-run-") or key.startswith("confirmed-"):
+                    del st.session_state[key]
+            st.session_state["undo-planning-result"] = "Tijdelijke inroostering ongedaan gemaakt. Bezetting en beschikbaarheid zijn opnieuw berekend."
+            st.rerun()
+        except ValueError as exc:
+            st.error(str(exc))
+else:
+    st.info("Geen actieve tijdelijke inroosteringen.")
+undo_result = st.session_state.pop("undo-planning-result", None)
+if undo_result:
+    st.success(undo_result)
 
 st.markdown("### No-shows")
 st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")

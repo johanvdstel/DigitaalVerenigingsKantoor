@@ -33,6 +33,7 @@ def main() -> None:
 
     approved = approve_from_dashboard(proposal, service, case, "Vrijwilligerscommissie", "A-DASH")
     after = duty_position_from_registration(approved.updated_case.sportlink_duty)
+    print("FR-02: tijdelijke DVK-planning; Sportlink A/B/C/D/E blijven bronfeiten en veranderen niet.")
     print("\nNa keuze Goedkeuren:")
     print(f"{approved.message} Ingepland {before.D} → {after.D} uur; nog in te plannen {before.E} → {after.E} uur.")
 

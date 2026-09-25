@@ -45,6 +45,7 @@ class CandidateAssessment:
     match_relation: str
     preference: str
     exclusion_reason: str | None = None
+    planning_relation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,11 @@ class HumanDecision:
 
 @dataclass(frozen=True)
 class DutyAssignment:
+    """Confirmed local planning; creation does not change Sportlink facts.
+
+    Historical records in duty_assignments remain legacy no-show references.
+    New active planning lives in the temporary planning repository.
+    """
     assignment_id: str
     proposal_id: str
     service_id: str
