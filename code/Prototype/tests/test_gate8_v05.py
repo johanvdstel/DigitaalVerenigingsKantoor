@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from datetime import date, datetime
 
 import pytest
@@ -105,7 +106,7 @@ def test_v07_approval_retains_engine_snapshot_policy_and_time_context():
     assert assignment.decided_at == decided_at
 
 
-def test_v07_allows_service_longer_than_remaining_hours_and_negative_position():
+def test_v07_fr02_allows_full_duration_without_mutating_source_position():
     service = DutyService("BAR-4H-G8", "bardienst", datetime(2026, 9, 16, 18), datetime(2026, 9, 16, 22), "Clubhuis", 1)
     case, service, proposal = _proposal("P-G8-OVER", service=service)
     proposal = proposal.__class__(**{**proposal.__dict__, "E": 3})
@@ -116,7 +117,7 @@ def test_v07_allows_service_longer_than_remaining_hours_and_negative_position():
     updated = apply_assignment_to_case(case, assignment)
     original_e = case.sportlink_duty.required_hours - case.sportlink_duty.correction_hours - case.sportlink_duty.completed_hours - case.sportlink_duty.scheduled_hours
     updated_e = updated.sportlink_duty.required_hours - updated.sportlink_duty.correction_hours - updated.sportlink_duty.completed_hours - updated.sportlink_duty.scheduled_hours
-    assert updated_e == original_e - 4
+    assert updated_e == original_e
 
 
 def test_v07_allows_half_hour_service_duration():
@@ -127,7 +128,7 @@ def test_v07_allows_half_hour_service_duration():
     assert assignment is not None
     assert assignment.scheduled_hours == 4.5
     updated = apply_assignment_to_case(case, assignment)
-    assert updated.sportlink_duty.scheduled_hours == case.sportlink_duty.scheduled_hours + 4.5
+    assert updated.sportlink_duty.scheduled_hours == case.sportlink_duty.scheduled_hours
 
 
 def test_v08_rejection_is_auditable_and_creates_no_assignment():
