@@ -100,17 +100,31 @@ class SportlinkDutyRegistration:
     """Administrative A/B/C/D values as registered in Sportlink."""
 
     person_id: str
-    required_hours: int | None = None
-    correction_hours: int = 0
-    completed_hours: int = 0
-    scheduled_hours: int = 0
+    required_hours: int | float | None = None
+    correction_hours: int | float = 0
+    completed_hours: int | float = 0
+    scheduled_hours: int | float = 0
+
+
+@dataclass(frozen=True)
+class FunctionExemptionPolicy:
+    """CKC policy for one Sportlink function, separate from the source role fact."""
+
+    role: str
+    self_exempt: bool
+    household_exempt: bool
 
 
 @dataclass(frozen=True)
 class DutyPolicy:
-    """Explicit CKC policy; the norm is not a source fact or duty qualification."""
+    """Explicit, versionable CKC duty policy; source facts remain separate."""
 
     required_hours: int = 10
+    version: str = "legacy-v0.4"
+    function_exemptions: tuple[FunctionExemptionPolicy, ...] = ()
+
+    def function_policy(self, role: str) -> FunctionExemptionPolicy | None:
+        return next((item for item in self.function_exemptions if item.role == role), None)
 
 
 @dataclass(frozen=True)
@@ -127,13 +141,13 @@ class DutyQualification:
 class DutyPosition:
     """A/B/C/D/E duty-hours position. E is always derived from A-B-C-D."""
 
-    A: int
-    B: int = 0
-    C: int = 0
-    D: int = 0
+    A: int | float
+    B: int | float = 0
+    C: int | float = 0
+    D: int | float = 0
 
     @property
-    def E(self) -> int:
+    def E(self) -> int | float:
         return self.A - self.B - self.C - self.D
 
 

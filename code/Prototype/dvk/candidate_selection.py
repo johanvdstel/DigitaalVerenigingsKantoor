@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, time, timedelta
 
 from .duty import derive_duty_qualification, derive_executor_category
 from .model import PrototypeCase
+from .planning_workqueue import TemporaryPlanning, assess_planning_availability
 from .workstream_model import CandidateAssessment, DutyService, Match, TeamMembership
+
+# v0.5 planning assumption: a match occupies two hours from kick-off
+# (2x45 minutes, 15 minutes half-time, 15 minutes run-out).
+MATCH_PLANNING_DURATION = timedelta(hours=2)
 
 
 def _active_team_membership(
@@ -37,23 +42,27 @@ def _match_for_team_on_service_date(
     )
 
 
-def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
-    return service.starts_at <= match.starts_at < service.ends_at
+def _match_overlaps_service(match: Match, service: DutyService) -> bool:
+    """True when the service and the v0.5 two-hour match window share time."""
+    match_ends_at = match.starts_at + MATCH_PLANNING_DURATION
+    return service.starts_at < match_ends_at and service.ends_at > match.starts_at
 
 
-def assess_candidate(
+def _youth_service_window_allowed(service: DutyService) -> bool:
+    """Parents of youth members are candidates on weekdays and weekend services starting <= 12:30."""
+    if service.starts_at.weekday() < 5:
+        return True
+    return service.starts_at.time() <= time(12, 30)
+
+
+def _assess_candidate(
     case: PrototypeCase,
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
 ) -> CandidateAssessment:
-    """Assess candidate eligibility and practical match context without ranking.
-
-    v0.4 canonical Match values use HOME/AWAY. Lowercase remains accepted here
-    for the already accepted v0.3 fixtures; all returned assessment values keep
-    the established lowercase domain vocabulary.
-    """
+    """Assess candidate eligibility using the Gate-8 youth/senior match decision tree."""
     qualification = derive_duty_qualification(case, today)
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
@@ -62,6 +71,13 @@ def assess_candidate(
         return CandidateAssessment(
             person_id, service.service_id, False, executor_category,
             None, None, "not_assessed", "none", qualification.reason,
+        )
+
+    if executor_category == "parent_guardian" and not _youth_service_window_allowed(service):
+        return CandidateAssessment(
+            person_id, service.service_id, False, executor_category,
+            None, None, "youth_weekend_after_1230", "none",
+            "jeugdlid alleen beschikbaar voor doordeweekse diensten of weekenddiensten die uiterlijk om 12:30 beginnen",
         )
 
     team = _active_team_membership(person_id, service, team_memberships)
@@ -78,7 +94,7 @@ def assess_candidate(
             team.team_id, None, "no_match_that_day", "neutral",
         )
 
-    overlap = _match_start_overlaps_service(match, service)
+    overlap = _match_overlaps_service(match, service)
     home_away = match.home_away.lower()
 
     if home_away == "away":
@@ -94,21 +110,16 @@ def assess_candidate(
         )
 
     if home_away == "home":
-        if executor_category == "parent_guardian":
-            if overlap:
+        if overlap:
+            if executor_category == "parent_guardian":
                 return CandidateAssessment(
                     person_id, service.service_id, True, executor_category,
                     team.team_id, "home", "home_match_overlaps_service", "preferred",
                 )
             return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_same_day", "neutral",
-            )
-
-        if overlap:
-            return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_overlaps_service", "neutral",
+                person_id, service.service_id, False, executor_category,
+                team.team_id, "home", "home_match_overlaps_service", "none",
+                "dienst overlapt met de thuiswedstrijd",
             )
         return CandidateAssessment(
             person_id, service.service_id, True, executor_category,
@@ -118,14 +129,29 @@ def assess_candidate(
     raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
 
 
+def assess_candidate(
+    case: PrototypeCase,
+    service: DutyService,
+    team_memberships: tuple[TeamMembership, ...],
+    matches: tuple[Match, ...],
+    today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
+) -> CandidateAssessment:
+    return assess_planning_availability(
+        _assess_candidate(case, service, team_memberships, matches, today),
+        service, active_planning,
+    )
+
+
 def select_candidates(
     cases: tuple[PrototypeCase, ...],
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
 ) -> tuple[CandidateAssessment, ...]:
     assessments = tuple(
-        assess_candidate(case, service, team_memberships, matches, today) for case in cases
+        assess_candidate(case, service, team_memberships, matches, today, active_planning=active_planning) for case in cases
     )
     return tuple(assessment for assessment in assessments if assessment.eligible)

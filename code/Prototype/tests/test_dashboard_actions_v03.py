@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from dataclasses import replace
 from datetime import date, datetime
 
@@ -24,7 +25,7 @@ def _fixture():
     return case, service, proposal
 
 
-def test_step9_dashboard_approval_uses_domain_flow_and_updates_hours():
+def test_step9_fr02_dashboard_approval_preserves_source_hours():
     case, service, proposal = _fixture()
     result = approve_from_dashboard(proposal, service, case, "Vrijwilligerscommissie", "A-DASH")
     before = duty_position_from_registration(case.sportlink_duty)
@@ -32,7 +33,7 @@ def test_step9_dashboard_approval_uses_domain_flow_and_updates_hours():
     assert result.decision.decision == "approved"
     assert result.assignment is not None
     assert (before.D, before.E) == (1, 7)
-    assert (after.D, after.E) == (4, 4)
+    assert (after.D, after.E) == (1, 7)
     assert after.C == before.C == 2
 
 
