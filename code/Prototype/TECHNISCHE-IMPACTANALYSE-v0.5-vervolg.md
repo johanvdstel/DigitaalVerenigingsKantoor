@@ -96,7 +96,7 @@ De huidige SQLite-laag bewaart proposals, decisions en assignments duurzaam. Voo
 Bestaande `candidate_selection.py` behandelt wedstrijdcontext, niet conflicten met lokale DVK-planning. Een afzonderlijke planning-conflictbeoordeling is nodig zodat dezelfde dag zonder overlap als nood/avoid kan worden aangeboden en overlap wordt uitgesloten. Dit hoort in domein/applicatielogica.
 
 ### Historische regressies
-R17 noemt `DutyAssignment` nog “factual scheduled duty” en verwacht D-update na assignment. Het nieuwe contract wijzigt de v0.5-semantiek bovenop de geaccepteerde v0.4-baseline. Deze regressie mag niet stilzwijgend worden aangepast: de implementatieopdracht moet expliciet aangeven hoe v0.4-compatibiliteit wordt beschermd en welke nieuwe v0.5-cases de gewijzigde lifecycle bewijzen.
+R17 noemt `DutyAssignment` nog “factual scheduled duty” en verwacht D-update na assignment. Het nieuwe contract vervangt die semantiek voor v0.5 expliciet: een DVK-inroostering is tijdelijke planningswerkvoorraad en Sportlink blijft bronhouder van de feitelijke inroostering. Historische regressietests worden beschermd voor zover de onderliggende functionele afspraak nog geldig is. Een test die aantoonbaar een door dit contract vervangen afspraak vastlegt, mag daarom niet de nieuwe v0.5-semantiek blokkeren; zo'n test wordt bewust en traceerbaar aangepast of vervangen. Nieuwe v0.5-tests moeten de gewijzigde lifecycle expliciet bewijzen.
 
 ## Aanbevolen implementatievolgorde
 
