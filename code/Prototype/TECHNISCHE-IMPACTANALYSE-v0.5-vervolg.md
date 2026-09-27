@@ -19,9 +19,9 @@ De resterende implementatieopgave in A is daarom FR-06 t/m FR-08: de bewuste dub
 Ledendienst Planning heeft voor een succesvolle synchronisatie twee verse Sportlink-bronresultaten nodig:
 
 1. **Roosterdata:** `SportlinkVrijwilligersAdapter` leest de Sportlink Vrijwilligers-API. De door de planner gekozen planningsperiode moet exact overeenkomen met de periode van deze API-opvraag, gestuurd met `weekoffset` en `aantaldagen`. De `VolunteerBooking`-records bepalen de feitelijke bezetting.
-2. **Sportlink Vrijwilligers-snapshot:** de actuele snapshot met de A/B/C/D/E-urenpositie van de relevante leden. Dit is een actuele toestandsopname; hiervoor is functioneel geen afzonderlijk datuminterval, seizoenlabel of extra peilmoment nodig.
+2. **Sportlink Vrijwilligers-snapshot:** de actuele A/B/C/D/E-toestandsopname komt via de in v0.4 vastgestelde Sportlink CSV-export `Overzicht per periode … .csv`. De planner downloadt deze actuele export in Sportlink en biedt hem binnen dezelfde bewuste synchronisatiehandeling aan DVK aan. De bestaande `vrijwilligers_periode`-import in `real_data_import.py` is hiervoor de overeengekomen integratieroute. Er is voor deze tweede bron geen directe API-route vastgesteld. De snapshot krijgt functioneel geen afzonderlijk datuminterval, seizoenlabel of extra peilmoment.
 
-Beide worden binnen dezelfde bewuste synchronisatiehandeling direct na elkaar opgehaald. DVK beschouwt ze samen als één voldoende actuele en gezaghebbende Sportlink-bronpositie. Er wordt geen sterkere transactionele garantie ontworpen die Sportlink zelf niet aanbiedt.
+De API-opvraag en de actuele CSV-import worden binnen dezelfde bewuste synchronisatiehandeling verwerkt. DVK beschouwt de twee succesvolle bronresultaten samen als één voldoende actuele en gezaghebbende Sportlink-bronpositie. Er wordt geen sterkere transactionele garantie ontworpen die Sportlink zelf niet aanbiedt. Een reeds aanwezig oud CSV-bestand mag niet stilzwijgend als verse snapshot voor een nieuwe synchronisatie gelden; de gebruiker moet de actuele Sportlink-export voor die synchronisatie aanbieden.
 
 ### Gap 1 — Vrijwilligers-API is nog geen bevestigde snapshotbron
 `SportlinkVrijwilligersAdapter` levert `VolunteerBooking`, provenance en signalen, maar de huidige flow maakt daarvan nog geen `ImportBatch`/`SnapshotRecord`/`SourceSnapshot`. De adapter moet bronadapter blijven; persistence hoort in de import/applicatielaag. De roosteropvraag moet wel aantoonbaar bij de actieve planningsperiode horen.
@@ -29,7 +29,7 @@ Beide worden binnen dezelfde bewuste synchronisatiehandeling direct na elkaar op
 De bestaande generieke `confirm_import()` bevestigt steeds één dataset en commit die afzonderlijk. Dat gedrag mag niet zelfstandig `temporary_planning` leegmaken.
 
 ### Gap 2 — er ontbreekt een Ledendienst Planning-synchronisatie-eenheid
-Er is een kleine applicatie-orchestratie nodig boven de afzonderlijke bronimports. Die kent de actieve planningsperiode en kan alleen succesvol afronden als beide vereiste verse bronresultaten uit dezelfde bewuste synchronisatiehandeling zonder blokkerende fouten zijn verwerkt.
+Er is een kleine applicatie-orchestratie nodig boven de Vrijwilligers-API-opvraag en de bestaande `vrijwilligers_periode` CSV-import. Die kent de actieve planningsperiode en kan alleen succesvol afronden als beide vereiste verse bronresultaten uit dezelfde bewuste synchronisatiehandeling zonder blokkerende fouten zijn verwerkt.
 
 Dit hoeft geen generiek synchronisatieframework te worden. Een Ledendienst Planning-specifieke synchronization service/unit volstaat.
 
@@ -62,7 +62,7 @@ De Vrijwilligers-API levert geen lidmaatschapsnummer maar een Sportlink-weergave
 Voor FR-06–FR-08 is persoonsidentiteit niet nodig om een roosterregel als bezetting te tellen. `Afgeschermd` blijft dus een geldig bronfeit en blokkeert de synchronisatie niet. Geen fuzzy matching, aliasbestand of handmatige persoonskoppeling in deze iteratie. Het identiteitsvraagstuk hoort bij FR-09–FR-12/no-show.
 
 ### Geen onnodige metadata op de Vrijwilligers-snapshot
-De actuele Sportlink Vrijwilligers-snapshot krijgt functioneel geen kunstmatige `[start,end)`-scope, extra seizoen/periodebetekenis of apart peilmoment. Technische timestamps mogen voor provenance/logging bestaan, maar sturen de functionele synchronisatielogica niet.
+De actuele Sportlink Vrijwilligers-snapshot wordt door de planner als actuele Sportlink-export `Overzicht per periode … .csv` aangeleverd en via de bestaande `vrijwilligers_periode`-route geïmporteerd. De snapshot krijgt functioneel geen kunstmatige `[start,end)`-scope, extra seizoen/periodebetekenis of apart peilmoment. Technische timestamps mogen voor provenance/logging bestaan, maar sturen de functionele synchronisatielogica niet.
 
 De roosterbron heeft wél de expliciete plannerperiode, omdat alleen daarmee vaststaat welke concrete diensten via de Vrijwilligers-API zijn opgehaald.
 
@@ -77,9 +77,9 @@ De roosterbron heeft wél de expliciete plannerperiode, omdat alleen daarmee vas
 ### Gerichte regressies FR-06–FR-08
 Minimaal bewijzen:
 1. alleen succesvolle roosteropvraag/bevestiging leegt de werkvoorraad niet;
-2. alleen succesvolle actuele Sportlink Vrijwilligers-snapshot leegt de werkvoorraad niet;
+2. alleen succesvolle import van de actuele door de planner aangeboden Sportlink Vrijwilligers-CSV leegt de werkvoorraad niet;
 3. fout/blokkerende validatie in één bron behoudt de volledige tijdelijke planning;
-4. beide verse geldige bronresultaten binnen één bewuste synchronisatiehandeling kunnen de synchronisatie succesvol afronden;
+4. een verse geldige Vrijwilligers-API-opvraag en een actuele geldige Sportlink Vrijwilligers-CSV-import binnen één bewuste synchronisatiehandeling kunnen de synchronisatie succesvol afronden;
 5. succesvolle afronding leegt de volledige actieve tijdelijke werkvoorraad;
 6. geen individuele reconciliatie van tijdelijke personen/inroosteringen met Sportlink;
 7. `Afgeschermd` telt als feitelijke bezetting en blokkeert synchronisatie niet;
@@ -146,7 +146,7 @@ Gate-10 event/revocation-semantiek, sanctieafleiding, autorisatie, seizoenslogic
 De huidige SQLite-laag bewaart proposals, decisions en assignments duurzaam. Voor de tijdelijke werkvoorraad is minimaal actieve-state lifecycle nodig: toevoegen, queryen voor planning/conflicten, undo en opruimen/vervangen na succesvolle sync. Of bestaande tabellen daarvoor worden hergebruikt of een expliciete tijdelijke-planningrepresentatie wordt toegevoegd is een technische keuze voor een afgebakende implementatie-iteratie, zolang geen concurrerende waarheid na sync overblijft.
 
 ### Synchronisatiegrens
-`confirm_import()` is de bestaande gecontroleerde snapshotbevestiging. De implementatie moet exact bepalen welke Sportlink-dataset(s) samen de “succesvolle synchronisatie” voor planning vormen. Dit kan niet uit het contract worden gegokt. Opruimen van werkvoorraad mag pas worden gekoppeld wanneer die grens technisch eenduidig is.
+`confirm_import()` is de bestaande gecontroleerde snapshotbevestiging. Voor FR-06–FR-08 is de synchronisatiegrens nu functioneel eenduidig: (1) actuele roosterdata via de Vrijwilligers-API voor de actieve plannerperiode en (2) de actuele door de planner uit Sportlink gedownloade Vrijwilligers-export, geïmporteerd via de bestaande `vrijwilligers_periode`-route. Alleen de gezamenlijke succesvolle afronding van deze twee bronresultaten mag de werkvoorraad opruimen.
 
 ### Kandidaten
 Bestaande `candidate_selection.py` behandelt wedstrijdcontext, niet conflicten met lokale DVK-planning. Een afzonderlijke planning-conflictbeoordeling is nodig zodat dezelfde dag zonder overlap als nood/avoid kan worden aangeboden en overlap wordt uitgesloten. Dit hoort in domein/applicatielogica.
