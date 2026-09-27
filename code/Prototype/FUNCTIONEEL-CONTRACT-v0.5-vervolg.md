@@ -33,20 +33,22 @@ De planner verwerkt de gewenste DVK-planning handmatig in Sportlink via de besch
 
 Binnen Ledendienst Planning is maximaal één planningsperiode tegelijk actief. Alle tijdelijke DVK-inroosteringen behoren tot die periode. De door de planner gekozen planningsperiode is exact gelijk aan de periode waarvoor DVK de Sportlink Vrijwilligers-API bevraagt; de API-parameters `weekoffset` en `aantaldagen` bepalen diezelfde periode.
 
-Binnen één bewuste synchronisatiehandeling haalt DVK direct na elkaar:
-1. de actuele roosterdata via de Sportlink Vrijwilligers-API op voor de door de planner gekozen periode; en
-2. de actuele Sportlink Vrijwilligers-snapshot op, met de actuele urenpositie van de relevante leden.
+Binnen één bewuste synchronisatiehandeling verwerkt DVK twee actuele Sportlink-bronnen:
+1. DVK haalt de actuele roosterdata via de Sportlink Vrijwilligers-API op voor de door de planner gekozen periode; en
+2. de planner downloadt in Sportlink de actuele Vrijwilligers-export `Overzicht per periode … .csv` en biedt deze binnen dezelfde synchronisatiehandeling aan DVK aan. DVK importeert deze CSV als de actuele Sportlink Vrijwilligers-snapshot met de actuele urenpositie van de relevante leden.
+
+Voor de tweede bron is in v0.5 dus geen directe Sportlink-API vastgesteld. De reeds in v0.4 gebruikte dataset `vrijwilligers_periode` en CSV-import vormen de overeengekomen integratieroute. Een willekeurig eerder lokaal CSV-bestand geldt niet als actuele snapshot voor een nieuwe synchronisatiehandeling: de planner moet daarvoor de actuele export uit Sportlink aanbieden.
 
 Deze twee bronresultaten blijven afzonderlijke Sportlink-bronfeiten met eigen provenance, maar vormen binnen die synchronisatiehandeling samen één voldoende actuele Sportlink-bronpositie. Uitgangspunt is dat Sportlink wijzigingen in beide bronnen nagenoeg direct verwerkt. Zolang Sportlink geen mechanisme biedt waarmee DVK een sterkere transactionele samenhang tussen beide bronposities kan vaststellen, is dit de gezaghebbende synchronisatiebasis voor DVK.
 
 De Vrijwilligers-API levert voor een inroostering alleen de Sportlink-weergavenaam en geen lidmaatschapsnummer. Een zichtbare naam kan via het gedefinieerde Sportlink-naamformaat deterministisch aan de andere Sportlink-bron worden gekoppeld. Bij privacy-afscherming kan de naam ontbreken en bijvoorbeeld `Afgeschermd` worden geleverd. Dit verhindert synchronisatie of bezettingsberekening niet: de roosterregel blijft een feitelijke bezetting. DVK raadt in dat geval niet naar de identiteit. Persoonsidentificatie van een afgeschermde roosterregel is voor FR-06–FR-08 niet nodig en wordt waar nodig bij de no-showflow van FR-09–FR-12 behandeld.
 
 ### FR-07 — Succesvolle Sportlink-synchronisatie vormt een harde grens
-Een synchronisatie is voor Ledendienst Planning pas succesvol wanneer binnen dezelfde bewuste synchronisatiehandeling zowel de actuele roosterdata voor de actieve planningsperiode als de actuele Sportlink Vrijwilligers-snapshot succesvol zijn opgehaald en zonder blokkerende fouten zijn verwerkt.
+Een synchronisatie is voor Ledendienst Planning pas succesvol wanneer binnen dezelfde bewuste synchronisatiehandeling zowel de actuele roosterdata voor de actieve planningsperiode succesvol via de Vrijwilligers-API zijn opgehaald als een actuele door de planner uit Sportlink gedownloade Vrijwilligers-export succesvol als Sportlink Vrijwilligers-snapshot is geïmporteerd, en beide zonder blokkerende fouten zijn verwerkt.
 
 Na die succesvolle dubbele synchronisatie geldt de gezamenlijk verkregen Sportlink-bronpositie onvoorwaardelijk als actuele werkelijkheid. Tijdelijke DVK-inroosteringen worden niet individueel met Sportlink gereconcilieerd. De volledige tijdelijke planningswerkvoorraad van de actieve planningscyclus wordt beëindigd; de nieuwe Sportlink-bronpositie bepaalt daarna opnieuw bezetting, openstaande diensten, kandidaatbeschikbaarheid en urenprioritering.
 
-Als één van beide bronopvragingen of de gezamenlijke afronding mislukt, is de synchronisatie niet succesvol en blijft de tijdelijke DVK-planningswerkvoorraad intact. Een afzonderlijk succesvol opgehaald bronresultaat mag als brongegeven beschikbaar blijven, maar beëindigt de planningscyclus niet.
+Als de API-opvraag, de CSV-import of de gezamenlijke afronding mislukt, is de synchronisatie niet succesvol en blijft de tijdelijke DVK-planningswerkvoorraad intact. Een afzonderlijk succesvol opgehaald bronresultaat mag als brongegeven beschikbaar blijven, maar beëindigt de planningscyclus niet.
 
 ### FR-08 — Tijdelijke planningshistorie hoeft niet duurzaam te worden bewaard
 DVK onderscheidt bronfeiten, tijdelijke DVK-planningsinformatie en duurzame DVK-feiten. Selecteren, tijdelijk inroosteren en terugdraaien zijn werkvoorraad en hoeven na succesvolle synchronisatie geen permanente functionele historie te vormen. Technische logging voor diagnose staat hiervan los.
