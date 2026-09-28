@@ -108,12 +108,13 @@ def test_migration_discards_only_authorized_legacy_data_and_never_fabricates_rev
         facts = connection.execute("SELECT no_show_id, payload FROM no_show_events WHERE status='valid' ORDER BY no_show_id").fetchall()
         sanctions = connection.execute("SELECT * FROM sanction_assessments WHERE no_show_id IN ('N1', 'N3') ORDER BY no_show_id").fetchall()
     db = SQLiteDatabase(path)
-    assert db.initialize() == 11
-    assert db.initialize() == 11
+    assert db.initialize() == 12  # FR-06–08 adds planning_state; historical facts stay unchanged.
+    assert db.initialize() == 12  # FR-06–08 adds planning_state; historical facts stay unchanged.
     with sqlite3.connect(path) as connection:
         after = _unrelated_tables(connection)
         # Issue #12 adds an empty workqueue; all pre-existing rows stay exact.
         assert after.pop("temporary_planning") == []
+        assert after.pop("planning_state") == [(1, None, None, 0, None, None, None)]
         assert after == before
         assert connection.execute("SELECT no_show_id, payload FROM no_show_events ORDER BY no_show_id").fetchall() == facts
         assert connection.execute("SELECT * FROM sanction_assessments ORDER BY no_show_id").fetchall() == sanctions

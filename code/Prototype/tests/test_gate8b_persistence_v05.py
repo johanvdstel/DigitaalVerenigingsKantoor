@@ -5,6 +5,7 @@ from dvk.application_services import ProposalDecisionApplicationService
 from dvk.candidate_selection import assess_candidate
 from dvk.import_management import ImportBatch, ImportStatus, SourceSnapshot
 from dvk.persistence import SQLiteDatabase
+from dvk.planning import PlanningPeriod
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.run_context import EngineRun, EngineRunStatus
@@ -37,6 +38,7 @@ def test_v07_fr02_active_chain_reconstructs_after_database_reopen(tmp_path):
         uow.import_batches.add(batch)
         uow.snapshots.add(SourceSnapshot("SNAP-V07", "B-V07", "Sportlink", "leden", "2026-2027", now), ())
         uow.engine_runs.add(run)
+        uow.planning_state.select(PlanningPeriod(date(2026, 8, 31), date(2026, 9, 30)))
         ProposalDecisionApplicationService(identity, uow=uow).approve(proposal, service, case, assignment_id="A-V07", staffing_need=StaffingNeed(service.service_id, 1, 2, 0, 1, 2))
 
     reopened = SQLiteDatabase(path)

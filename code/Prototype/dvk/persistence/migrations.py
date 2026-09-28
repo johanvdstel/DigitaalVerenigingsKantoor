@@ -158,7 +158,21 @@ def _migration_011(connection: sqlite3.Connection) -> None:
         service_payload TEXT NOT NULL)""")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011)
+def _migration_012(connection: sqlite3.Connection) -> None:
+    """One active planning period and the last jointly accepted source position."""
+    connection.execute("""CREATE TABLE planning_state (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        period_start TEXT, period_end TEXT,
+        revision INTEGER NOT NULL DEFAULT 0,
+        sync_id TEXT,
+        roster_snapshot_id TEXT REFERENCES source_snapshots(snapshot_id),
+        duty_snapshot_id TEXT REFERENCES source_snapshots(snapshot_id),
+        CHECK ((period_start IS NULL) = (period_end IS NULL)),
+        CHECK ((roster_snapshot_id IS NULL) = (duty_snapshot_id IS NULL)))""")
+    connection.execute("INSERT INTO planning_state(singleton) VALUES (1)")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011, _migration_012)
 
 
 def migrate(connection: sqlite3.Connection) -> int:

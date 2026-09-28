@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, fields
-from datetime import datetime
+from datetime import date, datetime
+from ..planning import PlanningPeriod
 
 from ..workstream_model import AssignmentProposal, DutyAssignment, DutyService, HumanDecision
 from ..planning_workqueue import TemporaryPlanning
@@ -92,3 +93,39 @@ class SQLiteTemporaryPlanningRepository:
         return self._connection.execute(
             "DELETE FROM temporary_planning WHERE assignment_id=?", (assignment_id,)
         ).rowcount == 1
+
+    def clear(self) -> None:
+        self._connection.execute("DELETE FROM temporary_planning")
+
+
+class SQLitePlanningStateRepository:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def get(self):
+        from ..planning_sync import PlanningState
+        row = self._connection.execute(
+            "SELECT period_start, period_end, revision, sync_id, roster_snapshot_id, duty_snapshot_id FROM planning_state WHERE singleton=1"
+        ).fetchone()
+        period = None if row[0] is None else PlanningPeriod(date.fromisoformat(row[0]), date.fromisoformat(row[1]))
+        return PlanningState(period, *row[2:])
+
+    def select(self, period):
+        self._connection.execute(
+            "UPDATE planning_state SET period_start=?, period_end=?, revision=revision+1 WHERE singleton=1",
+            (period.start.isoformat(), period.end.isoformat()),
+        )
+
+    def touch(self):
+        self._connection.execute("UPDATE planning_state SET revision=revision+1 WHERE singleton=1")
+
+    def discard(self):
+        self._connection.execute(
+            "UPDATE planning_state SET period_start=NULL, period_end=NULL, revision=revision+1 WHERE singleton=1"
+        )
+
+    def complete(self, sync_id, roster_snapshot_id, duty_snapshot_id):
+        self._connection.execute(
+            "UPDATE planning_state SET revision=revision+1, sync_id=?, roster_snapshot_id=?, duty_snapshot_id=? WHERE singleton=1",
+            (sync_id, roster_snapshot_id, duty_snapshot_id),
+        )

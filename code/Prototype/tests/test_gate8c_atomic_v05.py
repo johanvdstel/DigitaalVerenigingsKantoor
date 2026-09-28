@@ -5,6 +5,7 @@ import pytest
 from dvk.application_services import ProposalDecisionApplicationService
 from dvk.candidate_selection import assess_candidate
 from dvk.persistence import SQLiteDatabase
+from dvk.planning import PlanningPeriod
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.security import Identity, Permission
@@ -31,6 +32,7 @@ def test_batch_selection_above_remaining_capacity_is_rejected_before_persistence
     case2, _, proposal2 = _proposal("P-G8C-2", "W07")
     db = SQLiteDatabase(tmp_path / "dvk.sqlite")
     with db.unit_of_work() as uow:
+        uow.planning_state.select(PlanningPeriod(date(2026, 8, 31), date(2026, 9, 30)))
         app = ProposalDecisionApplicationService(_identity(), uow=uow)
         with pytest.raises(ValueError, match="remaining service capacity"):
             app.approve_many(((proposal1, case1, "A-G8C-1"), (proposal2, case2, "A-G8C-2")), service, StaffingNeed(service.service_id, 1, 1, 0, 1, 1))
@@ -47,6 +49,7 @@ def test_batch_persistence_rolls_back_when_second_assignment_fails(tmp_path):
     db = SQLiteDatabase(tmp_path / "dvk.sqlite")
     with pytest.raises(Exception):
         with db.unit_of_work() as uow:
+            uow.planning_state.select(PlanningPeriod(date(2026, 8, 31), date(2026, 9, 30)))
             ProposalDecisionApplicationService(_identity(), uow=uow).approve_many(((proposal1, case1, "A-DUP"), (proposal2, case2, "A-DUP")), service, StaffingNeed(service.service_id, 1, 2, 0, 1, 2))
     with db.unit_of_work() as uow:
         assert uow.proposals.get("P-G8C-R1") is None
