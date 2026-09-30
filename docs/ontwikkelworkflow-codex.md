@@ -191,3 +191,97 @@ Voor iedere voorgestelde vereenvoudiging moeten minimaal worden benoemd:
 - het risico.
 
 Consolidatie 6 voert nog geen productiecode-refactor uit.
+
+
+## 9. Baseline- en wijzigingsdiscipline
+
+Vanaf deze werkafspraak wordt DVK nadrukkelijk baseline-gedreven ontwikkeld.
+
+### 9.1 Een geaccepteerde baseline is het contract
+
+Een releasebaseline bestaat niet alleen uit werkende code. De baseline omvat de bij die release geaccepteerde combinatie van:
+
+- code en databasemigraties;
+- functioneel ontwerp en functioneel contract;
+- bron- en integratiecontracten;
+- relevante configuratie en beleidsparameters;
+- geaccepteerde regressiecases en tests.
+
+GitHub is de gezaghebbende opslag. Een chat, samenvatting of Codex-opdracht kan naar de baseline verwijzen, maar vervangt haar niet.
+
+Een nieuwe ontwikkelchat of Codex-iteratie start daarom vanaf een expliciet genoemde baselinebranch en -commit en benoemt de gezaghebbende documenten. Reeds geaccepteerde afspraken worden niet opnieuw ontworpen alleen omdat zij in de actuele chat niet volledig zichtbaar zijn.
+
+### 9.2 Nieuwe bevindingen wijzigen de baseline niet impliciet
+
+Tijdens analyse of implementatie wordt iedere relevante nieuwe bevinding eerst geclassificeerd:
+
+| Bevinding | Behandeling |
+| --- | --- |
+| Implementatiefout ten opzichte van de baseline | Code corrigeren; functionele baseline blijft gelijk. |
+| Onduidelijkheid of inconsistentie in de baseline | Stoppen met het betreffende onderdeel; baseline eerst verduidelijken. |
+| Nieuwe requirement | Als change request/backlog vastleggen; niet stil aan de lopende iteratie toevoegen. |
+| Eerdere functionele afspraak blijkt onjuist of onvolledig | Eerst expliciete baselinewijziging ontwerpen, documenteren en accepteren; daarna pas implementeren. |
+
+Een plausibele nieuwe redenering, chatbesluit of technische implementatie is dus nooit op zichzelf voldoende om geaccepteerd gedrag te wijzigen.
+
+### 9.3 Volgorde bij een baselinewijziging
+
+Wanneer een functionele afspraak, bronmapping of architectuurregel moet veranderen, geldt:
+
+    bevinding
+    → vergelijking met actuele baseline
+    → expliciet wijzigingsvoorstel
+    → functionele/architecturale acceptatie
+    → baseline-documentatie aanpassen
+    → regressiecriteria aanpassen/toevoegen
+    → implementatie op afgebakende werkbranch
+    → tests + CI
+    → functionele acceptatie
+    → merge
+
+Code loopt niet vooruit op een nog niet geaccepteerde functionele baselinewijziging.
+
+### 9.4 Releasebaseline afronden
+
+Bij functionele acceptatie van een release wordt expliciet vastgelegd welke commit en welke documenten samen de nieuwe baseline vormen. Openstaande requirements, bekende afwijkingen en latere verbeteringen worden apart gehouden en maken niet stilzwijgend deel uit van de baseline.
+
+## 10. Chatdiscipline en overdracht
+
+Chats zijn werkruimten, geen projectadministratie. Om verlies en herinterpretatie van besluiten door lange ontwikkelgesprekken te voorkomen, krijgt iedere ontwikkelchat voortaan één afgebakend doel en een expliciete eindconditie.
+
+Een volledige release hoeft niet in één chat te worden uitgevoerd. Baseline-herijking, implementatie, functionele acceptatie en integratie kunnen bewust afzonderlijke chats zijn.
+
+### 10.1 Start van een nieuwe chat
+
+Een nieuwe ontwikkelchat vermeldt minimaal:
+
+- release/iteratie en doel;
+- gezaghebbende baselinebranch en -commit;
+- te lezen baseline-documenten;
+- expliciete scope en buiten-scope;
+- eindconditie van de chat.
+
+De chat reconstrueert geen beleid uit herinnering wanneer dit in GitHub hoort te staan. Als noodzakelijke informatie niet eenduidig uit de genoemde baseline kan worden vastgesteld, wordt dat als baselineprobleem behandeld.
+
+### 10.2 Wanneer een chat wordt beëindigd
+
+Een chat wordt bewust afgesloten zodra de afgesproken eindconditie is bereikt, of eerder wanneer blijkt dat eerst een andere baselinewijziging of besluitvorming nodig is. Een nieuwe inhoudelijke werkstroom start vervolgens in een nieuwe chat.
+
+Bij afsluiting wordt een compacte overdracht gemaakt met:
+
+- bereikte toestand;
+- relevante branch/commit/PR;
+- geaccepteerde besluiten;
+- nog openstaande punten;
+- concrete opdracht voor de volgende chat;
+- verwijzingen naar de gezaghebbende GitHub-documenten.
+
+De overdracht is een navigatiehulpmiddel en geen vervanging van de GitHub-baseline.
+
+## 11. Stopregel voor scope creep
+
+Wanneer tijdens een lopende iteratie een nieuwe requirement, fout in een eerder ontwerp of ontbrekende bronafspraak wordt ontdekt die de geaccepteerde baseline raakt, wordt de lopende implementatie op dat onderdeel gepauzeerd. De bevinding wordt niet terloops opgelost.
+
+Eerst wordt vastgesteld of sprake is van een bug, onduidelijkheid, nieuwe requirement of baselinewijziging volgens §9.2. Alleen nadat de vereiste documentatie en besluitvorming zijn afgerond, wordt de technische iteratie hervat of opnieuw geformuleerd.
+
+Dit geldt ook wanneer de voorgestelde wijziging klein of technisch eenvoudig lijkt.
