@@ -143,7 +143,7 @@ def test_role_provenance_keeps_source_and_normalized_value(tmp_path):
 def test_v02_real_birth_date_column_and_conflicting_termination_dates(tmp_path):
     paths = exports(tmp_path)
     member = paths["members_path"]
-    member.write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;\\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    member.write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.persons
     assert any(signal.code == "CONFLICTING_DUPLICATE_MEMBERSHIP" for signal in result.signals)
@@ -151,14 +151,14 @@ def test_v02_real_birth_date_column_and_conflicting_termination_dates(tmp_path):
 
 def test_v03_distinct_trainer_roles_are_preserved(tmp_path):
     paths = exports(tmp_path)
-    paths["functions_path"].write_text("Rel. code;Functie\\nP1;Trainer Pupillen\\nP1;Hoofdtrainer Sen.", encoding="utf-8")
+    paths["functions_path"].write_text("Rel. code;Functie\nP1;Trainer Pupillen\nP1;Hoofdtrainer Sen.", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert {role.role for role in result.roles} == {"Trainer Pupillen", "Hoofdtrainer Sen."}
 
 
 def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\\nP1;Recreatief;Recreatief;Teamspeler;;Ja\\nP1;Senioren;Bond;Trainer;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Recreatief;Recreatief;Teamspeler;;Ja\nP1;Senioren;Bond;Trainer;;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert not result.football_participations[0].plays_football
@@ -166,7 +166,7 @@ def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
 
 def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\\nP1;Senioren;Bond;Trainer;;Ja\\nP1;Senioren;Bond;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren;Bond;Trainer;;Ja\nP1;Senioren;Bond;Teamspeler;;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert result.memberships[0].plays_football
     assert len(result.team_memberships) == 2
@@ -174,7 +174,7 @@ def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
 
 def test_v01_missing_team_type_is_signalled_not_assumed(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Functie;Spelend lid\\nP1;Senioren;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Functie;Spelend lid\nP1;Senioren;Teamspeler;;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert any(s.code == "MISSING_TEAM_TYPE" for s in result.signals)
