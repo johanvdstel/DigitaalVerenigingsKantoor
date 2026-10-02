@@ -73,7 +73,7 @@ def test_r05_preserves_multi_relation_cardinalities(tmp_path):
 
 def test_r06_role_variants_are_normalized_without_policy_decision(tmp_path):
     result = load(tmp_path)
-    assert {r.role for r in result.roles} == {"Trainer Pupillen", "Vice voorzitter"}
+    assert {r.role for r in result.roles} == {"Trainer Pupillen", "Vice-voorzitter"}
 
 
 def test_r07_abcd_e_is_reconciled(tmp_path):
@@ -178,3 +178,10 @@ def test_v01_missing_team_type_is_signalled_not_assumed(tmp_path):
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert any(s.code == "MISSING_TEAM_TYPE" for s in result.signals)
+
+
+def test_v03_committee_start_date_is_preserved(tmp_path):
+    paths = exports(tmp_path)
+    paths["committees_path"].write_text("Rel. code;Commissie;Functie;Begindatum\nP1;Jeugdcommissie;Lid;01-09-2026", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.committees[0].start_date.isoformat() == "2026-09-01"
