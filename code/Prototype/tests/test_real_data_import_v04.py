@@ -224,3 +224,25 @@ def test_v02_teams_import_does_not_require_banking_columns(tmp_path):
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert result.memberships[0].plays_football
     assert not any(signal.dataset == "teams" for signal in result.signals)
+
+
+def test_v02_derived_membership_respects_first_nonmember_day(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    adapter = SportlinkRealDataAdapter()
+    assert dict(adapter.load_exports(**paths, as_of=date(2026, 11, 30)).membership_as_of) == {"P1": True}
+    assert dict(adapter.load_exports(**paths, as_of=date(2026, 12, 1)).membership_as_of) == {"P1": False}
+
+
+def test_v02_ambiguous_membership_is_not_assumed_active(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Afgemeld;Verenigingslid;oud lid;", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 10, 2))
+    assert dict(result.membership_as_of) == {"P1": None}
+
+
+def test_v02_warns_on_source_dates_not_refreshed_since_previous_planning(tmp_path):
+    result = SportlinkRealDataAdapter().load_exports(**exports(tmp_path),
+        source_dates={"teams": date(2026, 9, 30)}, previous_planning_date=date(2026, 10, 1),
+        previous_source_dates={"teams": date(2026, 9, 30)})
+    assert {"SOURCE_PREDATES_PREVIOUS_PLANNING", "SOURCE_NOT_REFRESHED"} <= {s.code for s in result.signals}
