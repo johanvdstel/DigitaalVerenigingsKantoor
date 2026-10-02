@@ -73,7 +73,7 @@ def test_r05_preserves_multi_relation_cardinalities(tmp_path):
 
 def test_r06_role_variants_are_normalized_without_policy_decision(tmp_path):
     result = load(tmp_path)
-    assert {r.role for r in result.roles} == {"Trainer", "Vice voorzitter"}
+    assert {r.role for r in result.roles} == {"Trainer Pupillen", "Vice voorzitter"}
 
 
 def test_r07_abcd_e_is_reconciled(tmp_path):
@@ -137,4 +137,20 @@ def test_role_provenance_keeps_source_and_normalized_value(tmp_path):
         if p.source_dataset == "functies" and p.source_value == "Trainer Pupillen"
     )
     assert trainer_provenance.source_field == "Functie"
-    assert trainer_provenance.normalized_value == "Trainer"
+    assert trainer_provenance.normalized_value == "Trainer Pupillen"
+
+
+def test_v02_real_birth_date_column_and_conflicting_termination_dates(tmp_path):
+    paths = exports(tmp_path)
+    member = paths["members_path"]
+    member.write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;\\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.persons
+    assert any(signal.code == "CONFLICTING_DUPLICATE_MEMBERSHIP" for signal in result.signals)
+
+
+def test_v03_distinct_trainer_roles_are_preserved(tmp_path):
+    paths = exports(tmp_path)
+    paths["functions_path"].write_text("Rel. code;Functie\\nP1;Trainer Pupillen\\nP1;Hoofdtrainer Sen.", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert {role.role for role in result.roles} == {"Trainer Pupillen", "Hoofdtrainer Sen."}
