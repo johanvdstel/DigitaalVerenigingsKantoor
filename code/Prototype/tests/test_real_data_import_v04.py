@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -185,3 +185,26 @@ def test_v03_committee_start_date_is_preserved(tmp_path):
     paths["committees_path"].write_text("Rel. code;Commissie;Functie;Begindatum\nP1;Jeugdcommissie;Lid;01-09-2026", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert result.committees[0].start_date.isoformat() == "2026-09-01"
+
+
+def test_v02_membership_end_date_is_first_nonmember_day(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    before = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 11, 30))
+    on_day = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 12, 1))
+    assert before.memberships[0].end_date == date(2026, 12, 1)
+    assert not any(s.code == "MEMBERSHIP_ENDED_AS_OF" for s in before.signals)
+    assert any(s.code == "MEMBERSHIP_ENDED_AS_OF" for s in on_day.signals)
+
+
+def test_v02_missing_termination_date_is_not_guessed(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Afgemeld;Verenigingslid;oud lid;", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert any(s.code == "MISSING_TERMINATION_DATE" for s in result.signals)
+
+
+def test_v02_per_source_dates_are_retained(tmp_path):
+    dates = {"leden": date(2026, 10, 1), "teams": date(2026, 9, 30)}
+    result = SportlinkRealDataAdapter().load_exports(**exports(tmp_path), source_dates=dates)
+    assert dict(result.source_dates) == dates
