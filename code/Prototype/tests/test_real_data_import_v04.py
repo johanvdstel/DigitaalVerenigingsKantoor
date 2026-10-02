@@ -208,3 +208,11 @@ def test_v02_per_source_dates_are_retained(tmp_path):
     dates = {"leden": date(2026, 10, 1), "teams": date(2026, 9, 30)}
     result = SportlinkRealDataAdapter().load_exports(**exports(tmp_path), source_dates=dates)
     assert dict(result.source_dates) == dates
+
+
+def test_v02_actual_team_type_vereniging_is_known_but_not_bond(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Lokale selectie;Vereniging;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert not any(s.code == "UNKNOWN_TEAM_TYPE" for s in result.signals)
