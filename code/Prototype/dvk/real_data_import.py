@@ -43,6 +43,7 @@ class CommitteeMembership:
     person_id: str
     committee: str
     committee_role: str
+    start_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -174,7 +175,15 @@ class SportlinkRealDataAdapter:
             pid = self.value(row, "Rel. code")
             if not self.known_person(pid, person_ids, "commissies", str(i), signals):
                 continue
-            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"), self.value(row, "Functie")))
+            committee_start = self.value(row, "Begindatum")
+            try:
+                start_date = self.parse_date(committee_start)
+            except ValueError:
+                signals.append(DataQualitySignal("INVALID_COMMITTEE_START_DATE", "ERROR", "commissies", f"{pid}:{i}",
+                                                 "Ongeldige begindatum commissieregistratie"))
+                continue
+            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"),
+                                                  self.value(row, "Functie"), start_date))
             provenance.append(self.prov("commissies", f"{pid}:{i}", imported_at, source_period))
 
         teams: list[RealTeamMembership] = []
@@ -267,9 +276,6 @@ class SportlinkRealDataAdapter:
     @staticmethod
     def normalize_role(role: str) -> str:
         cleaned = " ".join(role.strip().split())
-        lower = cleaned.lower().replace("-", " ")
-        if lower in {"vice voorzitter", "vicevoorzitter"}:
-            return "Vice voorzitter"
         return cleaned
 
     @staticmethod
