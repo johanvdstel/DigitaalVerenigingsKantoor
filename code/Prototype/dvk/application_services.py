@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from .candidate_selection import assess_candidate
+from .planning_sync import PlanningSyncApplicationService, require_service_in_period, source_availability, source_staffing, read_bookings, validate_source_selection
 from .planning_workqueue import TemporaryPlanning, planning_conflict, planning_staffing, validate_planning_selection
 from .dashboard_actions import DashboardActionResult, approve_from_dashboard, reject_from_dashboard
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
@@ -165,12 +166,20 @@ class PlanningApplicationService:
     def staffing_needs(self, *, services, source_needs) -> tuple[StaffingNeed, ...]:
         active = self.active_planning()
         by_id = {service.service_id: service for service in services}
-        return tuple(planning_staffing(by_id[need.service_id], need, active) for need in source_needs)
+        bookings = None if self.uow is None else PlanningSyncApplicationService(self.uow, self.identity).bookings()
+        return tuple(planning_staffing(by_id[need.service_id], source_staffing(by_id[need.service_id], need, bookings), active)
+                     for need in source_needs)
+
+    def current_cases(self, cases):
+        return tuple(cases) if self.uow is None else PlanningSyncApplicationService(self.uow, self.identity).current_cases(cases)
 
     def assess_candidates(self, *, cases, service, team_memberships, matches, today):
         active = self.active_planning()
-        return tuple(assess_candidate(case, service, team_memberships, matches, today,
-                                      active_planning=active) for case in cases)
+        cases = self.current_cases(cases)
+        assessments = tuple(assess_candidate(case, service, team_memberships, matches, today,
+                                             active_planning=active) for case in cases)
+        bookings = () if self.uow is None else PlanningSyncApplicationService(self.uow, self.identity).bookings() or ()
+        return tuple(source_availability(a, case, cases, service, bookings) for a, case in zip(assessments, cases))
 
     def temporary_assignment_contexts(self, *, persons=()) -> tuple[AssignmentContext, ...]:
         return tuple(_assignment_context(entry.assignment, (entry.service,), persons)
@@ -227,7 +236,11 @@ class ProposalDecisionApplicationService:
 
         self.uow.begin_planning_write()
         try:
+            require_service_in_period(self.uow, service)
             active = self.uow.temporary_planning.all()
+            bookings = read_bookings(self.uow)
+            staffing_need = source_staffing(service, staffing_need, bookings)
+            validate_source_selection(self.uow, selections, service, bookings)
             validate_planning_selection(tuple(p.person_id for p, _, _ in selections), service, staffing_need, active)
             for proposal, _, _ in selections:
                 if planning_conflict(proposal.person_id, service, active) == "same_day" and proposal.suitability != "emergency":
@@ -238,6 +251,7 @@ class ProposalDecisionApplicationService:
             )
             for (proposal, _, _), result in zip(selections, results):
                 self._add_without_commit(proposal, result, service)
+            self.uow.planning_state.touch()
             self.uow.commit()
             return results
         except Exception:
@@ -253,6 +267,7 @@ class ProposalDecisionApplicationService:
         try:
             if not self.uow.temporary_planning.remove(assignment_id):
                 raise ValueError("Deze tijdelijke inroostering is niet meer actief.")
+            self.uow.planning_state.touch()
             self.uow.commit()
         except Exception:
             self.uow.rollback()

@@ -183,6 +183,22 @@ class SportlinkRealDataAdapter:
                                         source_field="Spelend lid", source_value=playing_value,
                                         normalized_value=None if playing_member is None else str(playing_member)))
 
+        duties, duty_provenance, duty_signals = self.import_duty_rows(
+            duty_rows, person_ids=person_ids, imported_at=imported_at,
+            source_period=source_period, expected_required_hours=expected_required_hours,
+        )
+        provenance.extend(duty_provenance)
+        signals.extend(duty_signals)
+
+        return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
+                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
+
+    def import_duty_rows(self, duty_rows, *, person_ids, imported_at,
+                         source_period=None, expected_required_hours=None):
+        """Shared vrijwilligers_periode normalization for exports and planning sync."""
+        expected_required_hours = expected_required_hours or {}
+        signals = []
+        provenance = []
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
             pid = self.value(row, "Relatiecode")
@@ -210,13 +226,17 @@ class SportlinkRealDataAdapter:
                                         source_field="Niet ingedeeld", source_value=str(source_e),
                                         normalized_value=str(record.position.E)))
 
-        return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
-                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
+        return tuple(duties), tuple(provenance), tuple(signals)
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
         path = Path(path)
         text = path.read_text(encoding="utf-8-sig")
+        return cls.parse_csv(text, dataset, filename=path.name)
+
+    @classmethod
+    def parse_csv(cls, text: str, dataset: str, *, filename="Sportlink CSV"):
+        text = text.lstrip("\ufeff")
         try:
             delimiter = csv.Sniffer().sniff(text[:8192], delimiters=";,\t").delimiter
         except csv.Error:
@@ -224,7 +244,7 @@ class SportlinkRealDataAdapter:
         reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
-            raise ValueError(f"{path.name}: missing columns: {', '.join(sorted(missing))}")
+            raise ValueError(f"{filename}: missing columns: {', '.join(sorted(missing))}")
         return list(reader)
 
     @staticmethod

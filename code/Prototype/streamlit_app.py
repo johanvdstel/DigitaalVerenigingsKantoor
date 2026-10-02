@@ -11,6 +11,9 @@ from dvk.application_services import NoShowApplicationService, PlanningApplicati
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
+from dvk.planning_sync import PlanningSyncApplicationService, sportlink_period
+from dvk.vrijwilligers_adapter import ServiceBinding, SportlinkVrijwilligersAdapter, TZ
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.proposal_planning import plan_proposals
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
@@ -45,7 +48,7 @@ def _vriendelijke_wedstrijdcontext(value: str) -> str:
 def _vriendelijke_waarom(proposal) -> str:
     details: list[str] = []
     if proposal.suitability == "emergency":
-        details.append("Alleen nood-/uitwijkkandidaat: al tijdelijk ingepland op dezelfde dag")
+        details.append("Alleen nood-/uitwijkkandidaat: al ingepland op dezelfde dag")
     if proposal.previous_season_backlog > 0 and proposal.previous_season_considered:
         details.append(f"Nog {proposal.previous_season_backlog} openstaande uren uit vorig seizoen")
     for rule in proposal.applied_priority_rules:
@@ -61,7 +64,7 @@ def _demo_data(start: date):
     return demo_planning_data(start)
 
 def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Match, ...], *, planning_app, proposal_run_id: str | None = None):
-    cases = demo_candidate_cases()
+    cases = planning_app.current_cases(demo_candidate_cases())
     memberships = demo_team_memberships(service, cases)
     assessments = planning_app.assess_candidates(cases=cases, service=service, team_memberships=memberships, matches=matches, today=TODAY)
     eligible = tuple(a for a in assessments if a.eligible)
@@ -74,19 +77,53 @@ st.set_page_config(page_title="DVK — Ledendienst Planning", page_icon="📋", 
 st.title("CKC Digitaal Verenigings Kantoor (DVK)")
 st.subheader("Ledendienst Planning")
 st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
-with st.sidebar:
-    st.header("Periode")
-    mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1)
-    selected = st.date_input("Vanaf", value=date.today())
-    if mode == "Dag": period = PlanningPeriod(selected, selected)
-    elif mode == "Week":
-        monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
-    else:
-        until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected); period = PlanningPeriod(selected, until)
-
-identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
+identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS, Permission.CONFIRM_IMPORT}))
 database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
 database.initialize()
+with database.unit_of_work() as uow:
+    saved_period = PlanningSyncApplicationService(uow, identity).state().period
+    has_temporary_planning = bool(PlanningApplicationService(identity, uow=uow).active_planning())
+with st.sidebar:
+    st.header("Periode")
+    st.caption("De planningsperiode begint op maandag, gelijk aan de Sportlink-opvraag.")
+    mode = st.radio("Selectie", ("Week", "Aangepast"), index=0, disabled=has_temporary_planning and saved_period is not None)
+    selected = st.date_input("Vanaf", value=saved_period.start if saved_period else sportlink_period(today=datetime.now(TZ).date(), weekoffset=0, days=7).start, disabled=has_temporary_planning and saved_period is not None, key="planning-start")
+    if mode == "Week":
+        monday = selected - timedelta(days=selected.weekday())
+        period = PlanningPeriod(monday, monday + timedelta(days=6))
+    else:
+        until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, disabled=has_temporary_planning and saved_period is not None)
+        period = PlanningPeriod(selected, until)
+    if has_temporary_planning:
+        if saved_period is None:
+            st.warning("Leg de periode van de bestaande tijdelijke planning expliciet vast voordat u verdergaat.")
+            if st.button("Gekozen periode koppelen aan bestaande planning"):
+                try:
+                    with database.unit_of_work() as uow:
+                        PlanningSyncApplicationService(uow, identity).select_period(period)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            period = saved_period
+            st.info("De periode blijft vast zolang tijdelijke planning bestaat.")
+    if st.button("Volledige tijdelijke planning weggooien", disabled=not has_temporary_planning):
+        st.session_state["confirm-discard-planning"] = True
+    if st.session_state.get("confirm-discard-planning"):
+        st.warning("Alle tijdelijke inroosteringen worden verwijderd.")
+        if st.button("Ja, volledige planning weggooien"):
+            with database.unit_of_work() as uow:
+                PlanningSyncApplicationService(uow, identity).discard()
+            st.session_state.clear()
+            st.rerun()
+    if has_temporary_planning and saved_period is None:
+        st.stop()
+with database.unit_of_work() as uow:
+    try:
+        PlanningSyncApplicationService(uow, identity).select_period(period)
+    except ValueError as exc:
+        st.error(str(exc))
+        st.stop()
 services, needs, matches, statuses = _demo_data(period.start)
 with database.unit_of_work() as uow:
     planning_app = PlanningApplicationService(identity, uow=uow)
@@ -186,6 +223,46 @@ else:
 undo_result = st.session_state.pop("undo-planning-result", None)
 if undo_result:
     st.success(undo_result)
+
+st.markdown("### Verwerken in Sportlink en synchroniseren")
+st.write("Verwerk de gewenste planning handmatig in Sportlink. Download daarna de actuele ‘Overzicht per periode … .csv’ en bied die hier aan.")
+st.caption("Deze prototypepagina gebruikt de getoonde demoleden en diensten als context. Synchronisatie valideert de bronnen tegen die context.")
+with st.expander("Sportlink-synchronisatie"):
+    attempt = st.session_state.setdefault("sync-upload-attempt", str(uuid4()))
+    with st.form(f"planning-sync-{attempt}"):
+        client_id = st.text_input("Sportlink client-id", type="password")
+        codes = {}
+        for service in services:
+            if period.contains(service.starts_at):
+                codes[service.service_id] = st.text_input(
+                    f"Sportlink-taakcode — {service.service_type}, {_datum_met_dag(service.starts_at)} {service.starts_at:%H:%M}")
+        uploaded = st.file_uploader("Actuele Sportlink Vrijwilligers-CSV", type=("csv",), key=f"sync-csv-{attempt}")
+        current = st.checkbox("Ik bied de actuele export uit Sportlink aan voor deze synchronisatie.", key=f"sync-current-{attempt}")
+        sync_submitted = st.form_submit_button("Sportlink synchroniseren en tijdelijke planning afsluiten")
+    if sync_submitted:
+        # Consume this offer on every attempt, including failure. Never fall back
+        # to a previously confirmed snapshot or silently reuse the upload widget.
+        st.session_state["sync-upload-attempt"] = str(uuid4())
+        try:
+            with database.unit_of_work() as uow:
+                PlanningSyncApplicationService(uow, identity).synchronize(
+                    csv_content=b"" if uploaded is None else uploaded.getvalue(),
+                    current_export_confirmed=current,
+                    client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
+                    client_id=client_id,
+                    bindings=tuple(ServiceBinding(codes[s.service_id], s) for s in services if s.service_id in codes),
+                    persons=tuple(c.person for c in demo_candidate_cases()),
+                )
+            for key in list(st.session_state):
+                if key.startswith(("proposal-run-", "confirmed-", "pick-")):
+                    del st.session_state[key]
+            st.session_state["sync-result"] = (True, "Sportlink-synchronisatie geslaagd. De volledige tijdelijke planning is afgesloten.")
+        except (ValueError, RuntimeError, OSError) as exc:
+            st.session_state["sync-result"] = (False, f"Synchronisatie niet afgerond; tijdelijke planning behouden. {exc}")
+        st.rerun()
+    sync_result = st.session_state.pop("sync-result", None)
+    if sync_result:
+        (st.success if sync_result[0] else st.error)(sync_result[1])
 
 st.markdown("### No-shows")
 st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")

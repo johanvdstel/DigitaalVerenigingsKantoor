@@ -12,6 +12,7 @@ from dvk.application_services import PlanningApplicationService, ProposalDecisio
 from dvk.candidate_selection import select_candidates
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod
+from dvk.planning_sync import PlanningSyncApplicationService
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.security import Identity, Permission
@@ -28,6 +29,9 @@ SOURCE = StaffingNeed("A", 2, 3, 1, 1, 2)
 
 def proposal(db, service=A, case=JAN, pid="P"):
     with db.unit_of_work() as uow:
+        if uow.planning_state.get().period is None and not uow.temporary_planning.all():
+            PlanningSyncApplicationService(uow, IDENTITY).select_period(
+                PlanningPeriod(date(2026, 9, 14), date(2026, 9, 27)))
         assessment = PlanningApplicationService(IDENTITY, uow=uow).assess_candidates(
             cases=(case,), service=service, team_memberships=(), matches=(), today=TODAY,
         )[0]
@@ -251,7 +255,9 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
     for _ in range(2):
         # New session, empty session_state; only SQLite preserves the position.
         app = AppTest.from_file(str(script), default_timeout=15).run()
-        app.date_input[0].set_value(date(2026, 9, 14)).run()
+        # FR-06: reload preserves the active period; changing it is disabled.
+        assert app.date_input[0].disabled
+        assert app.date_input[0].value == date(2026, 9, 14)
         assert not app.exception
         selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
         assert "wo 16-09 19:00–22:00" in selector.options[0]
@@ -290,7 +296,7 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     assert not app.exception
     assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 0
     assert len(state(db)[2]) == 2
-    assert not app.checkbox
+    assert not any(w.key.startswith("pick-") for w in app.checkbox)
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
     assert len(state(db)[2]) == 1

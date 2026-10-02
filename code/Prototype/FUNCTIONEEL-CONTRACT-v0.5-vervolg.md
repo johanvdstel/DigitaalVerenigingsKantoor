@@ -1,7 +1,7 @@
 # DVK Prototype v0.5 — functioneel contract na Gate 10
 
 **Status:** functioneel vastgesteld voor vervolgontwikkeling v0.5  
-**Baseline voor impactanalyse:** `362c6a817ea00a13685a07c13ade71ed14c1eda4`  
+**Baseline voor FR-06–FR-08 impactanalyse:** `4f25cdb6d08c7bd65ef90dcc1ffa00aa66c748d8`  
 **Scope:** Ledendienst Planning (A/B), Taakplichtcontrole (E) en DVK-portaal/modulaire UI (F)
 
 Dit document legt de functionele afspraken vast. De technische impactanalyse en implementatie volgen hieruit en ontwerpen dit contract niet opnieuw.
@@ -28,14 +28,32 @@ Na terugdraaien conform FR-05 vervallen de hierdoor ontstane beperkingen.
 ### FR-05 — Een tijdelijke DVK-inroostering kan vóór synchronisatie worden teruggedraaid
 Zolang de tijdelijke planning nog niet door een succesvolle Sportlink-synchronisatie is vervangen, kan de planner een lokale inroostering ongedaan maken. Daardoor wordt bezettingsruimte hersteld en wordt de persoon opnieuw beschikbaar volgens FR-04. Hiervoor is geen duurzame AssignmentRevocation/audithistorie vereist.
 
-### FR-06 — Verwerking in Sportlink blijft in v0.5 een menselijke handeling
-De planner verwerkt de gewenste DVK-planning handmatig in Sportlink via de beschikbare Sportlink-functionaliteit. DVK voert geen automatische Sportlink-mutaties uit.
+### FR-06 — Verwerking in Sportlink blijft menselijk; synchronisatie leest twee actuele Sportlink-bronnen
+De planner verwerkt de gewenste DVK-planning handmatig in Sportlink via de beschikbare Sportlink-functionaliteit. DVK voert in v0.5 geen automatische Sportlink-mutaties uit.
+
+Binnen Ledendienst Planning is maximaal één planningsperiode tegelijk actief. Alle tijdelijke DVK-inroosteringen behoren tot die periode. De door de planner gekozen planningsperiode is exact gelijk aan de periode waarvoor DVK de Sportlink Vrijwilligers-API bevraagt; de API-parameters `weekoffset` en `aantaldagen` bepalen diezelfde periode.
+
+Binnen één bewuste synchronisatiehandeling verwerkt DVK twee actuele Sportlink-bronnen:
+1. DVK haalt de actuele roosterdata via de Sportlink Vrijwilligers-API op voor de door de planner gekozen periode; en
+2. de planner downloadt in Sportlink de actuele Vrijwilligers-export `Overzicht per periode … .csv` en biedt deze binnen dezelfde synchronisatiehandeling aan DVK aan. DVK importeert deze CSV als de actuele Sportlink Vrijwilligers-snapshot met de actuele urenpositie van de relevante leden.
+
+Voor de tweede bron is in v0.5 dus geen directe Sportlink-API vastgesteld. De reeds in v0.4 gebruikte dataset `vrijwilligers_periode` en CSV-import vormen de overeengekomen integratieroute. Een willekeurig eerder lokaal CSV-bestand geldt niet als actuele snapshot voor een nieuwe synchronisatiehandeling: de planner moet daarvoor de actuele export uit Sportlink aanbieden.
+
+Deze twee bronresultaten blijven afzonderlijke Sportlink-bronfeiten met eigen provenance, maar vormen binnen die synchronisatiehandeling samen één voldoende actuele Sportlink-bronpositie. Uitgangspunt is dat Sportlink wijzigingen in beide bronnen nagenoeg direct verwerkt. Zolang Sportlink geen mechanisme biedt waarmee DVK een sterkere transactionele samenhang tussen beide bronposities kan vaststellen, is dit de gezaghebbende synchronisatiebasis voor DVK.
+
+De Vrijwilligers-API levert voor een inroostering alleen de Sportlink-weergavenaam en geen lidmaatschapsnummer. Een zichtbare naam kan via het gedefinieerde Sportlink-naamformaat deterministisch aan de andere Sportlink-bron worden gekoppeld. Bij privacy-afscherming kan de naam ontbreken en bijvoorbeeld `Afgeschermd` worden geleverd. Dit verhindert synchronisatie of bezettingsberekening niet: de roosterregel blijft een feitelijke bezetting. DVK raadt in dat geval niet naar de identiteit. Persoonsidentificatie van een afgeschermde roosterregel is voor FR-06–FR-08 niet nodig en wordt waar nodig bij de no-showflow van FR-09–FR-12 behandeld.
 
 ### FR-07 — Succesvolle Sportlink-synchronisatie vormt een harde grens
-Na een bewuste en succesvolle synchronisatie geldt de nieuw opgehaalde Sportlink-positie onvoorwaardelijk als actuele werkelijkheid. Tijdelijke lokale inroosteringen worden niet individueel met Sportlink gereconcilieerd en vormen daarna geen concurrerende waarheid. Bij mislukte synchronisatie blijft de bestaande tijdelijke DVK-planningspositie intact.
+Een synchronisatie is voor Ledendienst Planning pas succesvol wanneer binnen dezelfde bewuste synchronisatiehandeling zowel de actuele roosterdata voor de actieve planningsperiode succesvol via de Vrijwilligers-API zijn opgehaald als een actuele door de planner uit Sportlink gedownloade Vrijwilligers-export succesvol als Sportlink Vrijwilligers-snapshot is geïmporteerd, en beide zonder blokkerende fouten zijn verwerkt.
+
+Na die succesvolle dubbele synchronisatie geldt de gezamenlijk verkregen Sportlink-bronpositie onvoorwaardelijk als actuele werkelijkheid. Tijdelijke DVK-inroosteringen worden niet individueel met Sportlink gereconcilieerd. De volledige tijdelijke planningswerkvoorraad van de actieve planningscyclus wordt beëindigd; de nieuwe Sportlink-bronpositie bepaalt daarna opnieuw bezetting, openstaande diensten, kandidaatbeschikbaarheid en urenprioritering.
+
+Als de API-opvraag, de CSV-import of de gezamenlijke afronding mislukt, is de synchronisatie niet succesvol en blijft de tijdelijke DVK-planningswerkvoorraad intact. Een afzonderlijk succesvol opgehaald bronresultaat mag als brongegeven beschikbaar blijven, maar beëindigt de planningscyclus niet.
 
 ### FR-08 — Tijdelijke planningshistorie hoeft niet duurzaam te worden bewaard
 DVK onderscheidt bronfeiten, tijdelijke DVK-planningsinformatie en duurzame DVK-feiten. Selecteren, tijdelijk inroosteren en terugdraaien zijn werkvoorraad en hoeven na succesvolle synchronisatie geen permanente functionele historie te vormen. Technische logging voor diagnose staat hiervan los.
+
+De planner kan vóór synchronisatie ook bewust besluiten de huidige planningscyclus weg te gooien en opnieuw te beginnen, bijvoorbeeld met een andere planningsperiode. Dit is een expliciete gebruikerskeuze en verwijdert de volledige tijdelijke planningswerkvoorraad. Ook daarvan is geen duurzame functionele historie vereist. Zolang tijdelijke planning bestaat, wordt niet stilzwijgend naar een andere planningsperiode overgeschakeld.
 
 ## B — No-showadministratie
 
