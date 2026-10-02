@@ -23,7 +23,7 @@ def exports(tmp_path, member_rows=None, duty_rows=None):
         functions_path=write_csv(tmp_path, "functies.csv", ["Rel. code", "Functie"], [["P1", "Trainer Pupillen"], ["P1", "Vice-voorzitter"]]),
         committees_path=write_csv(tmp_path, "commissies.csv", ["Rel. code", "Commissie", "Functie"], [["P1", "Jeugdcommissie", "commissielid"]]),
         duty_path=write_csv(tmp_path, "duty.csv", ["Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"], duty_rows),
-        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamrol", "Functie", "Spelend lid"], [["P1", "Senioren 8", "Teamspeler", "Aanvaller", "Ja"]]),
+        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamsoort", "Teamrol", "Functie", "Spelend lid"], [["P1", "Senioren 8", "Bond", "Teamspeler", "Aanvaller", "Ja"]]),
     )
 
 
@@ -154,3 +154,27 @@ def test_v03_distinct_trainer_roles_are_preserved(tmp_path):
     paths["functions_path"].write_text("Rel. code;Functie\\nP1;Trainer Pupillen\\nP1;Hoofdtrainer Sen.", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert {role.role for role in result.roles} == {"Trainer Pupillen", "Hoofdtrainer Sen."}
+
+
+def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\\nP1;Recreatief;Recreatief;Teamspeler;;Ja\\nP1;Senioren;Bond;Trainer;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert not result.football_participations[0].plays_football
+
+
+def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\\nP1;Senioren;Bond;Trainer;;Ja\\nP1;Senioren;Bond;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.memberships[0].plays_football
+    assert len(result.team_memberships) == 2
+
+
+def test_v01_missing_team_type_is_signalled_not_assumed(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Functie;Spelend lid\\nP1;Senioren;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert any(s.code == "MISSING_TEAM_TYPE" for s in result.signals)
