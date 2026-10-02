@@ -150,9 +150,9 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 
 **Functionele acceptatie** van dit document kan plaatsvinden voordat alle code is gewijzigd, mits de bovenstaande punten als expliciete technische acceptatievoorwaarden blijven staan. **Technische acceptatie** mag pas na uitvoering, controle van de vereiste echte bronstructuren en een aantoonbaar geslaagde regressiesuite worden uitgesproken.
 
-## 8. Voorgesteld besluit
+## 8. Definitief functioneel acceptatiebesluit
 
-CKC accepteert de herijkte functionele baseline B-01–B-14 en V-01–V-05, inclusief de verduidelijkte bronsemantiek, de expliciete CKC-functieclassificatie en de tijdelijke behandeling van `Verzorger`, **onder de technische verificatievoorwaarden van §7**. Totdat dit besluit expliciet is genomen, blijft dit document een concept en worden geen GitHub- of codewijzigingen op basis van de herijking doorgevoerd.
+CKC heeft op **2 oktober 2026** de herijkte functionele baseline B-01–B-14 en V-01–V-05 definitief functioneel geaccepteerd, inclusief de verduidelijkte bronsemantiek, de CKC-functieclassificatie en de tijdelijke behandeling van `Verzorger`. De technische verificatievoorwaarden van §7 blijven onverkort van kracht. Deze functionele acceptatie houdt geen technische oplevering of acceptatie van de v0.5-implementatie in.
 
 ## 9. Referenties
 
