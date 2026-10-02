@@ -219,7 +219,7 @@ class SportlinkRealDataAdapter:
             if not team_type:
                 signals.append(DataQualitySignal("MISSING_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
                                                  "Teamsoort ontbreekt: bondsteamdeelname niet betrouwbaar te beoordelen"))
-            elif team_type.casefold() not in {"bond", "recreatief"}:
+            elif team_type.casefold() not in {"bond", "vereniging"}:
                 signals.append(DataQualitySignal("UNKNOWN_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
                                                  f"Onbekende Teamsoort: {team_type!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
