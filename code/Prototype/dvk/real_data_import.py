@@ -87,7 +87,7 @@ class SportlinkRealDataAdapter:
     """Read-only v0.4 adapter. Sportlink field names live only in this layer."""
 
     REQUIRED_COLUMNS = {
-        "leden": {"Rel. code", "Naam", "Geboortedatum", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
+        "leden": {"Rel. code", "Naam", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
         "functies": {"Rel. code", "Functie"},
         "commissies": {"Rel. code", "Commissie", "Functie"},
         "vrijwilligers_periode": {"Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"},
@@ -120,16 +120,29 @@ class SportlinkRealDataAdapter:
             if len(variants) > 1:
                 signals.append(DataQualitySignal("DUPLICATE_PERSON_SOURCE_RECORD", "WARNING", "leden", pid,
                                                  f"{len(variants)} bronregels met dezelfde Rel. code"))
-            identities = {(self.value(r, "Naam"), self.value(r, "Geboortedatum")) for r in variants}
+            identities = {(self.value(r, "Naam"), self.value(r, "Geb.dat.") or self.value(r, "Geboortedatum")) for r in variants}
             if len(identities) > 1:
                 signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_IDENTITY", "ERROR", "leden", pid,
                                                  "Dubbele Rel. code heeft conflicterende naam/geboortedatum"))
                 continue
-            row = max(variants, key=self._member_score)
+            status_dates = {(self.value(r, "Lidstatus"), self.value(r, "Afmelddatum")) for r in variants}
+            if len(status_dates) > 1:
+                signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_MEMBERSHIP", "ERROR", "leden", pid,
+                                                 "Dubbele Rel. code heeft conflicterende lidstatus of afmelddatum"))
+                continue
+            row = variants[0]
+            termination = self.value(row, "Afmelddatum")
+            if termination:
+                try:
+                    self.parse_date(termination)
+                except ValueError:
+                    signals.append(DataQualitySignal("INVALID_TERMINATION_DATE", "ERROR", "leden", pid,
+                                                     "Ongeldige Afmelddatum"))
+                    continue
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = bool(activity) or local_status.lower() == "spelend lid"
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geboortedatum"))))
+            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))))
             memberships.append(Membership(pid, self.value(row, "Lidstatus"), self.value(row, "Lidsoort"),
                                           plays_football=plays,
                                           recreational=local_status.lower() == "recreatief",
@@ -225,6 +238,8 @@ class SportlinkRealDataAdapter:
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
             raise ValueError(f"{path.name}: missing columns: {', '.join(sorted(missing))}")
+        if dataset == "leden" and not ({"Geb.dat.", "Geboortedatum"} & set(reader.fieldnames or ())):
+            raise ValueError(f"{path.name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
         return list(reader)
 
     @staticmethod
@@ -238,8 +253,6 @@ class SportlinkRealDataAdapter:
         lower = cleaned.lower().replace("-", " ")
         if lower in {"vice voorzitter", "vicevoorzitter"}:
             return "Vice voorzitter"
-        if lower.startswith("trainer ") or lower == "hoofdtrainer":
-            return "Trainer"
         return cleaned
 
     @staticmethod
