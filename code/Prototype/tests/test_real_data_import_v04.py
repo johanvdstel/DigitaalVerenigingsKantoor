@@ -216,3 +216,11 @@ def test_v02_actual_team_type_vereniging_is_known_but_not_bond(tmp_path):
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert not any(s.code == "UNKNOWN_TEAM_TYPE" for s in result.signals)
+
+
+def test_v02_teams_import_does_not_require_banking_columns(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren 1;Bond;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.memberships[0].plays_football
+    assert not any(signal.dataset == "teams" for signal in result.signals)
