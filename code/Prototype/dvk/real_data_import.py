@@ -43,6 +43,7 @@ class CommitteeMembership:
     person_id: str
     committee: str
     committee_role: str
+    start_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class RealTeamMembership:
     team_role: str | None
     team_function: str | None
     playing_member: bool | None
+    team_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,13 +83,15 @@ class RealDataImportResult:
     duty_records: tuple[DutyImportRecord, ...]
     provenance: tuple[Provenance, ...]
     signals: tuple[DataQualitySignal, ...]
+    source_dates: tuple[tuple[str, date], ...] = ()
+    membership_as_of: tuple[tuple[str, bool | None], ...] = ()
 
 
 class SportlinkRealDataAdapter:
     """Read-only v0.4 adapter. Sportlink field names live only in this layer."""
 
     REQUIRED_COLUMNS = {
-        "leden": {"Rel. code", "Naam", "Geboortedatum", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
+        "leden": {"Rel. code", "Naam", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
         "functies": {"Rel. code", "Functie"},
         "commissies": {"Rel. code", "Commissie", "Functie"},
         "vrijwilligers_periode": {"Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"},
@@ -95,11 +99,24 @@ class SportlinkRealDataAdapter:
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
-                     imported_at=None, source_period=None, expected_required_hours=None) -> RealDataImportResult:
+                     imported_at=None, source_period=None, expected_required_hours=None,
+                     source_dates: dict[str, date] | None = None, as_of: date | None = None,
+                     previous_planning_date: date | None = None,
+                     previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
         expected_required_hours = expected_required_hours or {}
+        source_dates = source_dates or {}
+        previous_source_dates = previous_source_dates or {}
+        membership_as_of: list[tuple[str, bool | None]] = []
         signals: list[DataQualitySignal] = []
         provenance: list[Provenance] = []
+        for dataset, fetched_on in source_dates.items():
+            if previous_planning_date is not None and fetched_on < previous_planning_date:
+                signals.append(DataQualitySignal("SOURCE_PREDATES_PREVIOUS_PLANNING", "WARNING", dataset, None,
+                                                 "Bron ouder dan vorige planning; beoordeel actualiteit"))
+            if dataset in previous_source_dates and fetched_on <= previous_source_dates[dataset]:
+                signals.append(DataQualitySignal("SOURCE_NOT_REFRESHED", "WARNING", dataset, None,
+                                                 "Geen nieuwere ophaaldatum sinds vorige planning"))
 
         member_rows = self.read_rows(members_path, "leden")
         function_rows = self.read_rows(functions_path, "functies")
@@ -120,18 +137,45 @@ class SportlinkRealDataAdapter:
             if len(variants) > 1:
                 signals.append(DataQualitySignal("DUPLICATE_PERSON_SOURCE_RECORD", "WARNING", "leden", pid,
                                                  f"{len(variants)} bronregels met dezelfde Rel. code"))
-            identities = {(self.value(r, "Naam"), self.value(r, "Geboortedatum")) for r in variants}
+            identities = {(self.value(r, "Naam"), self.value(r, "Geb.dat.") or self.value(r, "Geboortedatum")) for r in variants}
             if len(identities) > 1:
                 signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_IDENTITY", "ERROR", "leden", pid,
                                                  "Dubbele Rel. code heeft conflicterende naam/geboortedatum"))
                 continue
-            row = max(variants, key=self._member_score)
+            status_dates = {(self.value(r, "Lidstatus"), self.value(r, "Afmelddatum")) for r in variants}
+            if len(status_dates) > 1:
+                signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_MEMBERSHIP", "ERROR", "leden", pid,
+                                                 "Dubbele Rel. code heeft conflicterende lidstatus of afmelddatum"))
+                continue
+            row = variants[0]
+            termination = self.value(row, "Afmelddatum")
+            if termination:
+                try:
+                    self.parse_date(termination)
+                except ValueError:
+                    signals.append(DataQualitySignal("INVALID_TERMINATION_DATE", "ERROR", "leden", pid,
+                                                     "Ongeldige Afmelddatum"))
+                    continue
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
-            plays = bool(activity) or local_status.lower() == "spelend lid"
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geboortedatum"))))
-            memberships.append(Membership(pid, self.value(row, "Lidstatus"), self.value(row, "Lidsoort"),
-                                          plays_football=plays,
+            plays = False  # B-02: only a qualifying Teams row proves bond-team participation
+            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))))
+            raw_status = self.value(row, "Lidstatus")
+            status = raw_status.casefold()
+            end_date = self.parse_date(termination)
+            if status not in {"definitief", "afgemeld"}:
+                signals.append(DataQualitySignal("UNKNOWN_MEMBERSHIP_STATUS", "WARNING", "leden", pid,
+                                                 f"Onbekende Lidstatus: {raw_status!r}"))
+            if status == "afgemeld" and end_date is None:
+                signals.append(DataQualitySignal("MISSING_TERMINATION_DATE", "WARNING", "leden", pid,
+                                                 "Afgemeld zonder Afmelddatum: peildatumstatus onduidelijk"))
+            if as_of is not None:
+                membership_as_of.append((pid, self.current_membership(raw_status, end_date, as_of)))
+            if as_of is not None and status == "definitief" and end_date is not None and as_of >= end_date:
+                signals.append(DataQualitySignal("MEMBERSHIP_ENDED_AS_OF", "INFO", "leden", pid,
+                                                 "Afmelddatum bereikt op peildatum"))
+            memberships.append(Membership(pid, raw_status, self.value(row, "Lidsoort"),
+                                          end_date=end_date, plays_football=plays,
                                           recreational=local_status.lower() == "recreatief",
                                           honorary=local_status.lower() in {"erelid", "ere lid"}))
             football.append(FootballParticipation(pid, local_status, activity or None, plays))
@@ -160,7 +204,15 @@ class SportlinkRealDataAdapter:
             pid = self.value(row, "Rel. code")
             if not self.known_person(pid, person_ids, "commissies", str(i), signals):
                 continue
-            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"), self.value(row, "Functie")))
+            committee_start = self.value(row, "Begindatum")
+            try:
+                start_date = self.parse_date(committee_start)
+            except ValueError:
+                signals.append(DataQualitySignal("INVALID_COMMITTEE_START_DATE", "ERROR", "commissies", f"{pid}:{i}",
+                                                 "Ongeldige begindatum commissieregistratie"))
+                continue
+            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"),
+                                                  self.value(row, "Functie"), start_date))
             provenance.append(self.prov("commissies", f"{pid}:{i}", imported_at, source_period))
 
         teams: list[RealTeamMembership] = []
@@ -177,11 +229,27 @@ class SportlinkRealDataAdapter:
             if playing_value and playing_member is None:
                 signals.append(DataQualitySignal("UNKNOWN_PLAYING_MEMBER_VALUE", "WARNING", "teams", f"{pid}:{i}",
                                                  f"Onbekende waarde Spelend lid: {playing_value!r}"))
+            team_type = self.value(row, "Teamsoort")
+            if not team_type:
+                signals.append(DataQualitySignal("MISSING_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 "Teamsoort ontbreekt: bondsteamdeelname niet betrouwbaar te beoordelen"))
+            elif team_type.casefold() not in {"bond", "vereniging"}:
+                signals.append(DataQualitySignal("UNKNOWN_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 f"Onbekende Teamsoort: {team_type!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
-                                            self.value(row, "Functie") or None, playing_member))
+                                            self.value(row, "Functie") or None, playing_member, team_type or None))
             provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period,
                                         source_field="Spelend lid", source_value=playing_value,
                                         normalized_value=None if playing_member is None else str(playing_member)))
+
+        # Only one current Teams record satisfying all three criteria proves participation.
+        qualifying_ids = {t.person_id for t in teams if t.team_type and t.team_type.casefold() == "bond"
+                          and t.team_role and t.team_role.casefold() == "teamspeler" and t.playing_member is True}
+        memberships = [Membership(m.person_id, m.status, m.kind, start_date=m.start_date,
+                                  end_date=m.end_date, plays_football=m.person_id in qualifying_ids,
+                                  recreational=m.recreational, honorary=m.honorary) for m in memberships]
+        football = [FootballParticipation(f.person_id, f.source_status, f.bond_activity,
+                                          f.person_id in qualifying_ids) for f in football]
 
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
@@ -211,7 +279,8 @@ class SportlinkRealDataAdapter:
                                         normalized_value=str(record.position.E)))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
-                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
+                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
+                                    tuple(sorted(source_dates.items())), tuple(membership_as_of))
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
@@ -225,7 +294,18 @@ class SportlinkRealDataAdapter:
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
             raise ValueError(f"{path.name}: missing columns: {', '.join(sorted(missing))}")
+        if dataset == "leden" and not ({"Geb.dat.", "Geboortedatum"} & set(reader.fieldnames or ())):
+            raise ValueError(f"{path.name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
         return list(reader)
+
+    @staticmethod
+    def current_membership(status: str, end_date: date | None, as_of: date) -> bool | None:
+        """CKC B-03: Afmelddatum is first day without membership; unknown stays unknown."""
+        if end_date is not None:
+            return as_of < end_date
+        if status.strip().casefold() == "definitief":
+            return True
+        return None
 
     @staticmethod
     def _member_score(row):
@@ -235,11 +315,6 @@ class SportlinkRealDataAdapter:
     @staticmethod
     def normalize_role(role: str) -> str:
         cleaned = " ".join(role.strip().split())
-        lower = cleaned.lower().replace("-", " ")
-        if lower in {"vice voorzitter", "vicevoorzitter"}:
-            return "Vice voorzitter"
-        if lower.startswith("trainer ") or lower == "hoofdtrainer":
-            return "Trainer"
         return cleaned
 
     @staticmethod

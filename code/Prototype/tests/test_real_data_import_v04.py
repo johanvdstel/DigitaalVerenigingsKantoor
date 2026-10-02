@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -23,7 +23,7 @@ def exports(tmp_path, member_rows=None, duty_rows=None):
         functions_path=write_csv(tmp_path, "functies.csv", ["Rel. code", "Functie"], [["P1", "Trainer Pupillen"], ["P1", "Vice-voorzitter"]]),
         committees_path=write_csv(tmp_path, "commissies.csv", ["Rel. code", "Commissie", "Functie"], [["P1", "Jeugdcommissie", "commissielid"]]),
         duty_path=write_csv(tmp_path, "duty.csv", ["Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"], duty_rows),
-        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamrol", "Functie", "Spelend lid"], [["P1", "Senioren 8", "Teamspeler", "Aanvaller", "Ja"]]),
+        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamsoort", "Teamrol", "Functie", "Spelend lid"], [["P1", "Senioren 8", "Bond", "Teamspeler", "Aanvaller", "Ja"]]),
     )
 
 
@@ -73,7 +73,7 @@ def test_r05_preserves_multi_relation_cardinalities(tmp_path):
 
 def test_r06_role_variants_are_normalized_without_policy_decision(tmp_path):
     result = load(tmp_path)
-    assert {r.role for r in result.roles} == {"Trainer", "Vice voorzitter"}
+    assert {r.role for r in result.roles} == {"Trainer Pupillen", "Vice-voorzitter"}
 
 
 def test_r07_abcd_e_is_reconciled(tmp_path):
@@ -137,4 +137,112 @@ def test_role_provenance_keeps_source_and_normalized_value(tmp_path):
         if p.source_dataset == "functies" and p.source_value == "Trainer Pupillen"
     )
     assert trainer_provenance.source_field == "Functie"
-    assert trainer_provenance.normalized_value == "Trainer"
+    assert trainer_provenance.normalized_value == "Trainer Pupillen"
+
+
+def test_v02_real_birth_date_column_and_conflicting_termination_dates(tmp_path):
+    paths = exports(tmp_path)
+    member = paths["members_path"]
+    member.write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.persons
+    assert any(signal.code == "CONFLICTING_DUPLICATE_MEMBERSHIP" for signal in result.signals)
+
+
+def test_v03_distinct_trainer_roles_are_preserved(tmp_path):
+    paths = exports(tmp_path)
+    paths["functions_path"].write_text("Rel. code;Functie\nP1;Trainer Pupillen\nP1;Hoofdtrainer Sen.", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert {role.role for role in result.roles} == {"Trainer Pupillen", "Hoofdtrainer Sen."}
+
+
+def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Recreatief;Recreatief;Teamspeler;;Ja\nP1;Senioren;Bond;Trainer;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert not result.football_participations[0].plays_football
+
+
+def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren;Bond;Trainer;;Ja\nP1;Senioren;Bond;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.memberships[0].plays_football
+    assert len(result.team_memberships) == 2
+
+
+def test_v01_missing_team_type_is_signalled_not_assumed(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Functie;Spelend lid\nP1;Senioren;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert any(s.code == "MISSING_TEAM_TYPE" for s in result.signals)
+
+
+def test_v03_committee_start_date_is_preserved(tmp_path):
+    paths = exports(tmp_path)
+    paths["committees_path"].write_text("Rel. code;Commissie;Functie;Begindatum\nP1;Jeugdcommissie;Lid;01-09-2026", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.committees[0].start_date.isoformat() == "2026-09-01"
+
+
+def test_v02_membership_end_date_is_first_nonmember_day(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    before = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 11, 30))
+    on_day = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 12, 1))
+    assert before.memberships[0].end_date == date(2026, 12, 1)
+    assert not any(s.code == "MEMBERSHIP_ENDED_AS_OF" for s in before.signals)
+    assert any(s.code == "MEMBERSHIP_ENDED_AS_OF" for s in on_day.signals)
+
+
+def test_v02_missing_termination_date_is_not_guessed(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Afgemeld;Verenigingslid;oud lid;", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert any(s.code == "MISSING_TERMINATION_DATE" for s in result.signals)
+
+
+def test_v02_per_source_dates_are_retained(tmp_path):
+    dates = {"leden": date(2026, 10, 1), "teams": date(2026, 9, 30)}
+    result = SportlinkRealDataAdapter().load_exports(**exports(tmp_path), source_dates=dates)
+    assert dict(result.source_dates) == dates
+
+
+def test_v02_actual_team_type_vereniging_is_known_but_not_bond(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Lokale selectie;Vereniging;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert not any(s.code == "UNKNOWN_TEAM_TYPE" for s in result.signals)
+
+
+def test_v02_teams_import_does_not_require_banking_columns(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren 1;Bond;Teamspeler;;Ja", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert result.memberships[0].plays_football
+    assert not any(signal.dataset == "teams" for signal in result.signals)
+
+
+def test_v02_derived_membership_respects_first_nonmember_day(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Definitief;Verenigingslid;spelend lid;01-12-2026", encoding="utf-8")
+    adapter = SportlinkRealDataAdapter()
+    assert dict(adapter.load_exports(**paths, as_of=date(2026, 11, 30)).membership_as_of) == {"P1": True}
+    assert dict(adapter.load_exports(**paths, as_of=date(2026, 12, 1)).membership_as_of) == {"P1": False}
+
+
+def test_v02_ambiguous_membership_is_not_assumed_active(tmp_path):
+    paths = exports(tmp_path)
+    paths["members_path"].write_text("Rel. code;Naam;Geb.dat.;Lidstatus;Lidsoort;Status lidmaatschap;Afmelddatum\nP1;Jan Smit;01-01-2000;Afgemeld;Verenigingslid;oud lid;", encoding="utf-8")
+    result = SportlinkRealDataAdapter().load_exports(**paths, as_of=date(2026, 10, 2))
+    assert dict(result.membership_as_of) == {"P1": None}
+
+
+def test_v02_warns_on_source_dates_not_refreshed_since_previous_planning(tmp_path):
+    result = SportlinkRealDataAdapter().load_exports(**exports(tmp_path),
+        source_dates={"teams": date(2026, 9, 30)}, previous_planning_date=date(2026, 10, 1),
+        previous_source_dates={"teams": date(2026, 9, 30)})
+    assert {"SOURCE_PREDATES_PREVIOUS_PLANNING", "SOURCE_NOT_REFRESHED"} <= {s.code for s in result.signals}
