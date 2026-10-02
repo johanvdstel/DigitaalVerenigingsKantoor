@@ -52,6 +52,7 @@ class RealTeamMembership:
     team_role: str | None
     team_function: str | None
     playing_member: bool | None
+    team_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -141,10 +142,10 @@ class SportlinkRealDataAdapter:
                     continue
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
-            plays = bool(activity) or local_status.lower() == "spelend lid"
+            plays = False  # B-02: only a qualifying Teams row proves bond-team participation
             persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))))
             memberships.append(Membership(pid, self.value(row, "Lidstatus"), self.value(row, "Lidsoort"),
-                                          plays_football=plays,
+                                          end_date=self.parse_date(termination), plays_football=plays,
                                           recreational=local_status.lower() == "recreatief",
                                           honorary=local_status.lower() in {"erelid", "ere lid"}))
             football.append(FootballParticipation(pid, local_status, activity or None, plays))
@@ -190,11 +191,27 @@ class SportlinkRealDataAdapter:
             if playing_value and playing_member is None:
                 signals.append(DataQualitySignal("UNKNOWN_PLAYING_MEMBER_VALUE", "WARNING", "teams", f"{pid}:{i}",
                                                  f"Onbekende waarde Spelend lid: {playing_value!r}"))
+            team_type = self.value(row, "Teamsoort")
+            if not team_type:
+                signals.append(DataQualitySignal("MISSING_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 "Teamsoort ontbreekt: bondsteamdeelname niet betrouwbaar te beoordelen"))
+            elif team_type.casefold() not in {"bond", "recreatief"}:
+                signals.append(DataQualitySignal("UNKNOWN_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 f"Onbekende Teamsoort: {team_type!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
-                                            self.value(row, "Functie") or None, playing_member))
+                                            self.value(row, "Functie") or None, playing_member, team_type or None))
             provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period,
                                         source_field="Spelend lid", source_value=playing_value,
                                         normalized_value=None if playing_member is None else str(playing_member)))
+
+        # Only one current Teams record satisfying all three criteria proves participation.
+        qualifying_ids = {t.person_id for t in teams if t.team_type and t.team_type.casefold() == "bond"
+                          and t.team_role and t.team_role.casefold() == "teamspeler" and t.playing_member is True}
+        memberships = [Membership(m.person_id, m.status, m.kind, start_date=m.start_date,
+                                  end_date=m.end_date, plays_football=m.person_id in qualifying_ids,
+                                  recreational=m.recreational, honorary=m.honorary) for m in memberships]
+        football = [FootballParticipation(f.person_id, f.source_status, f.bond_activity,
+                                          f.person_id in qualifying_ids) for f in football]
 
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
