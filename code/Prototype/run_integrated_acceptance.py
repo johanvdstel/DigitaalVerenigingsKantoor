@@ -29,6 +29,7 @@ def main() -> None:
     before = duty_position_from_registration(case.sportlink_duty)
     approved = approve_from_dashboard(proposal, service, case, "Vrijwilligerscommissie", "A-EIND")
     after = duty_position_from_registration(approved.updated_case.sportlink_duty)
+    print("FR-02: tijdelijke DVK-planning; Sportlink A/B/C/D/E blijven bronfeiten en veranderen niet.")
     rejected = reject_from_dashboard(proposal, case, "Vrijwilligerscommissie", "planning", "Past niet in de planning")
 
     print("DVK Prototype v0.3 — geïntegreerde eindacceptatie")

@@ -33,7 +33,7 @@ def approve_from_dashboard(
         decision=decision,
         assignment=assignment,
         updated_case=updated_case,
-        message="Voorstel goedgekeurd en Ledendienst ingepland.",
+        message="Voorstel goedgekeurd en tijdelijk in DVK ingepland.",
     )
 
 

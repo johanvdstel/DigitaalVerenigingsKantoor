@@ -7,6 +7,7 @@ name = "dvk-prototype"
 version = "0.4.0"
 description = "Deterministisch prototype voor het Digitaal Verenigingskantoor"
 requires-python = ">=3.11"
+dependencies = ["streamlit>=1.40,<2"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
