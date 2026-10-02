@@ -84,6 +84,7 @@ class RealDataImportResult:
     provenance: tuple[Provenance, ...]
     signals: tuple[DataQualitySignal, ...]
     source_dates: tuple[tuple[str, date], ...] = ()
+    membership_as_of: tuple[tuple[str, bool | None], ...] = ()
 
 
 class SportlinkRealDataAdapter:
@@ -99,12 +100,23 @@ class SportlinkRealDataAdapter:
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
                      imported_at=None, source_period=None, expected_required_hours=None,
-                     source_dates: dict[str, date] | None = None, as_of: date | None = None) -> RealDataImportResult:
+                     source_dates: dict[str, date] | None = None, as_of: date | None = None,
+                     previous_planning_date: date | None = None,
+                     previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
         expected_required_hours = expected_required_hours or {}
         source_dates = source_dates or {}
+        previous_source_dates = previous_source_dates or {}
+        membership_as_of: list[tuple[str, bool | None]] = []
         signals: list[DataQualitySignal] = []
         provenance: list[Provenance] = []
+        for dataset, fetched_on in source_dates.items():
+            if previous_planning_date is not None and fetched_on < previous_planning_date:
+                signals.append(DataQualitySignal("SOURCE_PREDATES_PREVIOUS_PLANNING", "WARNING", dataset, None,
+                                                 "Bron ouder dan vorige planning; beoordeel actualiteit"))
+            if dataset in previous_source_dates and fetched_on <= previous_source_dates[dataset]:
+                signals.append(DataQualitySignal("SOURCE_NOT_REFRESHED", "WARNING", dataset, None,
+                                                 "Geen nieuwere ophaaldatum sinds vorige planning"))
 
         member_rows = self.read_rows(members_path, "leden")
         function_rows = self.read_rows(functions_path, "functies")
@@ -157,6 +169,8 @@ class SportlinkRealDataAdapter:
             if status == "afgemeld" and end_date is None:
                 signals.append(DataQualitySignal("MISSING_TERMINATION_DATE", "WARNING", "leden", pid,
                                                  "Afgemeld zonder Afmelddatum: peildatumstatus onduidelijk"))
+            if as_of is not None:
+                membership_as_of.append((pid, self.current_membership(raw_status, end_date, as_of)))
             if as_of is not None and status == "definitief" and end_date is not None and as_of >= end_date:
                 signals.append(DataQualitySignal("MEMBERSHIP_ENDED_AS_OF", "INFO", "leden", pid,
                                                  "Afmelddatum bereikt op peildatum"))
@@ -266,7 +280,7 @@ class SportlinkRealDataAdapter:
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
-                                    tuple(sorted(source_dates.items())))
+                                    tuple(sorted(source_dates.items())), tuple(membership_as_of))
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
@@ -283,6 +297,15 @@ class SportlinkRealDataAdapter:
         if dataset == "leden" and not ({"Geb.dat.", "Geboortedatum"} & set(reader.fieldnames or ())):
             raise ValueError(f"{path.name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
         return list(reader)
+
+    @staticmethod
+    def current_membership(status: str, end_date: date | None, as_of: date) -> bool | None:
+        """CKC B-03: Afmelddatum is first day without membership; unknown stays unknown."""
+        if end_date is not None:
+            return as_of < end_date
+        if status.strip().casefold() == "definitief":
+            return True
+        return None
 
     @staticmethod
     def _member_score(row):
