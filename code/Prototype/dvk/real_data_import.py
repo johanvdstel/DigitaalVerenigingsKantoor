@@ -83,6 +83,7 @@ class RealDataImportResult:
     duty_records: tuple[DutyImportRecord, ...]
     provenance: tuple[Provenance, ...]
     signals: tuple[DataQualitySignal, ...]
+    source_dates: tuple[tuple[str, date], ...] = ()
 
 
 class SportlinkRealDataAdapter:
@@ -97,9 +98,11 @@ class SportlinkRealDataAdapter:
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
-                     imported_at=None, source_period=None, expected_required_hours=None) -> RealDataImportResult:
+                     imported_at=None, source_period=None, expected_required_hours=None,
+                     source_dates: dict[str, date] | None = None, as_of: date | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
         expected_required_hours = expected_required_hours or {}
+        source_dates = source_dates or {}
         signals: list[DataQualitySignal] = []
         provenance: list[Provenance] = []
 
@@ -145,8 +148,20 @@ class SportlinkRealDataAdapter:
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = False  # B-02: only a qualifying Teams row proves bond-team participation
             persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))))
-            memberships.append(Membership(pid, self.value(row, "Lidstatus"), self.value(row, "Lidsoort"),
-                                          end_date=self.parse_date(termination), plays_football=plays,
+            raw_status = self.value(row, "Lidstatus")
+            status = raw_status.casefold()
+            end_date = self.parse_date(termination)
+            if status not in {"definitief", "afgemeld"}:
+                signals.append(DataQualitySignal("UNKNOWN_MEMBERSHIP_STATUS", "WARNING", "leden", pid,
+                                                 f"Onbekende Lidstatus: {raw_status!r}"))
+            if status == "afgemeld" and end_date is None:
+                signals.append(DataQualitySignal("MISSING_TERMINATION_DATE", "WARNING", "leden", pid,
+                                                 "Afgemeld zonder Afmelddatum: peildatumstatus onduidelijk"))
+            if as_of is not None and status == "definitief" and end_date is not None and as_of >= end_date:
+                signals.append(DataQualitySignal("MEMBERSHIP_ENDED_AS_OF", "INFO", "leden", pid,
+                                                 "Afmelddatum bereikt op peildatum"))
+            memberships.append(Membership(pid, raw_status, self.value(row, "Lidsoort"),
+                                          end_date=end_date, plays_football=plays,
                                           recreational=local_status.lower() == "recreatief",
                                           honorary=local_status.lower() in {"erelid", "ere lid"}))
             football.append(FootballParticipation(pid, local_status, activity or None, plays))
@@ -250,7 +265,8 @@ class SportlinkRealDataAdapter:
                                         normalized_value=str(record.position.E)))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
-                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
+                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
+                                    tuple(sorted(source_dates.items())))
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
