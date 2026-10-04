@@ -1,0 +1,48 @@
+# DVK v0.5 — gerichte architectuur- en contractcontrole no-shows
+
+**Status:** technische gapanalyse ter beoordeling; geen functionele beleidswijziging of implementatieacceptatie.  
+**Referentie:** `prototype-v0.5`, `code/Prototype/FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` FR-01–FR-12 en de herijkte functionele baseline Ledendiensten.  
+**Afzonderlijk traject:** PR #19 (functieclassificatie) blijft ongewijzigd en ongemerged; ronde 2 wordt niet gestart zolang de blokkade niet is afgehandeld.
+
+## 1. Functioneel contract
+
+- Sportlink is de enige bronhouder van feitelijke ledendienstinroosteringen. DVK schrijft in v0.5 geen indelingen naar Sportlink.
+- DVK maakt voorstellen en bewaart tijdelijke planningsposities uitsluitend als werkvoorraad. De planner verwerkt de gewenste indeling handmatig in Sportlink. Na succesvolle nieuwe import geldt de nieuwe Sportlink-positie als actuele werkelijkheid; tijdelijke DVK-posities worden vervangen.
+- Een no-show kan uitsluitend worden geregistreerd op een concrete, feitelijke Sportlink-inroostering, ongeacht hoe die inroostering oorspronkelijk tot stand kwam. Een tijdelijk DVK-voorstel is onvoldoende.
+- DVK bewaart een no-show als zelfstandig, onveranderlijk en duurzaam feit, met voldoende dienstcontext en Sportlink-bronherkomst om het feit ook na een latere bronwijziging te begrijpen.
+- Een intrekking van een no-show blijft een afzonderlijk duurzaam feit met verplichte toelichting, actor en tijdstip. Actuele teller en sanctiestatus worden afgeleid zonder ingetrokken no-shows.
+- Een eventuele Sportlink-urencorrectie blijft een afzonderlijke handmatige werkvoorraad; DVK muteert Sportlink niet.
+
+**Geen herziening:** DVK blijft eigenaar van de no-showadministratie en de historie van no-showintrekkingen. Het ontbreken van permanente DVK-indelingen betekent niet dat no-shows of hun intrekkingen vervallen.
+
+## 2. Geconstateerde technische verschillen
+
+| Onderdeel | Huidige implementatie | Contractverschil / actie |
+|---|---|---|
+| Tijdelijke planning | `PlanningApplicationService` gebruikt `temporary_planning`; terugdraaien is mogelijk. | In lijn met tijdelijke werkvoorraad; behoud regressies. |
+| Herkomst no-show | `NoShowApplicationService.register()` accepteert een `assignment_id` uit `uow.assignments` (`duty_assignments`). | Bestaan in de DVK-repository bewijst niet dat de indeling feitelijk in Sportlink staat. Verplicht aantoonbare Sportlink-bronherkomst. |
+| Beschikbare UI-indelingen | `NoShowApplicationService.assignment_contexts()` leest `uow.assignments.recent()`; de Streamlit-no-showselectie gebruikt deze lijst. | Vervang selectiebron door concrete feitelijke Sportlink-inroosteringen. |
+| Duurzame no-showcontext | `NoShowEvent` bevat een verwijzing naar een `assignment_id`; `revocable_no_shows()` verwacht dat die DVK-indeling later nog bestaat. | Bepaal sleutel, provenance en immutable snapshot zodat een no-show ook na nieuwe Sportlink-import zelfstandig raadpleegbaar blijft. |
+| No-showintrekking | `NoShowRevocation` en de opslag bewaren apart actor, tijdstip en toelichting; de teller sluit intrekkingen uit. | Functioneel behouden; technische afhankelijkheid van legacy indeling onderzoeken. |
+| UI-regressietest | `test_gate10ade_ui_v05.py` zet synthetische DVK-indelingen in de repository om intrekking te testen. | Gebruik synthetische feitelijke Sportlink-inroosteringen; voeg negatieve test voor uitsluitend tijdelijke DVK-planning toe. |
+| CI-fout PR #19 | Bestaande intrekkings-UI-test mist exact verwachte succesmelding in GitHub Actions, terwijl lokale suite groen is. | Oorzaak afzonderlijk vaststellen; architectuurverschil bewijst geen verband met deze CI-fout. |
+
+De docstring van `DutyAssignment` beschrijft `duty_assignments` expliciet als legacy no-showverwijzingen. De aparte `temporary_planning`-repository toont dat de scheiding gedeeltelijk al is aangebracht; de no-showketen is nog niet volledig meegegaan.
+
+## 3. Afgebakende vervolgopdracht (nog niet uitvoeren)
+
+1. Inventariseer het volledige import- en synchronisatiepad van feitelijke Sportlink-inroosteringen, inclusief bronidentificatie, importtijdstip en gedrag bij een volgende export.
+2. Definieer een canonieke, uit Sportlink afkomstige inroostering en een stabiele no-showreferentie/snapshot. Leg de omgang met gewijzigde of verdwenen bronregels expliciet vast.
+3. Herijk applicatieservice, opslag en UI zonder tijdelijke DVK-planning duurzaam tot feitelijke indeling te promoveren.
+4. Vervang legacy testfixtures; test positieve registratie, weigering van tijdelijke DVK-planning, één oorspronkelijke no-show per feitelijke inroostering, duurzame raadpleegbaarheid na bronwijziging, intrekking en actuele teller.
+5. Onderzoek los daarvan de rode GitHub Actions-test: controleer op baseline en werkbranch de werkelijke database-uitkomst en getoonde meldingen, en reproduceer waar mogelijk met Streamlit 1.64.0 en 1.65.0. Niet op voorhand testverwachtingen versoepelen of dependencies vastpinnen.
+6. Voer gerichte tests en volledige regressiesuite uit. Geen wijzigingen in PR #19, geen merge zonder expliciete acceptatie, geen opportunistische refactors.
+
+## 4. Open technische punten
+
+- Welk Sportlink-exportformaat levert de feitelijke inroosteringen en welke sleutel is daarin voldoende stabiel?
+- Welke gegevens zijn minimaal nodig in de immutable no-showsnapshot, inclusief datum, dienst, persoon en bron/provenance?
+- Welke bestaande legacy no-shows moeten bij migratie behouden blijven en hoe worden hun bronverwijzingen behandeld als Sportlink-herkomst niet meer bewijsbaar is?
+- Is de rode CI-test een Streamlit-versieverschil, testharnasprobleem of werkelijk functioneel probleem? Dit is nog niet vastgesteld.
+
+**Beslisgrens:** deze analyse is een documentatievoorstel. Implementatie, testwijzigingen, migratie en samenvoegen volgen pas na beoordeling en afzonderlijke opdracht.
