@@ -13,7 +13,7 @@
 - Een intrekking van een no-show blijft een afzonderlijk duurzaam feit met verplichte toelichting, actor en tijdstip. Actuele teller en sanctiestatus worden afgeleid zonder ingetrokken no-shows.
 - Een eventuele Sportlink-urencorrectie blijft een afzonderlijke handmatige werkvoorraad; DVK muteert Sportlink niet.
 
-**Geen herziening:** DVK blijft eigenaar van de no-showadministratie en de historie van no-showintrekkingen. Het ontbreken van permanente DVK-indelingen betekent niet dat no-shows of hun intrekkingen vervallen.
+**Geen herziening:** DVK blijft eigenaar van nieuwe no-showregistraties en de historie van bijbehorende intrekkingen. Bestaande prototype-no-shows uit de achterhaalde functionaliteit zijn wegwerpbare testgegevens: geen migratie of behoud vereist.
 
 ## 2. Geconstateerde technische verschillen
 
@@ -33,7 +33,7 @@ De docstring van `DutyAssignment` beschrijft `duty_assignments` expliciet als le
 
 1. Inventariseer het volledige import- en synchronisatiepad van feitelijke Sportlink-inroosteringen, inclusief bronidentificatie, importtijdstip en gedrag bij een volgende export.
 2. Definieer een canonieke, uit Sportlink afkomstige inroostering en een stabiele no-showreferentie/snapshot. Leg de omgang met gewijzigde of verdwenen bronregels expliciet vast.
-3. Herijk applicatieservice, opslag en UI zonder tijdelijke DVK-planning duurzaam tot feitelijke indeling te promoveren.
+3. Herijk applicatieservice, opslag en UI zonder tijdelijke DVK-planning duurzaam tot feitelijke indeling te promoveren. Verwijder bestaande legacy prototype-no-shows en bijbehorende intrekkingen uit de testomgeving; bouw geen datamigratie.
 4. Vervang legacy testfixtures; test positieve registratie, weigering van tijdelijke DVK-planning, één oorspronkelijke no-show per feitelijke inroostering, duurzame raadpleegbaarheid na bronwijziging, intrekking en actuele teller.
 5. Onderzoek los daarvan de rode GitHub Actions-test: controleer op baseline en werkbranch de werkelijke database-uitkomst en getoonde meldingen, en reproduceer waar mogelijk met Streamlit 1.64.0 en 1.65.0. Niet op voorhand testverwachtingen versoepelen of dependencies vastpinnen.
 6. Voer gerichte tests en volledige regressiesuite uit. Geen wijzigingen in PR #19, geen merge zonder expliciete acceptatie, geen opportunistische refactors.
@@ -42,7 +42,7 @@ De docstring van `DutyAssignment` beschrijft `duty_assignments` expliciet als le
 
 - Welk Sportlink-exportformaat levert de feitelijke inroosteringen en welke sleutel is daarin voldoende stabiel?
 - Welke gegevens zijn minimaal nodig in de immutable no-showsnapshot, inclusief datum, dienst, persoon en bron/provenance?
-- Welke bestaande legacy no-shows moeten bij migratie behouden blijven en hoe worden hun bronverwijzingen behandeld als Sportlink-herkomst niet meer bewijsbaar is?
+- **Besloten:** bestaande legacy no-shows en eventuele intrekkingen zijn uitsluitend achterhaalde prototype-/testgegevens en worden weggegooid. Geen inventarisatie, herkomstonderzoek of migratie nodig. Nieuwe no-shows en intrekkingen blijven voortaan duurzaam DVK-eigendom.
 - Is de rode CI-test een Streamlit-versieverschil, testharnasprobleem of werkelijk functioneel probleem? Dit is nog niet vastgesteld.
 
-**Beslisgrens:** deze analyse is een documentatievoorstel. Implementatie, testwijzigingen, migratie en samenvoegen volgen pas na beoordeling en afzonderlijke opdracht.
+**Beslisgrens:** deze analyse is een documentatievoorstel. Implementatie, testwijzigingen en samenvoegen volgen pas na beoordeling en afzonderlijke opdracht. Migratie van legacy no-showgegevens is expliciet buiten scope.
