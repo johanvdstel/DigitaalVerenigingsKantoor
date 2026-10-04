@@ -75,6 +75,19 @@ Niet toegestaan zonder expliciete opdracht:
 
 Als een noodzakelijke oplossing buiten de afgesproken scope valt: rapporteer dit en stop daar.
 
+## 4a. Verplichte context- en proportionaliteitscontrole
+
+Deze controle geldt vóór iedere technische gapanalyse, ontwerpaanbeveling en Codex-opdracht; ook wanneer de wijziging klein lijkt.
+
+1. **Projectcontext eerst.** Benoem de geldende functionele baseline, ontwikkelfase, iteratiescope, bronhouders en relevante geaccepteerde besluiten. Verifieer ze in de actuele repositorydocumentatie. Ga niet uit van algemene productieaannames bij een prototype.
+2. **Scheid bewijs en interpretatie.** Label relevante uitspraken als vastgesteld feit (met code-/documentreferentie), geaccepteerde eis, nog onbewezen aanname of aanbeveling. Presenteer aannames nooit als vaststaande projectvereisten.
+3. **Toets proportionaliteit.** Motiveer iedere extra technische maatregel met (a) het concrete probleem, (b) bewijs dat dit probleem in de huidige ontwikkelfase bestaat en (c) de gevolgen als de maatregel achterwege blijft. Zonder aantoonbare noodzaak: niet opnemen in de uitvoeringsscope; hoogstens expliciet als onbewezen vraag rapporteren.
+4. **Toets gegevensstatus.** Maak onderscheid tussen wegwerpbare prototype-/testgegevens, geaccepteerde regressiefixtures en werkelijk te behouden operationele gegevens. Stel geen migratie of historische reconstructie voor zonder vastgestelde behoudsplicht of expliciete opdracht. Verwijderen van geaccepteerde regressiefixtures vereist wel een afzonderlijk functioneel besluit.
+5. **Codex-acceptatiepoort.** Neem uitsluitend werkzaamheden op die herleidbaar zijn tot een geaccepteerde eis, aantoonbare technische afwijking of expliciet goedgekeurde technische verbetering. Leg de herleiding en bijbehorende acceptatiecriteria in de opdracht vast. Onbewezen aannames zijn geen implementatieopdracht.
+6. **Stop bij onzekerheid.** Als het bewijs voor een ingrijpende maatregel ontbreekt, benoem de onzekerheid en vraag zo nodig een gericht besluit. Breid de scope niet uit om hypothetische problemen op te lossen.
+
+Voorbeeld v0.5: oude no-showregistraties uit achterhaalde prototypefunctionaliteit zijn wegwerpbare testgegevens; er is geen migratieopdracht. Nieuwe no-shows en hun intrekkingen zijn daarentegen duurzame DVK-feiten en moeten voldoen aan het actuele functionele contract.
+
 ## 5. Regressies en testdata
 
 De functionele afspraak leidt de regressie:
