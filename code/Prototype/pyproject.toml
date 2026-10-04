@@ -16,5 +16,8 @@ test = ["pytest>=8"]
 where = ["."]
 include = ["dvk*"]
 
+[tool.setuptools.package-data]
+dvk = ["configuration/*.csv"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
