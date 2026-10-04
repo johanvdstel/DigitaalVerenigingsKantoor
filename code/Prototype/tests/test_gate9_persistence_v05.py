@@ -3,20 +3,19 @@ from datetime import datetime
 from dvk.no_show import NoShowEvent, NoShowRevocation, assess_sanction, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
+from sportlink_fixtures import booking, seed_bookings
 
 
 def _seed_assignment(uow, person="P1"):
-    proposal = AssignmentProposal("P-NO", "S1", person, "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ())
-    assignment = DutyAssignment("A-NO", proposal.proposal_id, "S1", person, "member", 4, "planner")
-    uow.proposals.add(proposal)
-    uow.assignments.add(assignment)
+    seed_bookings(uow, [booking(person)])
 
 
 def test_no_show_and_sanction_survive_database_reopen(tmp_path):
     db = SQLiteDatabase(tmp_path / "gate9.sqlite")
     db.initialize()
     when = datetime(2026, 9, 18, 10)
-    event = NoShowEvent("N1", "A-NO", "P1", when, when, "planner", season_id(when.date()))
+    source = booking("P1")
+    event = NoShowEvent("N1", source.assignment_id, "P1", source.starts_at, when, "planner", season_id(when.date()), source)
     sanction = assess_sanction(event, ())
     with db.unit_of_work() as uow:
         _seed_assignment(uow)
@@ -33,7 +32,8 @@ def test_revocation_is_separate_fact_without_changing_history(tmp_path):
     db = SQLiteDatabase(tmp_path / "gate9-revoke.sqlite")
     db.initialize()
     when = datetime(2026, 9, 18, 10)
-    event = NoShowEvent("N1", "A-NO", "P1", when, when, "planner", "2026/2027")
+    source = booking("P1")
+    event = NoShowEvent("N1", source.assignment_id, "P1", source.starts_at, when, "planner", "2026/2027", source)
     revoked = NoShowRevocation("R1", "N1", "incorrect registered", datetime(2026, 9, 18, 11), "planner")
     with db.unit_of_work() as uow:
         _seed_assignment(uow)

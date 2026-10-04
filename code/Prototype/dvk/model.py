@@ -12,6 +12,7 @@ class Person:
     birth_date: date | None = None
     mobile_number: str | None = None
     address: str | None = None
+    sportlink_name: str | None = None
 
 
 @dataclass(frozen=True)

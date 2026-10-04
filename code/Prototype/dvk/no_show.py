@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from .vrijwilligers_adapter import VolunteerBooking
 
 
 def season_id(day: date) -> str:
@@ -19,6 +20,7 @@ class NoShowEvent:
     recorded_at: datetime
     recorded_by: str
     season: str
+    booking: VolunteerBooking | None = None
 
     def __post_init__(self) -> None:
         if self.season != season_id(self.occurred_at.date()):

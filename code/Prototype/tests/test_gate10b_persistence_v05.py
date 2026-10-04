@@ -10,6 +10,7 @@ from dvk.persistence import SQLiteDatabase
 from dvk.persistence.migrations import MIGRATIONS
 from dvk.persistence.planning_records import SQLiteAssignmentProposalRepository, SQLiteDutyAssignmentRepository
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
+from sportlink_fixtures import booking
 
 
 def _seed(connection, count=1):
@@ -21,7 +22,8 @@ def _seed(connection, count=1):
 
 def _event(i=1):
     when = datetime(2026, 9, i, 10)
-    return NoShowEvent(f"N{i}", f"A{i}", "MEM1", when, when, "planner", "2026/2027")
+    source = booking(when=when)
+    return NoShowEvent(f"N{i}", source.assignment_id, "MEM1", source.starts_at, when, "planner", "2026/2027", source)
 
 
 def _revocation():
@@ -43,7 +45,7 @@ def test_revocation_requires_existing_fact_and_is_unique(tmp_path):
         assert uow.no_show_revocations.for_no_show("N1") == _revocation()
 
 
-@pytest.mark.parametrize("table", ["no_show_events", "no_show_revocations"])
+@pytest.mark.parametrize("table", ["sportlink_no_show_events", "sportlink_no_show_revocations"])
 @pytest.mark.parametrize("operation", ["UPDATE", "DELETE"])
 def test_database_rejects_mutation_of_both_fact_types(tmp_path, table, operation):
     db = SQLiteDatabase(tmp_path / "immutable.sqlite"); db.initialize()
@@ -78,7 +80,7 @@ def _legacy_database(path):
             connection.execute("INSERT INTO schema_version VALUES (?)", (version,))
         _seed(connection, 3)
         for i, status in ((1, "valid"), (2, "revoked"), (3, "valid")):
-            event = _event(i)
+            event = replace(_event(i), assignment_id=f"A{i}", booking=None)
             payload = asdict(event) | dict(status=status, correction_reason="oude correctie" if status == "revoked" else None,
                                          corrected_at="2026-09-20 10:00:00" if status == "revoked" else None,
                                          corrected_by="legacy-actor" if status == "revoked" else None)
@@ -108,12 +110,14 @@ def test_migration_discards_only_authorized_legacy_data_and_never_fabricates_rev
         facts = connection.execute("SELECT no_show_id, payload FROM no_show_events WHERE status='valid' ORDER BY no_show_id").fetchall()
         sanctions = connection.execute("SELECT * FROM sanction_assessments WHERE no_show_id IN ('N1', 'N3') ORDER BY no_show_id").fetchall()
     db = SQLiteDatabase(path)
-    assert db.initialize() == 11
-    assert db.initialize() == 11
+    assert db.initialize() == 12
+    assert db.initialize() == 12
     with sqlite3.connect(path) as connection:
         after = _unrelated_tables(connection)
         # Issue #12 adds an empty workqueue; all pre-existing rows stay exact.
         assert after.pop("temporary_planning") == []
+        for table in ("sportlink_bookings", "sportlink_no_show_events", "sportlink_no_show_revocations", "sportlink_sanction_assessments"):
+            assert after.pop(table) == []
         assert after == before
         assert connection.execute("SELECT no_show_id, payload FROM no_show_events ORDER BY no_show_id").fetchall() == facts
         assert connection.execute("SELECT * FROM sanction_assessments ORDER BY no_show_id").fetchall() == sanctions
@@ -121,9 +125,11 @@ def test_migration_discards_only_authorized_legacy_data_and_never_fabricates_rev
         assert connection.execute("SELECT name FROM sqlite_master WHERE name='replacement_duties'").fetchall() == []
         assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
     with db.unit_of_work() as uow:
-        assert uow.no_shows.get("N1") == _event(1)
+        # Obsolete prototype facts remain outside the new Sportlink fact store.
+        assert uow.no_shows.get("N1") is None
         assert uow.no_shows.get("N2") is None
-        assert uow.no_shows.get("N3") == _event(3)
+        assert uow.no_shows.get("N3") is None
+        uow.no_shows.add(_event(1))
         uow.no_show_revocations.add(_revocation()); uow.commit()
     with db.unit_of_work() as uow:
         assert uow.no_shows.get("N1") == _event(1)

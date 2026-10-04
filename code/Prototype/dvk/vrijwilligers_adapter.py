@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+import hashlib
+import json
 from typing import Iterable
 from urllib.parse import quote, urlencode
 from zoneinfo import ZoneInfo
 
 from .real_data_import import DataQualitySignal, Provenance
 from .workstream_model import DutyService
+from .model import Person
 
 
 VRIJWILLIGERS_ENDPOINT = "https://data.sportlink.com/vrijwilligers"
@@ -29,6 +32,20 @@ class VolunteerBooking:
     starts_at: datetime
     ends_at: datetime
     location: str
+    person_id: str | None = None
+    person_name: str | None = None
+    provenance: Provenance | None = None
+    service: DutyService | None = None
+
+    @property
+    def assignment_id(self) -> str:
+        if not self.person_id:
+            raise ValueError("Sportlink booking requires a unique Rel. code")
+        if self.starts_at.tzinfo is None or self.ends_at.tzinfo is None:
+            raise ValueError("Sportlink booking key requires explicit timezones")
+        key = (self.person_id, self.task_code, self.starts_at.astimezone(timezone.utc).isoformat(),
+               self.ends_at.astimezone(timezone.utc).isoformat())
+        return "SL-" + hashlib.sha256(json.dumps(key, ensure_ascii=False).encode()).hexdigest()
 
 
 @dataclass(frozen=True)
@@ -107,11 +124,13 @@ class SportlinkVrijwilligersAdapter:
         rows: Iterable[dict[str, object]],
         services: Iterable[ServiceBinding],
         imported_at: datetime,
+        persons: Iterable[Person] | None = None,
     ) -> VolunteerImportResult:
         bindings = tuple(binding for binding in services if binding.task_code == task_code)
         bookings: list[VolunteerBooking] = []
         provenance: list[Provenance] = []
         signals: list[DataQualitySignal] = []
+        persons = None if persons is None else tuple(persons)
 
         for index, row in enumerate(rows, 1):
             key = f"{task_code}:{index}"
@@ -154,14 +173,37 @@ class SportlinkVrijwilligersAdapter:
                 continue
 
             service = matches[0]
-            booking = VolunteerBooking(task_code, service.service_id, name, starts_at, ends_at, location)
-            bookings.append(booking)
-            provenance.append(Provenance(
+            person = None
+            if persons is not None:
+                candidates = tuple(p for p in persons if p.sportlink_name == name)
+                if len(candidates) != 1:
+                    signals.append(DataQualitySignal(
+                        "VOLUNTEER_PERSON_NOT_FOUND" if not candidates else "VOLUNTEER_PERSON_AMBIGUOUS",
+                        "ERROR", "sportlink_vrijwilligers", key,
+                        "Vrijwilligersnaam heeft geen unieke koppeling met Rel. code"))
+                    continue
+                person = candidates[0]
+                if ends_at <= starts_at:
+                    signals.append(DataQualitySignal("INVALID_VOLUNTEER_INTERVAL", "ERROR", "sportlink_vrijwilligers", key,
+                                                     "Feitelijke inroostering vereist volledige begin- en eindtijd"))
+                    continue
+            booking = VolunteerBooking(task_code, service.service_id, name, starts_at, ends_at, location,
+                                       None if person is None else person.person_id,
+                                       None if person is None else person.name, service=service)
+            if person is not None:
+                booking = replace(booking, service=replace(service, starts_at=starts_at, ends_at=ends_at, location=location))
+                key = booking.assignment_id
+                if any(b.assignment_id == key for b in bookings):
+                    signals.append(DataQualitySignal("DUPLICATE_VOLUNTEER_BOOKING", "ERROR", "sportlink_vrijwilligers", key,
+                                                     "Dezelfde feitelijke inroostering komt meermaals voor"))
+                    continue
+            source_provenance = Provenance(
                 "Sportlink", "Vrijwilligers", key, imported_at,
-                kind="SOURCE_FACT",
-                source_value=str(dict(row)),
-                normalized_value=str(booking),
-            ))
+                kind="SOURCE_FACT", source_value=str(dict(row)),
+                normalized_value=str(booking))
+            booking = replace(booking, provenance=source_provenance)
+            bookings.append(booking)
+            provenance.append(source_provenance)
 
         return VolunteerImportResult(tuple(bookings), tuple(provenance), tuple(signals))
 
