@@ -158,7 +158,30 @@ def _migration_011(connection: sqlite3.Connection) -> None:
         service_payload TEXT NOT NULL)""")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011)
+def _migration_012(connection: sqlite3.Connection) -> None:
+    """New empty source/fact tables. No migration of obsolete prototype data."""
+    connection.execute("CREATE TABLE sportlink_bookings (assignment_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    # No FK to current bookings: a refresh must not invalidate a durable fact.
+    connection.execute("""CREATE TABLE sportlink_no_show_events (
+        no_show_id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL UNIQUE,
+        person_id TEXT NOT NULL, season TEXT NOT NULL, occurred_at TEXT NOT NULL,
+        payload TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE sportlink_no_show_revocations (
+        revocation_id TEXT PRIMARY KEY,
+        no_show_id TEXT NOT NULL UNIQUE REFERENCES sportlink_no_show_events(no_show_id),
+        reason TEXT NOT NULL, revoked_at TEXT NOT NULL, revoked_by TEXT NOT NULL)""")
+    connection.execute("""CREATE TABLE sportlink_sanction_assessments (
+        no_show_id TEXT PRIMARY KEY REFERENCES sportlink_no_show_events(no_show_id),
+        person_id TEXT NOT NULL, season TEXT NOT NULL, counter INTEGER NOT NULL,
+        payload TEXT NOT NULL)""")
+    for table in ("sportlink_no_show_events", "sportlink_no_show_revocations"):
+        for operation in ("UPDATE", "DELETE"):
+            connection.execute(f"""CREATE TRIGGER {table}_no_{operation.lower()}
+                BEFORE {operation} ON {table} BEGIN
+                SELECT RAISE(ABORT, 'no-show facts are immutable'); END""")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011, _migration_012)
 
 
 def migrate(connection: sqlite3.Connection) -> int:

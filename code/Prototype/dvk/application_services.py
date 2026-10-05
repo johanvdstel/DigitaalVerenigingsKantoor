@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from uuid import uuid4
 
@@ -20,11 +20,12 @@ from .run_context import EngineRun
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyAssignment, DutyService, Match
+from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapter
 
 
 @dataclass(frozen=True)
 class AssignmentContext:
-    assignment: DutyAssignment
+    assignment: DutyAssignment | VolunteerBooking
     service: DutyService | None
     person_name: str | None
 
@@ -56,20 +57,47 @@ class NoShowApplicationService:
 
     def available_assignments(self, limit: int = 50):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        return self.uow.assignments.recent(limit)
+        return self.uow.sportlink_bookings.recent(limit)
 
     def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> tuple[AssignmentContext, ...]:
-        return tuple(_assignment_context(a, services, persons) for a in self.available_assignments(limit))
+        return tuple(AssignmentContext(a, a.service, a.person_name) for a in self.available_assignments(limit))
+
+    def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1):
+        """Fetch through the accepted client/adapter; publish only a valid full refresh."""
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        bindings = tuple(bindings)
+        persons = tuple(persons)
+        if not bindings or any(not b.task_code.strip() for b in bindings):
+            raise ValueError("Sportlink-synchronisatie vereist concrete diensten en taakcodes")
+        bookings, signals = [], []
+        for task_code in sorted({b.task_code for b in bindings}):
+            fetched = client.fetch_rows(client_id=client_id, task_code=task_code, days=days, weekoffset=weekoffset)
+            result = SportlinkVrijwilligersAdapter().import_rows(task_code=task_code, rows=fetched.rows,
+                services=bindings, imported_at=imported_at, persons=persons)
+            bookings.extend(result.bookings)
+            signals.extend(result.signals)
+        if any(s.severity == "ERROR" for s in signals):
+            return tuple(signals)
+        self.uow.sportlink_bookings.replace_all(bookings)
+        for entry in self.uow.temporary_planning.all():
+            self.uow.temporary_planning.remove(entry.assignment.assignment_id)
+        self.uow.commit()
+        return tuple(signals)
 
     def register(self, event: NoShowEvent) -> SanctionAssessment:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         if event.recorded_by != self.identity.subject_id:
             raise ValueError("no-show recorded_by must match authenticated identity")
-        assignment = self.uow.assignments.get(event.assignment_id)
+        assignment = self.uow.sportlink_bookings.get(event.assignment_id)
         if assignment is None:
             raise ValueError("no-show must reference an existing inroostering")
         if assignment.person_id != event.person_id:
             raise ValueError("no-show person must match inroostering")
+        if assignment.service is None or assignment.provenance is None or assignment.provenance.source_system != "Sportlink" or assignment.provenance.kind != "SOURCE_FACT":
+            raise ValueError("no-show requires Sportlink source provenance")
+        if event.occurred_at != assignment.starts_at:
+            raise ValueError("no-show occurrence must match Sportlink service start")
+        event = replace(event, booking=assignment)
         if self.uow.no_shows.for_assignment(event.assignment_id) is not None:
             raise ValueError("voor deze inroostering is al een no-show geregistreerd")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
@@ -86,10 +114,10 @@ class NoShowApplicationService:
         for event in self.uow.no_shows.all():
             if self.uow.no_show_revocations.for_no_show(event.no_show_id) is not None:
                 continue
-            assignment = self.uow.assignments.get(event.assignment_id)
+            assignment = event.booking
             if assignment is None:
                 raise ValueError("no-show references an unknown inroostering")
-            rows.append(NoShowContext(event, _assignment_context(assignment, services, persons)))
+            rows.append(NoShowContext(event, AssignmentContext(assignment, assignment.service, assignment.person_name)))
         return tuple(rows)
 
     def current_state(self, person_id: str, season: str) -> CurrentSanctionState:

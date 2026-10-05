@@ -7,6 +7,7 @@ from dvk.no_show import NoShowEvent
 from dvk.persistence import SQLiteDatabase
 from dvk.security import AuthorizationError, Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
+from sportlink_fixtures import booking, seed_bookings
 
 
 def identity(*permissions):
@@ -14,15 +15,13 @@ def identity(*permissions):
 
 
 def seed(uow):
-    proposal = AssignmentProposal("P1", "S1", "MEM1", "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ())
-    uow.proposals.add(proposal)
-    uow.assignments.add(DutyAssignment("A1", "P1", "S1", "MEM1", "member", 4, "planner"))
-    uow.commit()
+    seed_bookings(uow, [booking()])
 
 
-def event(assignment="A1", person="MEM1"):
-    when = datetime(2026, 9, 18, 10)
-    return NoShowEvent("N1", assignment, person, when, when, "planner", "2026/2027")
+def event(assignment=None, person="MEM1"):
+    source = booking()
+    when = source.starts_at
+    return NoShowEvent("N1", assignment or source.assignment_id, person, when, when, "planner", "2026/2027", source)
 
 
 def test_register_requires_existing_assignment_and_persists_assessment(tmp_path):

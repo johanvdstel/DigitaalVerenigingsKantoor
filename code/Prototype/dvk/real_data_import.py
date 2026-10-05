@@ -159,7 +159,8 @@ class SportlinkRealDataAdapter:
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = False  # B-02: only a qualifying Teams row proves bond-team participation
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))))
+            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum")),
+                                  sportlink_name=self.sportlink_name(row)))
             raw_status = self.value(row, "Lidstatus")
             status = raw_status.casefold()
             end_date = self.parse_date(termination)
@@ -286,6 +287,10 @@ class SportlinkRealDataAdapter:
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
         path = Path(path)
         text = path.read_text(encoding="utf-8-sig")
+        return cls.read_rows_text(text, dataset, name=path.name)
+
+    @classmethod
+    def read_rows_text(cls, text: str, dataset: str, *, name="CSV") -> list[dict[str, str]]:
         try:
             delimiter = csv.Sniffer().sniff(text[:8192], delimiters=";,\t").delimiter
         except csv.Error:
@@ -293,10 +298,27 @@ class SportlinkRealDataAdapter:
         reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
-            raise ValueError(f"{path.name}: missing columns: {', '.join(sorted(missing))}")
+            raise ValueError(f"{name}: missing columns: {', '.join(sorted(missing))}")
         if dataset == "leden" and not ({"Geb.dat.", "Geboortedatum"} & set(reader.fieldnames or ())):
-            raise ValueError(f"{path.name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
+            raise ValueError(f"{name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
         return list(reader)
+
+    @classmethod
+    def read_volunteer_persons(cls, text: str) -> tuple[Person, ...]:
+        rows = cls.read_rows_text(text.lstrip("\ufeff"), "leden")
+        return tuple(Person(cls.value(row, "Rel. code"), cls.value(row, "Naam"),
+                            sportlink_name=cls.sportlink_name(row))
+                     for row in rows if cls.value(row, "Rel. code"))
+
+    @staticmethod
+    def sportlink_name(row: dict[str, str]) -> str | None:
+        """Only the CKC-verified complete form; missing-part formats are unknown."""
+        parts = tuple((row.get(key) or "").strip() for key in
+                      ("Achternaam", "Voorletter(s)", "Tussenvoegsel(s)", "Roepnaam"))
+        if not all(parts):
+            return None
+        surname, initials, prefix, familiar = parts
+        return f"{surname}, {initials} {prefix} ({familiar})"
 
     @staticmethod
     def current_membership(status: str, end_date: date | None, as_of: date) -> bool | None:

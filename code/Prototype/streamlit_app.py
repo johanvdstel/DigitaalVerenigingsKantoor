@@ -19,6 +19,10 @@ from dvk.staffing import StaffingNeed
 from dvk.workstream_cases import TODAY
 from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog, demo_team_memberships, demo_planning_data
 from dvk.workstream_model import DutyService, Match, TeamMembership
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
+from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding
+from dvk.real_data_import import SportlinkRealDataAdapter
+import os
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
 REJECTION_LABELS = {"Persoonlijke omstandigheid": "personal_circumstance", "Niet geschikt voor deze dienst": "unsuitable_for_service", "Brongegevens kloppen niet": "source_data_incorrect", "Andere bijzonderheid": "other"}
@@ -188,7 +192,36 @@ if undo_result:
     st.success(undo_result)
 
 st.markdown("### No-shows")
-st.caption("Registreer een no-show alleen op een bestaande inroostering. Het DVK toont het beleidsgevolg; het voert boetes of schorsingen niet zelf uit.")
+st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
+with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
+    members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
+    st.caption("Geef per getoonde dienst de Sportlink-vrijwilligerstaakcode op. Naamkoppelingen die ontbreken of niet uniek zijn worden gesignaleerd.")
+    task_codes = {s.service_id: st.text_input(f"{_datum_met_dag(s.starts_at)} {s.starts_at:%H:%M}–{s.ends_at:%H:%M} — {s.service_type}",
+                 key=f"sportlink-task-{s.service_id}") for s in services}
+    fetch_days = st.number_input("Aantal dagen voor Sportlink-uitvraag", min_value=1, value=60)
+    fetch_weekoffset = st.number_input("Weekoffset voor Sportlink-uitvraag", value=-1)
+    if st.button("Sportlink-inroosteringen synchroniseren"):
+        bindings = tuple(ServiceBinding(task_codes[s.service_id].strip(), s) for s in services)
+        try:
+            if members_file is None:
+                raise ValueError("Selecteer de Leden-CSV voor persoonskoppeling.")
+            persons = SportlinkRealDataAdapter.read_volunteer_persons(members_file.getvalue().decode("utf-8-sig"))
+            with database.unit_of_work() as uow:
+                signals = NoShowApplicationService(uow, identity).synchronize(
+                    client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
+                    client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""), bindings=bindings,
+                    persons=persons, imported_at=datetime.now().astimezone(), days=int(fetch_days), weekoffset=int(fetch_weekoffset))
+            st.session_state["sportlink-booking-signals"] = signals
+            if not signals:
+                st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
+                st.rerun()
+        except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
+            st.error(str(exc))
+    for signal in st.session_state.get("sportlink-booking-signals", ()):
+        st.error(signal.message)
+    sync_result = st.session_state.pop("sportlink-sync-result", None)
+    if sync_result:
+        st.success(sync_result)
 with database.unit_of_work() as uow:
     assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
         services=services, persons=tuple(c.person for c in demo_candidate_cases()),
@@ -242,7 +275,8 @@ if st.session_state.pop("clear-no-show-revocation-reason", False):
 if revocable_rows:
     no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
     with st.form("no-show-revocation-form"):
-        revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get)
+        revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get,
+                                      key="no-show-revocation-id")
         revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
         revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
     if revoke_submitted:

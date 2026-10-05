@@ -14,6 +14,7 @@ from dvk.workstream_model import AssignmentProposal
 import pytest
 from streamlit.testing.v1 import AppTest
 from dvk.workstream_model import DutyAssignment
+from sportlink_fixtures import booking, seed_bookings
 
 
 SOURCE = Path(__file__).parents[1] / "streamlit_app.py"
@@ -71,22 +72,22 @@ def test_streamlit_uses_public_services_instead_of_repositories_or_private_state
 def rendered_app(tmp_path):
     # Run the real app against a disposable SQLite database, never the local demo.
     script = tmp_path / "streamlit_app.py"
-    script.write_text(SOURCE.read_text())
+    # Fix the clock before the first render; AppTest round-trips identical
+    # formatted labels through their display value on unrelated reruns.
+    script.write_text(SOURCE.read_text().replace("value=date.today()", "value=date(2026, 9, 14)"))
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
     db.initialize()
     context = _context()
     with db.unit_of_work() as uow:
+        sources = [booking(context.assignment.person_id, name=context.person_name,
+                           task=str(740+i), service=context.service) for i in range(1, 3)]
+        seed_bookings(uow, sources)
         for i in range(1, 3):
-            aid, pid = f"technical-assignment-{i}", f"technical-proposal-{i}"
-            uow.proposals.add(AssignmentProposal(pid, context.service.service_id, context.assignment.person_id, "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
-            uow.assignments.add(replace(context.assignment, assignment_id=aid, proposal_id=pid))
-        uow.commit()
-        for i in range(1, 3):
-            when = context.service.starts_at
+            source = sources[i-1]
+            when = source.starts_at
             NoShowApplicationService(uow, Identity("vc1", "VC", frozenset({Permission.MANAGE_NO_SHOWS}))).register(
-                NoShowEvent(f"technical-no-show-{i}", f"technical-assignment-{i}", context.assignment.person_id, when, when, "vc1", "2026/2027"))
+                NoShowEvent(f"technical-no-show-{i}", source.assignment_id, context.assignment.person_id, when, when, "vc1", "2026/2027"))
     app = AppTest.from_file(str(script), default_timeout=15).run()
-    app.date_input[0].set_value(datetime(2026, 9, 14).date()).run()
     assert not app.exception
     return app, db
 
@@ -118,6 +119,11 @@ def test_revocation_ui_requires_explicit_confirmation_and_shows_current_season_c
     with db.unit_of_work() as uow:
         original = uow.no_shows.get("technical-no-show-2")
         assert uow.no_show_revocations.for_no_show("technical-no-show-2") is None
+    # AppTest 1.65 keeps form edits uncommitted until its submit is triggered.
+    # The preceding non-submit run checks that no write occurred; stage the
+    # actual form values again together with the explicit confirmation.
+    _revocation_selector(app).select("technical-no-show-2")
+    app.text_area[0].set_value("Uitdrukkelijk besluit")
     _confirm(app).click().run()
     assert not app.exception
     assert any(message.value == "No-show ingetrokken. Actuele no-showteller voor Jeugdlid Thuis in seizoen 2026/2027: 1." for message in app.success)
@@ -153,11 +159,11 @@ def test_streamlit_source_compiles_without_importing_or_starting_app():
 def test_duplicate_no_show_registration_shows_message_without_second_event(rendered_app):
     app, db = rendered_app
     context = _context()
-    assignment_id = "technical-assignment-registration"
     with db.unit_of_work() as uow:
         services, _, _, _ = demo_planning_data(datetime(2026, 9, 14).date())
-        uow.assignments.add(replace(context.assignment, assignment_id=assignment_id, proposal_id="technical-proposal-1", service_id=services[0].service_id))
-        uow.commit()
+        source = booking(context.assignment.person_id, name=context.person_name, service=services[0])
+        assignment_id = source.assignment_id
+        seed_bookings(uow, [source])
     app.run()
     next(widget for widget in app.selectbox if widget.label == "Inroostering").select(assignment_id)
     next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()

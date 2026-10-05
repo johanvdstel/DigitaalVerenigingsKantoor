@@ -7,21 +7,20 @@ from dvk.no_show import NoShowEvent
 from dvk.persistence import SQLiteDatabase
 from dvk.security import Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
+from sportlink_fixtures import booking, seed_bookings
 
 
 IDENTITY = Identity("planner", "Planner", frozenset({Permission.MANAGE_NO_SHOWS}))
 
 
 def _seed(uow):
-    proposal = AssignmentProposal("P-H", "S1", "MEM1", "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ())
-    uow.proposals.add(proposal)
-    uow.assignments.add(DutyAssignment("A-H", "P-H", "S1", "MEM1", "member", 4, "planner"))
-    uow.commit()
+    seed_bookings(uow, [booking()])
 
 
 def _event(no_show_id="N-H"):
-    when = datetime(2026, 9, 18, 10)
-    return NoShowEvent(no_show_id, "A-H", "MEM1", when, when, "planner", "2026/2027")
+    source = booking()
+    when = source.starts_at
+    return NoShowEvent(no_show_id, source.assignment_id, "MEM1", when, when, "planner", "2026/2027", source)
 
 
 def test_same_assignment_cannot_receive_second_no_show(tmp_path):
@@ -50,4 +49,4 @@ def test_no_show_application_service_exposes_assignments_without_ui_sql(tmp_path
     with db.unit_of_work() as uow: _seed(uow)
     with db.unit_of_work() as uow:
         rows = NoShowApplicationService(uow, IDENTITY).available_assignments()
-        assert [row.assignment_id for row in rows] == ["A-H"]
+        assert [row.assignment_id for row in rows] == [booking().assignment_id]

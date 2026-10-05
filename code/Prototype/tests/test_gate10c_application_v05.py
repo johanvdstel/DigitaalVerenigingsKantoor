@@ -9,6 +9,7 @@ from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.security import AuthorizationError, Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
+from sportlink_fixtures import booking, seed_bookings
 
 VC = Identity("vc1", "Vrijwilligerscommissie", frozenset({Permission.MANAGE_NO_SHOWS}))
 OTHER = Identity("other", "Onbevoegd", frozenset())
@@ -16,15 +17,13 @@ OTHER = Identity("other", "Onbevoegd", frozenset())
 
 def _seed(db):
     with db.unit_of_work() as uow:
-        for i in range(1, 7):
-            uow.proposals.add(AssignmentProposal(f"P{i}", f"S{i}", "MEM1", "member", 10, 0, 0, 0, 10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
-            uow.assignments.add(DutyAssignment(f"A{i}", f"P{i}", f"S{i}", "MEM1", "member", 4, "vc1"))
-        uow.commit()
+        seed_bookings(uow, [booking(when=datetime(2026, 9, i, 10)) for i in range(1, 7)])
 
 
 def _event(i, when=None):
     when = when or datetime(2026, 9, i, 10)
-    return NoShowEvent(f"N{i}", f"A{i}", "MEM1", when, when, "vc1", season_id(when.date()))
+    source = booking(when=when)
+    return NoShowEvent(f"N{i}", source.assignment_id, "MEM1", source.starts_at, when, "vc1", season_id(when.date()), source)
 
 
 @pytest.fixture
@@ -101,6 +100,7 @@ def test_season_transition_preserves_both_facts_without_reset(tmp_path):
     old2 = _event(2, datetime(2026, 6, 30, 10))
     with db.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
+        seed_bookings(uow, [old1.booking, old2.booking, _event(3, datetime(2026, 7, 1, 10)).booking])
         app.register(old1); app.register(old2)
         revoked = app.revoke("N2", reason="besluit vorig seizoen", revoked_at=datetime(2026, 7, 2))
         assert app.current_state("MEM1", "2026/2027").counter == 0
@@ -146,24 +146,16 @@ def test_public_revocation_query_is_read_only_and_excludes_revoked(database):
         assert [r.no_show.no_show_id for r in NoShowApplicationService(uow, VC).revocable_no_shows()] == ["N1", "N3", "N4", "N5"]
 
 
-def test_assignment_context_uses_only_unique_exact_ids_and_preserves_recent_limit(database):
-    services, _, _, _ = demo_planning_data(datetime(2026, 9, 14).date())
-    service = replace(services[2], service_id="S1")
-    person = replace(demo_candidate_cases()[2].person, person_id="MEM1")
+def test_assignment_context_uses_source_snapshot_and_preserves_recent_limit(database):
     with database.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
-        contexts = app.assignment_contexts(services=(service,), persons=(person,))
-        context = next(c for c in contexts if c.assignment.assignment_id == "A1")
-        assert context.service == service
-        assert context.person_name == "Jeugdlid Thuis"
-        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == ["A6"]
-        for supplied_services, supplied_persons in (
-            ((), ()),
-            ((replace(service, service_id="OTHER"),), (replace(person, person_id="OTHER"),)),
-            ((service, replace(service, location="andere locatie")), (person, replace(person, name="andere naam"))),
-        ):
-            missing = next(c for c in app.assignment_contexts(services=supplied_services, persons=supplied_persons) if c.assignment.assignment_id == "A1")
-            assert missing.service is None
-            assert missing.person_name is None
-        rows = app.revocable_no_shows(services=(service,), persons=(person,))
+        contexts = app.assignment_contexts()
+        source = booking(when=datetime(2026, 9, 1, 10))
+        context = next(c for c in contexts if c.assignment.assignment_id == source.assignment_id)
+        assert context.service == source.service
+        assert context.person_name == source.person_name
+        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == [booking(when=datetime(2026, 9, 6, 10)).assignment_id]
+        # Presentation remains based on the source snapshot, never new demo context.
+        assert app.assignment_contexts(persons=(), services=()) == contexts
+        rows = app.revocable_no_shows()
         assert rows[0].assignment == context
