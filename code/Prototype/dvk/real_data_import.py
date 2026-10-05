@@ -4,8 +4,12 @@ import csv
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .model import DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
+
+if TYPE_CHECKING:
+    from .function_classification import FunctionClassificationResult
 
 
 @dataclass(frozen=True)
@@ -44,6 +48,8 @@ class CommitteeMembership:
     committee: str
     committee_role: str
     start_date: date | None = None
+    end_date: date | None = None
+    provenance: Provenance | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +91,12 @@ class RealDataImportResult:
     signals: tuple[DataQualitySignal, ...]
     source_dates: tuple[tuple[str, date], ...] = ()
     membership_as_of: tuple[tuple[str, bool | None], ...] = ()
+
+    @property
+    def function_classification(self) -> FunctionClassificationResult:
+        """Separately derived CKC rights; deliberately not applied to duty decisions."""
+        from .function_classification import FunctionClassifier
+        return FunctionClassifier().classify_many((*self.roles, *self.committees))
 
 
 class SportlinkRealDataAdapter:
@@ -191,10 +203,19 @@ class SportlinkRealDataAdapter:
             role = self.value(row, "Functie")
             if role:
                 normalized_role = self.normalize_role(role)
-                roles.append(RoleAssignment(pid, normalized_role))
-                provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
-                                            source_field="Functie", source_value=role,
-                                            normalized_value=normalized_role))
+                role_provenance = self.prov("functies", f"{pid}:{i}", imported_at, source_period,
+                                            source_field="Functie", source_value=row.get("Functie") or "",
+                                            normalized_value=normalized_role)
+                try:
+                    start_date = self.parse_date(self.value(row, "Begindatum"))
+                    end_date = self.parse_date(self.value(row, "Einddatum"))
+                except ValueError:
+                    signals.append(DataQualitySignal("INVALID_FUNCTION_DATE", "ERROR", "functies", f"{pid}:{i}",
+                                                     "Ongeldige geldigheidsdatum functieregistratie"))
+                    continue
+                roles.append(RoleAssignment(pid, normalized_role, start_date, end_date,
+                                            source_role=row.get("Functie") or "", provenance=role_provenance))
+                provenance.append(role_provenance)
             else:
                 signals.append(DataQualitySignal("UNKNOWN_FUNCTION", "WARNING", "functies", pid, "Lege functienaam"))
                 provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
@@ -212,9 +233,16 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("INVALID_COMMITTEE_START_DATE", "ERROR", "commissies", f"{pid}:{i}",
                                                  "Ongeldige begindatum commissieregistratie"))
                 continue
+            try:
+                end_date = self.parse_date(self.value(row, "Einddatum"))
+            except ValueError:
+                signals.append(DataQualitySignal("INVALID_COMMITTEE_END_DATE", "ERROR", "commissies", f"{pid}:{i}",
+                                                 "Ongeldige einddatum commissieregistratie"))
+                continue
+            committee_provenance = self.prov("commissies", f"{pid}:{i}", imported_at, source_period)
             committees.append(CommitteeMembership(pid, self.value(row, "Commissie"),
-                                                  self.value(row, "Functie"), start_date))
-            provenance.append(self.prov("commissies", f"{pid}:{i}", imported_at, source_period))
+                                                  self.value(row, "Functie"), start_date, end_date, committee_provenance))
+            provenance.append(committee_provenance)
 
         teams: list[RealTeamMembership] = []
         for i, row in enumerate(team_rows, 1):
