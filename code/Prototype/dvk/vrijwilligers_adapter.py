@@ -218,17 +218,23 @@ class SportlinkVrijwilligersAdapter:
     @staticmethod
     def _parse_datetime(date_value: str, time_value: str) -> datetime:
         value = date_value.strip()
+        date_tz = TZ
         if "T" in value:
             parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return parsed.astimezone(TZ) if parsed.tzinfo else parsed.replace(tzinfo=TZ)
-        date_formats = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y")
-        parsed_date = None
-        for fmt in date_formats:
-            try:
-                parsed_date = datetime.strptime(value, fmt).date()
-                break
-            except ValueError:
-                pass
+            if not time_value:
+                return parsed.astimezone(TZ) if parsed.tzinfo else parsed.replace(tzinfo=TZ)
+            # Sportlink supplies the calendar date and duty time separately.
+            parsed_date = parsed.date()
+            date_tz = parsed.tzinfo or TZ
+        else:
+            date_formats = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y")
+            parsed_date = None
+            for fmt in date_formats:
+                try:
+                    parsed_date = datetime.strptime(value, fmt).date()
+                    break
+                except ValueError:
+                    pass
         if parsed_date is None:
             raise ValueError(value)
         time_text = (time_value or "00:00").strip()
@@ -241,7 +247,7 @@ class SportlinkVrijwilligersAdapter:
                 pass
         if parsed_time is None:
             raise ValueError(time_text)
-        return datetime.combine(parsed_date, parsed_time, tzinfo=TZ)
+        return datetime.combine(parsed_date, parsed_time, tzinfo=date_tz)
 
     @staticmethod
     def _pick(row: dict[str, object], *names: str) -> str:

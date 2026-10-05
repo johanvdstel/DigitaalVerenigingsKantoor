@@ -51,3 +51,19 @@ Alle paden hieronder zijn relatief aan `code/Prototype`.
 Er is geen live Sportlink-uitvraag uitgevoerd; tests gebruiken synthetische bronresponsen. De UI gebruikt de bestaande concrete dienstcatalogus en expliciet ingevoerde taakcodes. Een bronregel zonder unieke overeenkomstige dienst wordt gesignaleerd en verhindert publicatie van de bronverversing. De koppeling van namen met ontbrekende onderdelen blijft bewust onopgelost totdat een aanvullend broncontract is geaccepteerd.
 
 De afzonderlijke CI-oorzaak is een gewijzigde AppTest-formuliersimulatie in Streamlit 1.65, niet de architectuurafwijking. Zie het afzonderlijke diagnoserapport. Groene tests/CI vormen geen functionele acceptatie; acceptatie en merge blijven bij Johan/CKC.
+
+## Reviewherstel — afzonderlijk tijdveld (5 oktober 2026)
+
+Context: voortzetting op dezelfde werkbranch vanaf PR-head `225313a3d7e70a23fd60218ed1979893f5075635`; integratiebaseline blijft `prototype-v0.5` @ `8eb32b9`, functioneel geaccepteerde baseline blijft v0.4. De opdracht beperkt zich tot het blokkerende parsingpunt; bronhouder is Sportlink, met de bewezen Rooster2-verwerking als referentie.
+
+Vastgesteld feit: `_parse_datetime()` keerde bij een datum met `T` direct terug en negeerde het afzonderlijke tijdveld. Daardoor werd de aangetoonde bronvorm `2026-10-10T00:00:00+0200` plus `10:00` ten onrechte 00:00; concrete dienstkoppeling en daarmee no-showregistratie konden mislukken. [Rooster2/app.py, normalize_volunteers](https://github.com/johanvdstel/Rooster2/blob/main/app.py#L579-L620) verwerkt datum- en tijdvelden apart, en gebruikt alleen de datum/tijdtimestamp als tijdbron wanneer het afzonderlijke veld ontbreekt. Geraadpleegde bestandsblob: `e7e2be506bb46f141e7fec6567a530340ce3f136`.
+
+Geaccepteerde eis: datumdeel combineren met het afzonderlijke tijdveld en de bronoffset behouden, voor zowel `+0200` als `+0100`; bestaande ondersteunde vormen blijven werken. De minimale wijziging gebruikt de bestaande ISO-datum- en kloktijdparsing. Er is geen algemene parser, extra dependency, beleidswijziging of datamigratie toegevoegd.
+
+Gewijzigde bestanden in deze vervolgcommit:
+
+- `dvk/vrijwilligers_adapter.py`: bij een afzonderlijk tijdveld het geparste datumdeel en bron-tzinfo gebruiken; zonder tijdveld het oorspronkelijke timestampgedrag behouden.
+- `tests/test_no_show_sportlink_v05.py`: twee bronvormtests (`2026-10-10T00:00:00+0200` en `2026-11-07T00:00:00+0100`, telkens 10:00–12:30), inclusief dienstkoppeling, offset, logische sleutel en duurzame no-showcontext. Zeven compatibiliteitscases dekken de bestaande datum-/tijdvormen en ISO-timestamps zonder afzonderlijk tijdveld. Bestaande verwachtingen zijn niet aangepast.
+- Dit rapport: herleiding, scope en verificatie van het reviewherstel.
+
+Verificatie: **81 gerichte tests geslaagd**; volledige suite **312 geslaagd** met zowel Streamlit 1.64.0 als geïsoleerde 1.65.0; `git diff --check` schoon. De groei van 303 naar 312 bestaat exact uit de negen nieuwe parsingregressies. GitHub CI wordt na push opnieuw gecontroleerd en in PR/eindrapportage vermeld. PR #19 blijft onaangeroerd en er wordt niet gemerged. De eerder genoemde beperkingen blijven gelden; deze correctie vereist geen nieuw functioneel of architectuurbesluit.

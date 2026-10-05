@@ -38,6 +38,49 @@ def event(source=SOURCE, identifier="N1"):
                        source.starts_at, "planner", "2026/2027")
 
 
+@pytest.mark.parametrize("date_value, start_value, end_value, offset", [
+    ("2026-10-10T00:00:00+0200", "2026-10-10T10:00:00+02:00", "2026-10-10T12:30:00+02:00", 2),
+    ("2026-11-07T00:00:00+0100", "2026-11-07T10:00:00+01:00", "2026-11-07T12:30:00+01:00", 1),
+])
+def test_actual_sportlink_date_and_separate_time_reach_durable_no_show(
+        tmp_path, date_value, start_value, end_value, offset):
+    start, end = datetime.fromisoformat(start_value), datetime.fromisoformat(end_value)
+    concrete = replace(SOURCE.service, starts_at=start, ends_at=end)
+    raw = {"naam": "Voorbeeld, A.B. de (Alex)", "datumvanaf": date_value,
+           "tijdvanaf": "10:00", "datumtot": date_value, "tijdtot": "12:30", "lokatie": "CKC"}
+    result = SportlinkVrijwilligersAdapter().import_rows(task_code="741", rows=[raw],
+        services=[ServiceBinding("741", concrete)], imported_at=start,
+        persons=[Person("TEST001", "Alex", sportlink_name=raw["naam"])])
+    assert not result.signals
+    source, = result.bookings
+    assert source.starts_at.isoformat() == start_value
+    assert source.ends_at.isoformat() == end_value
+    assert source.starts_at.utcoffset() == source.ends_at.utcoffset() == timedelta(hours=offset)
+    assert source.assignment_id == replace(SOURCE, starts_at=start, ends_at=end).assignment_id
+    db = SQLiteDatabase(tmp_path / "actual-source.sqlite"); db.initialize()
+    with db.unit_of_work() as uow:
+        uow.sportlink_bookings.replace_all([source]); uow.commit()
+        service = NoShowApplicationService(uow, IDENTITY)
+        service.register(event(source))
+        stored = uow.no_shows.get("N1")
+        assert stored.occurred_at == start
+        assert stored.booking.starts_at.isoformat() == start_value
+        assert stored.booking.ends_at.isoformat() == end_value
+
+
+@pytest.mark.parametrize("date_value, time_value, expected", [
+    ("2026-10-10", "10:00", "2026-10-10T10:00:00+02:00"),
+    ("10-10-2026", "10:00:30", "2026-10-10T10:00:30+02:00"),
+    ("10/10/2026", "", "2026-10-10T00:00:00+02:00"),
+    ("2026-10-10T10:00:00+0200", "", "2026-10-10T10:00:00+02:00"),
+    ("2026-11-07T10:00:00+0100", "", "2026-11-07T10:00:00+01:00"),
+    ("2026-10-10T08:00:00Z", "", "2026-10-10T10:00:00+02:00"),
+    ("2026-10-10T10:00:00", "", "2026-10-10T10:00:00+02:00"),
+])
+def test_existing_volunteer_datetime_forms_keep_their_behavior(date_value, time_value, expected):
+    assert SportlinkVrijwilligersAdapter._parse_datetime(date_value, time_value).isoformat() == expected
+
+
 def test_exact_confirmed_name_build_and_members_csv_route(tmp_path):
     assert SportlinkRealDataAdapter.sportlink_name(NAME_PARTS) == "Voorbeeld, A.B. de (Alex)"
     row = NAME_PARTS | {"Naam": "Alex de Voorbeeld", "Geb.dat.": "01-01-2000", "Lidstatus": "Definitief",
