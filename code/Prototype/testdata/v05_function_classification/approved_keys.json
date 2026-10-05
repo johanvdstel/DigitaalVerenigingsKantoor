@@ -1,0 +1,281 @@
+{
+  "functions": [
+    "Ass. Scheidsrechter van vereniging",
+    "Assistenttrainer",
+    "Assistenttrainer Pup.",
+    "Bestuurslid",
+    "Communicatie en PR",
+    "Contributiezaken",
+    "Hoofdtrainer Sen.",
+    "Keeperstrainer",
+    "Ledenadministrateur",
+    "Penningmeester",
+    "Scheidsrechterscoördinator",
+    "Secretaris",
+    "Sponsorzaken",
+    "Teammanager",
+    "Trainer Junioren",
+    "Trainer Pupillen",
+    "Trainer Senioren",
+    "Trainer Vrouwen",
+    "Verenigingsnieuws beheerder",
+    "Verenigingsscheidsrechter",
+    "Verzorger",
+    "Vice voorzitter",
+    "Vice-voorzitter",
+    "Voorzitter",
+    "Waarden & Normen",
+    "Wedstrijdsecretaris algemeen",
+    "Wedstrijdsecretaris mDWF Veld"
+  ],
+  "committees": [
+    [
+      "Activiteiten",
+      "commissielid"
+    ],
+    [
+      "Activiteiten",
+      "toernooien"
+    ],
+    [
+      "Beheer & Onderhoud Accommodatie",
+      "beheerder"
+    ],
+    [
+      "Beheer & Onderhoud Accommodatie",
+      "voorzitter"
+    ],
+    [
+      "Beheer & Onderhoud Accommodatie",
+      "werkploeg"
+    ],
+    [
+      "Bestuur",
+      "CKC 100"
+    ],
+    [
+      "Bestuur",
+      "kantine"
+    ],
+    [
+      "Bestuur",
+      "penningmeester"
+    ],
+    [
+      "Bestuur",
+      "PR & communicatie"
+    ],
+    [
+      "Bestuur",
+      "secretaris"
+    ],
+    [
+      "Bestuur",
+      "sponsoring"
+    ],
+    [
+      "Bestuur",
+      "vice-voorzitter"
+    ],
+    [
+      "Bestuur",
+      "voorzitter"
+    ],
+    [
+      "Bestuur",
+      "vrijwilligerszaken"
+    ],
+    [
+      "Bestuur",
+      "waarden & Normen"
+    ],
+    [
+      "Bestuur",
+      "wedstrijdsecretariaat"
+    ],
+    [
+      "CKC 100",
+      "commissielid"
+    ],
+    [
+      "CKC 100",
+      "voorzitter"
+    ],
+    [
+      "Dagelijks bestuur",
+      "secretaris"
+    ],
+    [
+      "Dagelijks bestuur",
+      "vice-voorzitter"
+    ],
+    [
+      "Dagelijks bestuur",
+      "voorzitter"
+    ],
+    [
+      "Jeugd / Technische Commissie",
+      "coördinator juniorenteams"
+    ],
+    [
+      "Jeugd / Technische Commissie",
+      "coördinator meisjes/vrouwen teams"
+    ],
+    [
+      "Jeugd / Technische Commissie",
+      "coördinator pupillenteams"
+    ],
+    [
+      "Kantine",
+      "beheerder"
+    ],
+    [
+      "Kantine",
+      "commissielid"
+    ],
+    [
+      "Kantine",
+      "kantine"
+    ],
+    [
+      "Kantine",
+      "voorzitter"
+    ],
+    [
+      "lid van verdienste",
+      "lid van verdienste"
+    ],
+    [
+      "Materialen & Kleding",
+      "materialen"
+    ],
+    [
+      "Materialen & Kleding",
+      "teamkleding"
+    ],
+    [
+      "Ondersteuning DB",
+      "contributie"
+    ],
+    [
+      "Ondersteuning DB",
+      "ledenadministratie"
+    ],
+    [
+      "Ondersteuning DB",
+      "penningmeester"
+    ],
+    [
+      "Ondersteuning DB",
+      "verenigingscoach"
+    ],
+    [
+      "penaltybokaal",
+      "commissielid"
+    ],
+    [
+      "penaltybokaal",
+      "voorzitter"
+    ],
+    [
+      "PR & Communicatie",
+      "commissielid"
+    ],
+    [
+      "PR & Communicatie",
+      "voorzitter"
+    ],
+    [
+      "PR & Communicatie",
+      "webmaster"
+    ],
+    [
+      "Scheidsrechters",
+      "junioren"
+    ],
+    [
+      "Scheidsrechters",
+      "pupillen"
+    ],
+    [
+      "Scheidsrechters",
+      "reserve"
+    ],
+    [
+      "Scheidsrechters",
+      "reserve / knvb"
+    ],
+    [
+      "Scheidsrechters",
+      "scheidsrechtersplanning"
+    ],
+    [
+      "Scheidsrechters",
+      "senioren"
+    ],
+    [
+      "Scheidsrechters",
+      "senioren / knvb"
+    ],
+    [
+      "Sponsoring",
+      "commissielid"
+    ],
+    [
+      "Sponsoring",
+      "voorzitter"
+    ],
+    [
+      "Vertrouwenspersoon",
+      "vertrouwenspersoon intern"
+    ],
+    [
+      "vrijwilligers",
+      "activiteiten"
+    ],
+    [
+      "vrijwilligers",
+      "grote clubactie"
+    ],
+    [
+      "vrijwilligers",
+      "werkploeg"
+    ],
+    [
+      "Vrijwilligerzaken",
+      "commissielid"
+    ],
+    [
+      "Vrijwilligerzaken",
+      "voorzitter"
+    ],
+    [
+      "Vrijwilligerzaken",
+      "vrijwilligerszaken"
+    ],
+    [
+      "Waarden & Normen",
+      "commissielid"
+    ],
+    [
+      "Waarden & Normen",
+      "voorzitter"
+    ],
+    [
+      "Wedstrijdsecretariaat",
+      "commissiekamer"
+    ],
+    [
+      "Wedstrijdsecretariaat",
+      "scheidsrechterscoördinator"
+    ],
+    [
+      "Wedstrijdsecretariaat",
+      "voorzitter"
+    ],
+    [
+      "Wedstrijdsecretariaat",
+      "wedstrijdsecretaris"
+    ]
+  ]
+}

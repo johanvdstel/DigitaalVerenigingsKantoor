@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .real_data_import import Provenance
 
 
 @dataclass(frozen=True)
@@ -13,6 +16,11 @@ class Person:
     mobile_number: str | None = None
     address: str | None = None
     sportlink_name: str | None = None
+    postal_code: str | None = None
+    house_number: str | None = None
+    house_number_addition: str | None = None
+    # Source names are not person identifiers or inferred relationships.
+    parent_names: tuple[str | None, str | None] = (None, None)
 
 
 @dataclass(frozen=True)
@@ -44,6 +52,8 @@ class RoleAssignment:
     start_date: date | None = None
     end_date: date | None = None
     active: bool = True
+    source_role: str | None = None
+    provenance: Provenance | None = None
 
 
 @dataclass(frozen=True)
