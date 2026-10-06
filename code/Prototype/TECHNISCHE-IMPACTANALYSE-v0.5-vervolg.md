@@ -61,7 +61,7 @@ Gate-10 event/revocation-semantiek, sanctieafleiding, autorisatie, seizoenslogic
 - `duty.py` bevat `derive_duty_qualification()`, `expected_required_hours()` en `evaluate_duty_foundation()`.
 - eigen functie, erelid, recreatief, niet-spelend/inactief en minderjarigen-/gezinslogica zijn aanwezig.
 - `_household_function_exemption()` werkt expliciet op gelijk adres en kan household-exempt functies toepassen; ontbrekende adressen kunnen tot onzekerheidssignaal leiden.
-- v0.4 real-data import kan verwacht A vergelijken met Sportlink A en `REQUIRED_HOURS_MISMATCH` signaleren.
+- Ten tijde van deze analyse kon de v0.4 real-data importer een extern meegegeven verwachte A vergelijken met Sportlink A. Die parallelle importvergelijking is bij de ronde-3-review verwijderd; voor de actuele brongebonden v0.5-route geldt uitsluitend `derive_member_duties()` → `compare_required_hours()` met `REQUIRED_HOURS_REASSESSMENT`. Zie `DVK-v0.5-stap2-ronde3-urenpositie.md`.
 - bronfeit versus afleiding is reeds expliciet in v0.4.
 
 ### Concrete gaps / verificatiepunten

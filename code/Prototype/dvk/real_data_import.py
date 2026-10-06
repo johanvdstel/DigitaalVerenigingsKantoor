@@ -70,15 +70,10 @@ class DutyImportRecord:
     registration: SportlinkDutyRegistration
     source_remaining_hours: int
     position: DutyPosition
-    expected_required_hours: int | None = None
 
     @property
     def source_formula_matches(self) -> bool:
         return self.source_remaining_hours == self.position.E
-
-    @property
-    def required_hours_mismatch(self) -> bool:
-        return self.expected_required_hours is not None and self.registration.required_hours != self.expected_required_hours
 
 
 @dataclass(frozen=True)
@@ -124,12 +119,11 @@ class SportlinkRealDataAdapter:
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
-                     imported_at=None, source_period=None, expected_required_hours=None,
+                     imported_at=None, source_period=None,
                      source_dates: dict[str, date] | None = None, as_of: date | None = None,
                      previous_planning_date: date | None = None,
                      previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
-        expected_required_hours = expected_required_hours or {}
         source_dates = source_dates or {}
         previous_source_dates = previous_source_dates or {}
         membership_as_of: list[tuple[str, bool | None]] = []
@@ -334,14 +328,11 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("INVALID_DUTY_VALUE", "ERROR", "vrijwilligers_periode", pid, str(exc)))
                 continue
             registration = SportlinkDutyRegistration(pid, a, b, c, d)
-            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d), expected_required_hours.get(pid))
+            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d))
             duties.append(record)
             if not record.source_formula_matches:
                 signals.append(DataQualitySignal("DUTY_REMAINING_MISMATCH", "ERROR", "vrijwilligers_periode", pid,
                                                  f"Sportlink E={source_e} maar A-B-C-D={record.position.E}"))
-            if record.required_hours_mismatch:
-                signals.append(DataQualitySignal("REQUIRED_HOURS_MISMATCH", "WARNING", "vrijwilligers_periode", pid,
-                                                 f"Sportlink A={a} maar DVK verwacht A={record.expected_required_hours}"))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),

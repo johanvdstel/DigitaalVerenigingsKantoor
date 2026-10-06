@@ -24,7 +24,7 @@ Minimale oplossing: gebruik de bestaande import/mapping/formule, voeg een afzond
 | `tests/test_hours_control_v05.py` | 42 synthetische ontwikkelregressies voor de opdracht en betrouwbaarheid van parsing/koppeling. |
 | Dit rapport | Context, broncontract, verificatie, beperkingen en overdracht. |
 
-De publieke controle levert de volledige door ronde 2 afgeleide ledenpopulatie, inclusief relevante leden en verklaarbare vrijstellingen. Geen UI/planner wordt omgeschakeld. De historische `expected_required_hours`-importparameter blijft beschikbaar; de nieuwe controle haalt haar verwachting uitsluitend uit ronde 2, met dezelfde configureerbare beleidsuren en peildatum.
+De publieke controle levert de volledige door ronde 2 afgeleide ledenpopulatie, inclusief relevante leden en verklaarbare vrijstellingen. Geen UI/planner wordt omgeschakeld. Na functionele review is de historische `expected_required_hours`-importparameter verwijderd: de actuele brongebonden A-controle haalt haar verwachting uitsluitend uit ronde 2, met dezelfde configureerbare beleidsuren en peildatum.
 
 `RequiredHoursControl.status` is `overeenkomst`, `afwijking` of `niet betrouwbaar beoordeelbaar`. De complete `expectation` bewaart de DVK-gronden, ondersteunende bronfeiten, beleidsversie en peildatum. Een verschil geeft `REQUIRED_HOURS_REASSESSMENT`: herbeoordeling van een eerdere menselijke registratie, geen uitspraak dat Sportlink fout is.
 
@@ -62,3 +62,43 @@ Commit en CI-status worden bij de PR/eindrapportage vermeld. Groene CI vormt gee
 Geen automatische Sportlink-correcties, urenoverdracht, B-14-besluitopslag, UI/dashboard, kandidaatselectie, planning, no-showwijziging of historische reconstructie. Geen live exports of persoonsgegevens gebruikt. Hele punten/uren blijven het bestaande importercontract; fracties worden expliciet afgewezen, niet afgerond. De opdracht geeft geen nieuwe fractie-afspraak.
 
 Geen functioneel of architecturaal besluit nodig voor deze ronde. Functionele review/acceptatie blijft nodig vóór merge. Integrale v0.5-acceptatie, echte broninhoudvalidatie en latere workflowaansluiting blijven buiten deze oplevering.
+
+## Correctie na functionele review: één brongebonden A-controle
+
+Start van deze correctie: dezelfde werkbranch/PR #25, gecontroleerde head `86e0d6b4cf5626581f15e674c6358206b3202d9e`. Oorspronkelijke ronde-3-startbasis blijft ongewijzigd. De expliciete reviewopdracht autoriseert verwijdering van de dubbele importvergelijking en herijking van tests die uitsluitend die route bewaken; geen nieuwe functionele ronde.
+
+### Repository-breed afhankelijkheidsonderzoek
+
+Vastgesteld met `rg` in de volledige repository, inclusief verborgen bestanden (uitgezonderd Git-objecten en de virtuele omgeving):
+
+- `SportlinkRealDataAdapter.load_exports(expected_required_hours=...)`, `DutyImportRecord.expected_required_hours`, `required_hours_mismatch` en de producer van `REQUIRED_HOURS_MISMATCH` stonden uitsluitend in `dvk/real_data_import.py`.
+- De enige aanroep met de externe verwachting stond in `tests/test_real_data_import_v04.py::test_r09_expected_a_mismatch_is_signalled_not_corrected`. Geen applicatie-, UI-, planner- of andere importer-aanroep gebruikt die parameter/property/waarde.
+- `dvk/season_closing.py` en de bijbehorende test gebruiken `DutyImportRecord`, maar alleen registratie en bron-/berekende urenpositie; de verwijderde velden zijn daar geen afhankelijkheid.
+- Het ronde-3-rapport beschreef behoud van de parameter. De technische impactanalyse vermeldde de oude importerwaarschuwing als toen ondersteunde functionaliteit. Beide documenten zijn bijgewerkt.
+- `member_duty.py` en `hours_control.py` gebruiken gelijknamige afgeleide verwachtingsvelden; die zijn noodzakelijk voor de gezaghebbende route en blijven intact.
+- De historische case-engine `duty.py` heeft een eigen `expected_required_hours()` en het kleine-letter-signaal `sportlink_required_hours_mismatch`, met gebruik in dashboard, W/I/policy-tests en case-runners. Dit is de afzonderlijke historische case-route, niet een afhankelijkheid van de verwijderde importerparameter. Deze geaccepteerde historische route is buiten de correctiescope en ongewijzigd. De uitspraak “één gezaghebbende A-controle” geldt voor de actuele brongebonden v0.5-route, niet voor iedere historische case-engine in de repository.
+
+Verwijdering is veilig binnen de expliciete opdracht: geen geaccepteerde v0.5-gebruiker is afhankelijk van de genoemde importvergelijking. R09's geaccepteerde functionele eis — verschil signaleren zonder automatische correctie — blijft behouden via de nieuwe brongebonden controle. Alleen de test van de expliciet vervallen dubbele route is herijkt; BASELINE-v0.4 en overige historische cases/fixtures blijven ongewijzigd.
+
+### Wijzigingen en regressiebescherming
+
+| Bestand | Correctie |
+| --- | --- |
+| `dvk/real_data_import.py` | Externe verwachtingsparameter, recordveld, mismatchproperty en oud importsignaal verwijderd. Import doet alleen bronmapping, numerieke/koppelvalidatie en E-formulecontrole. |
+| `tests/test_real_data_import_v04.py` | R09 vergelijkt nu de bron-A=10 met de uit bestaande vrijstellende functies afgeleide A=0 via `compare_required_hours()`; verwacht `afwijking` en `REQUIRED_HOURS_REASSESSMENT`, behoud van A=10 en afwezig oud importsignaal. Geen testcase verwijderd. |
+| `tests/test_hours_control_v05.py` | Twee nieuwe tests: betrouwbare bronpositie met A=3 geeft geen importerwaarschuwing, daarna precies één domeinsignaal voor herbeoordeling; publieke import-API/record hebben geen externe verwachting of mismatchproperty meer. |
+| `TECHNISCHE-IMPACTANALYSE-v0.5-vervolg.md` | Historische beschrijving aangevuld met actuele verwijdering en gezaghebbende route. |
+| Dit rapport | Afhankelijkheden, veilige verwijdering, architectuurgrens en nieuwe verificatie. |
+
+Er bestaat nu voor de actuele brongebonden v0.5-route uitsluitend `derive_member_duties()` → `compare_required_hours()`. De domeincontrole is ongewijzigd, genereert `REQUIRED_HOURS_REASSESSMENT` bij verschil en muteert geen bronfeiten/importsignalen. E-semantiek/formulecontrole, B-05/B-06/B-07, classificatie, UI, planning, no-shows en B-14 zijn ongewijzigd.
+
+### Nieuwe verificatie
+
+- Gerichte suite vóór correctie: **111 passed**.
+- Ronde-3-tests: **44 passed**; ronde-2-tests: **41 passed**; bestaande importtests inclusief herijkte R09: **28 passed**; gezamenlijk **113 passed**.
+- Volledige regressiesuite na correctie: **501 passed**.
+- Repository-brede zoekcontrole: geen verwijderde API/property of oud hoofdletter-importsignaal in productiecode; resterende exacte namen staan alleen als afwezigheidsasserties of historische toelichting. Afgeleide verwachtingsvelden en de expliciet onderscheiden historische case-route blijven aanwezig.
+- `git diff --check`: schoon.
+- Een eerste append voor de twee nieuwe tests gebruikte vanuit `code/Prototype` onterecht opnieuw dat pad en maakte geen wijziging; het pad is gecorrigeerd, waarna beide tests zijn uitgevoerd. Geen falende testasserties.
+
+Commit en onafhankelijke CI-uitkomst van deze correctie worden bij PR #25 en in de eindrapportage vastgelegd. Geen merge; functionele acceptatie blijft vereist. Geen nieuw besluitpunt of resterende afhankelijkheid van de verwijderde route aangetroffen.

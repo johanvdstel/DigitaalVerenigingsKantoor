@@ -129,3 +129,25 @@ def test_missing_export_does_not_create_zero_position(tmp_path):
     assert control.registered_required_hours is None
     assert control.status == "niet betrouwbaar beoordeelbaar"
     assert any(s.code == "MISSING_DUTY_POSITION" for s in control.signals)
+
+
+def test_importer_preserves_source_a_without_policy_comparison(tmp_path):
+    data = load(tmp_path, (3, 1, 1, 0, 1))
+    record, = data.duty_records
+    assert (record.position.A, record.position.B, record.position.C, record.position.D) == (3, 1, 1, 0)
+    assert record.source_remaining_hours == record.position.E == 1
+    assert data.signals == ()
+    control, = data.compare_required_hours(TODAY)
+    assert control.expected_required_hours == 10 and control.registered_required_hours == 3
+    assert control.status == "afwijking"
+    assert [s.code for s in control.signals] == ["REQUIRED_HOURS_REASSESSMENT"]
+    assert data.signals == ()  # The read-only domain control does not mutate imported facts/signals.
+
+
+def test_import_api_has_no_external_expectation_route():
+    from dataclasses import fields
+    from inspect import signature
+    from dvk.real_data_import import DutyImportRecord
+    assert "expected_required_hours" not in signature(SportlinkRealDataAdapter.load_exports).parameters
+    assert "expected_required_hours" not in {field.name for field in fields(DutyImportRecord)}
+    assert not hasattr(DutyImportRecord, "required_hours_mismatch")
