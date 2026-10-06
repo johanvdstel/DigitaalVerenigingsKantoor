@@ -101,4 +101,4 @@ Er bestaat nu voor de actuele brongebonden v0.5-route uitsluitend `derive_member
 - `git diff --check`: schoon.
 - Een eerste append voor de twee nieuwe tests gebruikte vanuit `code/Prototype` onterecht opnieuw dat pad en maakte geen wijziging; het pad is gecorrigeerd, waarna beide tests zijn uitgevoerd. Geen falende testasserties.
 
-Commit en onafhankelijke CI-uitkomst van deze correctie worden bij PR #25 en in de eindrapportage vastgelegd. Geen merge; functionele acceptatie blijft vereist. Geen nieuw besluitpunt of resterende afhankelijkheid van de verwijderde route aangetroffen.
+Correctiecommit: `f2ccf1a34f18f82969a443b9a398620e0440ca67`, gepusht op dezelfde branch in PR #25. Onafhankelijke GitHub Actions **run #300** (`DVK Prototype Tests`) is **completed / success** voor deze commit: [CI-resultaat](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/actions/runs/37533390755). Deze rapportageaanvulling wijzigt geen code of tests; de laatste PR-head wordt ook afzonderlijk op CI gecontroleerd. Geen merge; functionele acceptatie blijft vereist. Geen nieuw besluitpunt of resterende afhankelijkheid van de verwijderde route aangetroffen.
