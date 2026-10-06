@@ -90,11 +90,15 @@ def test_r08_negative_e_is_retained(tmp_path):
 
 def test_r09_expected_a_mismatch_is_signalled_not_corrected(tmp_path):
     paths = exports(tmp_path)
-    result = SportlinkRealDataAdapter().load_exports(**paths, expected_required_hours={"P1": 0})
+    result = SportlinkRealDataAdapter().load_exports(**paths)
     record = result.duty_records[0]
     assert record.registration.required_hours == 10
-    assert record.expected_required_hours == 0
-    assert any(s.code == "REQUIRED_HOURS_MISMATCH" for s in result.signals)
+    control, = result.compare_required_hours(date(2026, 10, 6))
+    assert control.expected_required_hours == 0
+    assert control.registered_required_hours == 10
+    assert control.status == "afwijking"
+    assert any(s.code == "REQUIRED_HOURS_REASSESSMENT" for s in control.signals)
+    assert not any(s.code == "REQUIRED_HOURS_MISMATCH" for s in result.signals)
 
 
 def test_conflicting_duplicate_identity_is_blocked(tmp_path):

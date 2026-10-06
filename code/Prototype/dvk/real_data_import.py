@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +12,7 @@ from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment,
 if TYPE_CHECKING:
     from .function_classification import FunctionClassificationResult
     from .member_duty import MemberDutyExpectation
+    from .hours_control import RequiredHoursControl
 
 
 @dataclass(frozen=True)
@@ -68,15 +70,10 @@ class DutyImportRecord:
     registration: SportlinkDutyRegistration
     source_remaining_hours: int
     position: DutyPosition
-    expected_required_hours: int | None = None
 
     @property
     def source_formula_matches(self) -> bool:
         return self.source_remaining_hours == self.position.E
-
-    @property
-    def required_hours_mismatch(self) -> bool:
-        return self.expected_required_hours is not None and self.registration.required_hours != self.expected_required_hours
 
 
 @dataclass(frozen=True)
@@ -104,6 +101,11 @@ class RealDataImportResult:
         from .member_duty import derive_member_duties
         return derive_member_duties(self, as_of, policy or DutyPolicy(version="ckc-v05-round2"))
 
+    def compare_required_hours(self, as_of: date, policy: DutyPolicy | None = None) -> tuple[RequiredHoursControl, ...]:
+        """Read-only round-3 control using the source-based round-2 expectation."""
+        from .hours_control import compare_required_hours
+        return compare_required_hours(self, as_of, policy)
+
 
 class SportlinkRealDataAdapter:
     """Read-only v0.4 adapter. Sportlink field names live only in this layer."""
@@ -117,12 +119,11 @@ class SportlinkRealDataAdapter:
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
-                     imported_at=None, source_period=None, expected_required_hours=None,
+                     imported_at=None, source_period=None,
                      source_dates: dict[str, date] | None = None, as_of: date | None = None,
                      previous_planning_date: date | None = None,
                      previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
-        expected_required_hours = expected_required_hours or {}
         source_dates = source_dates or {}
         previous_source_dates = previous_source_dates or {}
         membership_as_of: list[tuple[str, bool | None]] = []
@@ -311,6 +312,10 @@ class SportlinkRealDataAdapter:
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
             pid = self.value(row, "Relatiecode")
+            for field in sorted(self.REQUIRED_COLUMNS["vrijwilligers_periode"]):
+                provenance.append(self.prov("vrijwilligers_periode", f"{pid}:{i}", imported_at, source_period,
+                                            source_field=field, source_value=row.get(field) or "",
+                                            normalized_value=self.value(row, field)))
             if not self.known_person(pid, person_ids, "vrijwilligers_periode", str(i), signals):
                 continue
             try:
@@ -323,17 +328,11 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("INVALID_DUTY_VALUE", "ERROR", "vrijwilligers_periode", pid, str(exc)))
                 continue
             registration = SportlinkDutyRegistration(pid, a, b, c, d)
-            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d), expected_required_hours.get(pid))
+            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d))
             duties.append(record)
             if not record.source_formula_matches:
                 signals.append(DataQualitySignal("DUTY_REMAINING_MISMATCH", "ERROR", "vrijwilligers_periode", pid,
                                                  f"Sportlink E={source_e} maar A-B-C-D={record.position.E}"))
-            if record.required_hours_mismatch:
-                signals.append(DataQualitySignal("REQUIRED_HOURS_MISMATCH", "WARNING", "vrijwilligers_periode", pid,
-                                                 f"Sportlink A={a} maar DVK verwacht A={record.expected_required_hours}"))
-            provenance.append(self.prov("vrijwilligers_periode", pid, imported_at, source_period,
-                                        source_field="Niet ingedeeld", source_value=str(source_e),
-                                        normalized_value=str(record.position.E)))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
@@ -445,10 +444,10 @@ class SportlinkRealDataAdapter:
         if not normalized:
             raise ValueError(f"Ontbrekende verplichte waarde {field_name}")
         try:
-            number = float(normalized)
-        except ValueError as exc:
+            number = Decimal(normalized)
+        except InvalidOperation as exc:
             raise ValueError(f"Ongeldige waarde {field_name}: {value!r}") from exc
-        if not number.is_integer():
+        if not number.is_finite() or number != number.to_integral_value():
             raise ValueError(f"Verwacht geheel aantal punten/uren voor {field_name}, kreeg {value!r}")
         return int(number)
 
