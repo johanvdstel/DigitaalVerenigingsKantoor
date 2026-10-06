@@ -21,6 +21,11 @@ class Person:
     house_number_addition: str | None = None
     # Source names are not person identifiers or inferred relationships.
     parent_names: tuple[str | None, str | None] = (None, None)
+    street_name: str | None = None
+    city: str | None = None
+    contact_via_parent: bool | None = None
+    address_conflicting: bool = False
+    parent_data_conflicting: bool = False
 
 
 @dataclass(frozen=True)

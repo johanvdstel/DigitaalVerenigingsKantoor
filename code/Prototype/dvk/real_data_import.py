@@ -6,10 +6,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .model import DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
+from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
 
 if TYPE_CHECKING:
     from .function_classification import FunctionClassificationResult
+    from .member_duty import MemberDutyExpectation
 
 
 @dataclass(frozen=True)
@@ -94,9 +95,14 @@ class RealDataImportResult:
 
     @property
     def function_classification(self) -> FunctionClassificationResult:
-        """Separately derived CKC rights; deliberately not applied to duty decisions."""
+        """Separately derived CKC rights, also used by the round-2 derivation."""
         from .function_classification import FunctionClassifier
         return FunctionClassifier().classify_many((*self.roles, *self.committees))
+
+    def derive_member_duties(self, as_of: date, policy: DutyPolicy | None = None) -> tuple[MemberDutyExpectation, ...]:
+        """Round-2 source-based expectation; no Sportlink hours comparison."""
+        from .member_duty import derive_member_duties
+        return derive_member_duties(self, as_of, policy or DutyPolicy(version="ckc-v05-round2"))
 
 
 class SportlinkRealDataAdapter:
@@ -133,7 +139,7 @@ class SportlinkRealDataAdapter:
         member_rows = self.read_rows(members_path, "leden")
         function_rows = self.read_rows(functions_path, "functies")
         committee_rows = self.read_rows(committees_path, "commissies")
-        duty_rows = self.read_rows(duty_path, "vrijwilligers_periode")
+        duty_rows = self.read_rows(duty_path, "vrijwilligers_periode") if duty_path is not None else []
         team_rows = self.read_rows(teams_path, "teams")
 
         grouped: dict[str, list[dict[str, str]]] = {}
@@ -172,7 +178,29 @@ class SportlinkRealDataAdapter:
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = False  # B-02: only a qualifying Teams row proves bond-team participation
             persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum")),
-                                  sportlink_name=self.sportlink_name(row)))
+                                  sportlink_name=self.sportlink_name(row),
+                                  postal_code=self.value(row, "Postcode") or None,
+                                  house_number=self.value(row, "Huisnummer") or None,
+                                  house_number_addition=self.value(row, "Toevoeging") or None,
+                                  parent_names=(self.value(row, "Naam ouder/verzorger 1") or None,
+                                                self.value(row, "Naam ouder/verzorger 2") or None),
+                                  street_name=self.value(row, "Straatnaam") or None,
+                                  city=self.value(row, "Plaats") or None,
+                                  contact_via_parent=self.optional_bool(self.value(row, "Contact via ouder/verzorger")),
+                                  address_conflicting=len({self.address_key(r) for r in variants}) > 1,
+                                  parent_data_conflicting=len({self.parent_key(r) for r in variants}) > 1))
+            for field in ("Geb.dat.", "Straatnaam", "Huisnummer", "Toevoeging", "Postcode", "Plaats",
+                          "Contact via ouder/verzorger", "Naam ouder/verzorger 1", "Naam ouder/verzorger 2"):
+                for variant_index, variant in enumerate(variants, 1):
+                    if field in variant:
+                        provenance.append(self.prov("leden", f"{pid}:{variant_index}", imported_at, source_period,
+                                                    source_field=field, source_value=variant[field],
+                                                    normalized_value=self.value(variant, field)))
+            for conflicting, code in ((persons[-1].address_conflicting, "CONFLICTING_MEMBER_ADDRESS"),
+                                      (persons[-1].parent_data_conflicting, "CONFLICTING_PARENT_DATA")):
+                if conflicting:
+                    signals.append(DataQualitySignal(code, "WARNING", "leden", pid,
+                                                     "Dubbele ledenregels bevatten tegenstrijdige brongegevens"))
             raw_status = self.value(row, "Lidstatus")
             status = raw_status.casefold()
             end_date = self.parse_date(termination)
@@ -356,6 +384,16 @@ class SportlinkRealDataAdapter:
         if status.strip().casefold() == "definitief":
             return True
         return None
+
+    @classmethod
+    def address_key(cls, row):
+        return ("".join(cls.value(row, "Postcode").upper().split()),
+                cls.value(row, "Huisnummer"), cls.value(row, "Toevoeging"))
+
+    @classmethod
+    def parent_key(cls, row):
+        return tuple(sorted(cls.value(row, field) for field in
+                            ("Naam ouder/verzorger 1", "Naam ouder/verzorger 2") if cls.value(row, field)))
 
     @staticmethod
     def _member_score(row):
