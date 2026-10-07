@@ -339,6 +339,8 @@ class SportlinkRealDataAdapter:
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
+        if hasattr(path, "read"):
+            return cls.read_rows_text(path.read().lstrip("\ufeff"), dataset)
         path = Path(path)
         text = path.read_text(encoding="utf-8-sig")
         return cls.read_rows_text(text, dataset, name=path.name)

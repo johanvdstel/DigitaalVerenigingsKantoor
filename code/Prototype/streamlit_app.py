@@ -22,6 +22,7 @@ from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding
 from dvk.real_data_import import SportlinkRealDataAdapter
+from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard
 import os
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
@@ -310,3 +311,38 @@ st.markdown("### Datakwaliteit")
 if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
 else: st.success("Geen datakwaliteitssignalen voor deze planning.")
 st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+
+st.markdown("### Taakplichtcontrole — read-only")
+st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
+with st.sidebar:
+    st.header("Taakplichtcontrole")
+    control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
+    control_period = st.text_input("Periode / seizoen van Overzicht per periode", key="duty-control-period")
+st.caption("Voer de peildatum en de periode / het seizoen in bij Taakplichtcontrole in de zijbalk.")
+control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
+                 for dataset, (label, _) in EXPORTS.items()}
+control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")
+if all(file is not None for file in control_files.values()) and control_period.strip():
+    try:
+        dashboard = load_duty_dashboard({key: file.getvalue() for key, file in control_files.items()},
+                                        as_of=control_as_of, source_period=control_period)
+    except ValueError as exc:
+        st.error(str(exc))
+    else:
+        for column, (label, count) in zip(st.columns(4), dashboard.counts.items()):
+            column.metric(label.capitalize(), count)
+        st.caption(f"Peildatum: {control_as_of:%d-%m-%Y} · Periode: {control_period}")
+        control_rows = [{"Lid": r.member, "DVK verwachte A": r.expected, "Waarom": r.why,
+                         "Sportlink-A": r.registered, "Controlestatus": r.status,
+                         "Relatiecode": r.person_id} for r in dashboard.filtered(control_filter)]
+        if control_rows:
+            st.dataframe(control_rows, hide_index=True, use_container_width=True)
+        else:
+            st.info("Geen leden binnen dit filter.")
+        with st.expander("Bron- en controlediagnose"):
+            st.caption("Relatiecode is de koppelsleutel. Bronregels die niet gekoppeld of verwerkt konden worden blijven hier zichtbaar.")
+            st.dataframe([{"Bron": s.dataset, "Ernst": s.severity, "Code": s.code,
+                           "Bronreferentie": s.record_key, "Melding": s.message}
+                          for s in dashboard.source.signals], hide_index=True, use_container_width=True)
+else:
+    st.info("Selecteer alle vijf CSV-bestanden en vul hun periode / seizoen in om de controle te tonen.")
