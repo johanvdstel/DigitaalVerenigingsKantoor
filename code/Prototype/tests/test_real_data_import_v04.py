@@ -23,7 +23,7 @@ def exports(tmp_path, member_rows=None, duty_rows=None):
         functions_path=write_csv(tmp_path, "functies.csv", ["Rel. code", "Functie"], [["P1", "Trainer Pupillen"], ["P1", "Vice-voorzitter"]]),
         committees_path=write_csv(tmp_path, "commissies.csv", ["Rel. code", "Commissie", "Functie"], [["P1", "Jeugdcommissie", "commissielid"]]),
         duty_path=write_csv(tmp_path, "duty.csv", ["Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"], duty_rows),
-        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamsoort", "Teamrol", "Functie", "Spelend lid"], [["P1", "Senioren 8", "Bond", "Teamspeler", "Aanvaller", "Ja"]]),
+        teams_path=write_csv(tmp_path, "teams.csv", ["Rel. code", "Team", "Teamsoort", "Teamrol", "Spelend lid"], [["P1", "Senioren 8", "Bond", "Teamspeler", "Ja"]]),
     )
 
 
@@ -126,7 +126,7 @@ def test_non_numeric_duty_value_is_explicit_data_quality_error(tmp_path):
 def test_unknown_playing_member_value_is_signalled(tmp_path):
     paths = exports(tmp_path)
     paths["teams_path"].write_text(
-        "Rel. code;Team;Teamrol;Functie;Spelend lid\nP1;Senioren 8;Teamspeler;Aanvaller;Onbekend",
+        "Rel. code;Team;Teamrol;Spelend lid\nP1;Senioren 8;Teamspeler;Onbekend",
         encoding="utf-8",
     )
     result = SportlinkRealDataAdapter().load_exports(**paths)
@@ -162,7 +162,7 @@ def test_v03_distinct_trainer_roles_are_preserved(tmp_path):
 
 def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Recreatief;Recreatief;Teamspeler;;Ja\nP1;Senioren;Bond;Trainer;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Spelend lid\nP1;Recreatief;Recreatief;Teamspeler;Ja\nP1;Senioren;Bond;Trainer;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert not result.football_participations[0].plays_football
@@ -170,7 +170,7 @@ def test_v01_bond_conditions_must_match_same_team_row(tmp_path):
 
 def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren;Bond;Trainer;;Ja\nP1;Senioren;Bond;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Spelend lid\nP1;Senioren;Bond;Trainer;Ja\nP1;Senioren;Bond;Teamspeler;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert result.memberships[0].plays_football
     assert len(result.team_memberships) == 2
@@ -178,7 +178,7 @@ def test_v01_additional_trainer_role_does_not_cancel_bond_player(tmp_path):
 
 def test_v01_missing_team_type_is_signalled_not_assumed(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Functie;Spelend lid\nP1;Senioren;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamrol;Spelend lid\nP1;Senioren;Teamspeler;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert any(s.code == "MISSING_TEAM_TYPE" for s in result.signals)
@@ -216,7 +216,7 @@ def test_v02_per_source_dates_are_retained(tmp_path):
 
 def test_v02_actual_team_type_vereniging_is_known_but_not_bond(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Lokale selectie;Vereniging;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Spelend lid\nP1;Lokale selectie;Vereniging;Teamspeler;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert not result.memberships[0].plays_football
     assert not any(s.code == "UNKNOWN_TEAM_TYPE" for s in result.signals)
@@ -224,7 +224,7 @@ def test_v02_actual_team_type_vereniging_is_known_but_not_bond(tmp_path):
 
 def test_v02_teams_import_does_not_require_banking_columns(tmp_path):
     paths = exports(tmp_path)
-    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Functie;Spelend lid\nP1;Senioren 1;Bond;Teamspeler;;Ja", encoding="utf-8")
+    paths["teams_path"].write_text("Rel. code;Team;Teamsoort;Teamrol;Spelend lid\nP1;Senioren 1;Bond;Teamspeler;Ja", encoding="utf-8")
     result = SportlinkRealDataAdapter().load_exports(**paths)
     assert result.memberships[0].plays_football
     assert not any(signal.dataset == "teams" for signal in result.signals)
@@ -250,3 +250,39 @@ def test_v02_warns_on_source_dates_not_refreshed_since_previous_planning(tmp_pat
         source_dates={"teams": date(2026, 9, 30)}, previous_planning_date=date(2026, 10, 1),
         previous_source_dates={"teams": date(2026, 9, 30)})
     assert {"SOURCE_PREDATES_PREVIOUS_PLANNING", "SOURCE_NOT_REFRESHED"} <= {s.code for s in result.signals}
+
+
+def test_v05_minimal_teams_export_without_function(tmp_path):
+    paths = exports(tmp_path)
+    paths["teams_path"] = write_csv(tmp_path, "teams.csv",
+        ["Rel. code", "Naam", "Team", "Teamsoort", "Teamrol", "Spelend lid"],
+        [["P1", "Jan Smit", "Senioren 8", "Bond", "Teamspeler", "Ja"]])
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    team = result.team_memberships[0]
+    assert (team.person_id, team.team_id, team.team_type, team.team_role, team.playing_member) == (
+        "P1", "Senioren 8", "Bond", "Teamspeler", True)
+    assert result.memberships[0].plays_football
+    assert result.football_participations[0].plays_football
+    assert not any(signal.dataset == "teams" for signal in result.signals)
+
+
+@pytest.mark.parametrize("column", ["Teamrol", "Spelend lid"])
+def test_v05_missing_required_team_column_is_rejected(tmp_path, column):
+    paths = exports(tmp_path)
+    row = {"Rel. code": "P1", "Team": "Senioren 8", "Teamsoort": "Bond",
+           "Teamrol": "Teamspeler", "Spelend lid": "Ja"}
+    del row[column]
+    paths["teams_path"] = write_csv(tmp_path, "teams.csv", list(row), [list(row.values())])
+    with pytest.raises(ValueError, match=f"missing columns: {column}"):
+        SportlinkRealDataAdapter().load_exports(**paths)
+
+
+@pytest.mark.parametrize("value, code", [("", "MISSING_TEAM_TYPE"), ("Onbekend", "UNKNOWN_TEAM_TYPE")])
+def test_v05_invalid_team_type_without_function_is_signalled(tmp_path, value, code):
+    paths = exports(tmp_path)
+    paths["teams_path"] = write_csv(tmp_path, "teams.csv",
+        ["Rel. code", "Team", "Teamsoort", "Teamrol", "Spelend lid"],
+        [["P1", "Senioren 8", value, "Teamspeler", "Ja"]])
+    result = SportlinkRealDataAdapter().load_exports(**paths)
+    assert not result.memberships[0].plays_football
+    assert any(signal.dataset == "teams" and signal.code == code for signal in result.signals)

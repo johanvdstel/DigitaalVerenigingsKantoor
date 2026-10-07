@@ -19,7 +19,7 @@ def load(tmp_path, values=(10, 0, 9, 0, 1), pid="M1", unknown=False, extra=False
     functions = write_export(tmp_path, "functions.csv", function_rows, ["Rel. code", "Functie"])
     committees = write_export(tmp_path, "committees.csv", [], sorted(adapter.REQUIRED_COLUMNS["commissies"]))
     team = {"Rel. code": "M1", "Team": "Senioren", "Teamsoort": "Bond", "Teamrol": "Teamspeler",
-            "Functie": "", "Spelend lid": "Ja"}
+            "Spelend lid": "Ja"}
     teams = write_export(tmp_path, "teams.csv", [team], list(team))
     row = dict(zip(FIELDS, [pid, *values]))
     if extra:

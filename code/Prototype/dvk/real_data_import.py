@@ -60,7 +60,6 @@ class RealTeamMembership:
     person_id: str
     team_id: str
     team_role: str | None
-    team_function: str | None
     playing_member: bool | None
     team_type: str | None = None
 
@@ -115,7 +114,7 @@ class SportlinkRealDataAdapter:
         "functies": {"Rel. code", "Functie"},
         "commissies": {"Rel. code", "Commissie", "Functie"},
         "vrijwilligers_periode": {"Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"},
-        "teams": {"Rel. code", "Team", "Teamrol", "Functie", "Spelend lid"},
+        "teams": {"Rel. code", "Team", "Teamrol", "Spelend lid"},
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
@@ -295,7 +294,7 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("UNKNOWN_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
                                                  f"Onbekende Teamsoort: {team_type!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
-                                            self.value(row, "Functie") or None, playing_member, team_type or None))
+                                            playing_member, team_type or None))
             provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period,
                                         source_field="Spelend lid", source_value=playing_value,
                                         normalized_value=None if playing_member is None else str(playing_member)))
