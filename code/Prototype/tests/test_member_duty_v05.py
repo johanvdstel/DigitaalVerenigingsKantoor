@@ -282,7 +282,7 @@ def test_import_to_round2_with_actual_headers_and_teams(tmp_path):
     functions = write_export(tmp_path, "functions.csv", [{"Rel. code": "A", "Functie": approved_volunteer("A").role}],
                              sorted(adapter.REQUIRED_COLUMNS["functies"]))
     committees = write_export(tmp_path, "committees.csv", [], sorted(adapter.REQUIRED_COLUMNS["commissies"]))
-    team_rows = [{"Rel. code": pid, "Team": "JO17", "Teamrol": "Teamspeler", "Functie": "",
+    team_rows = [{"Rel. code": pid, "Team": "JO17", "Teamrol": "Teamspeler",
                   "Spelend lid": "Ja", "Teamsoort": "Bond"} for pid in ("A", "B")]
     teams = write_export(tmp_path, "teams.csv", team_rows, list(team_rows[0]))
     data = adapter.load_exports(members_path=members, functions_path=functions, committees_path=committees,
