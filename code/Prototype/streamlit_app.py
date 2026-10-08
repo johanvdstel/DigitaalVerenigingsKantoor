@@ -379,6 +379,15 @@ if all(file is not None for file in control_files.values()) and validated_period
             st.dataframe(control_rows, hide_index=True, use_container_width=True, height=360)
         else:
             st.info("Geen leden binnen dit filter.")
+        control_names = {p.person_id: p.name or "Naam onbekend" for p in dashboard.source.persons}
+        family_details = [{"Beoordeeld lid": r.member, "Vergelijking met": control_names.get(d.compared_person_id, "—"),
+                           "Gegevens van": d.subject, "Betrokken lid": d.involved_member,
+                           "Criterium": d.criterion, "Oorzaak": d.issue, "Toelichting": d.explanation}
+                          for r in dashboard.filtered(control_filter) for d in r.family_diagnostics]
+        if family_details:
+            with st.expander("Nadere uitleg bij onvoldoende gezinsgegevens"):
+                st.caption(f"{len(family_details)} oorzaken binnen het gekozen filter. Deze uitleg verandert de beoordeling niet.")
+                st.dataframe(family_details, hide_index=True, use_container_width=True, height=360)
         with st.expander("Bron- en controlediagnose"):
             st.caption("Relatiecode is de koppelsleutel. Bronregels die niet gekoppeld of verwerkt konden worden blijven hier zichtbaar.")
             st.caption(f"{len(dashboard.source.signals)} diagnosemeldingen getoond.")

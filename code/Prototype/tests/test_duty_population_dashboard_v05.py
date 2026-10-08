@@ -116,7 +116,7 @@ def test_all_table_views_have_bounded_height():
     tree = ast.parse((Path(__file__).parents[1] / 'streamlit_app.py').read_text())
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Attribute) and node.func.attr in {'dataframe', 'data_editor'}]
-    assert len(calls) == 7
+    assert len(calls) == 8
     for call in calls:
         height = next(keyword.value for keyword in call.keywords if keyword.arg == 'height')
         assert isinstance(height, ast.Constant) and 0 < height.value <= 360

@@ -7,6 +7,8 @@ from io import StringIO
 
 from .duty_control_selection import SelectionRow, select_population
 from .no_show import season_id
+from .model import Person
+from .member_duty import canonical_address, registered_parents
 from .real_data_import import SportlinkRealDataAdapter, RealDataImportResult
 
 EXPORTS = {
@@ -56,6 +58,60 @@ SIGNAL_TEXT = {
 
 
 @dataclass(frozen=True)
+class FamilyDiagnostic:
+    compared_person_id: str | None
+    involved_member: str
+    subject: str
+    criterion: str
+    issue: str
+    explanation: str
+
+
+def family_diagnostics(expectation):
+    """Explain existing family grounds from their own facts; never infer new grounds."""
+    persons = {fact.person_id: fact for fact in expectation.source_facts if isinstance(fact, Person)}
+    assessed = persons.get(expectation.person_id)
+    details = []
+    for ground in expectation.grounds:
+        if ground.code != "family_data_insufficient":
+            continue
+        other_id = ground.supporting_person_id
+        other = persons.get(other_id)
+        if other_id is None:
+            explanation = "Zowel het oudercriterium als het adrescriterium is bij dit lid niet bruikbaar voor de gezinsregel."
+            subjects = ((assessed, "Beoordeeld lid"),)
+        else:
+            different_addresses = (assessed is not None and other is not None
+                                   and canonical_address(assessed) is not None
+                                   and canonical_address(other) is not None
+                                   and canonical_address(assessed) != canonical_address(other))
+            explanation = ("De volledige woonadressen verschillen; het oudercriterium kan niet volledig worden beoordeeld."
+                           if different_addresses else
+                           "Een gezinsverband met dit andere lid is niet aangetoond; het ouder- of adrescriterium kan niet volledig worden beoordeeld.")
+            explanation += " De bestaande gezinsregel houdt deze vergelijking daarom onzeker."
+            subjects = ((assessed, "Beoordeeld lid"), (other, "Ander vergeleken lid"))
+        for person, subject in subjects:
+            if person is None:
+                # Do not invent a missing source field when facts are unavailable.
+                continue
+            issues = []
+            if not person.postal_code or not "".join(person.postal_code.split()):
+                issues.append(("Adres", "Postcode ontbreekt of is niet bruikbaar"))
+            if not person.house_number or not person.house_number.strip():
+                issues.append(("Adres", "Huisnummer ontbreekt of is niet bruikbaar"))
+            if person.address_conflicting:
+                issues.append(("Adres", "Adresgegevens conflicteren tussen bronregels"))
+            if person.parent_data_conflicting:
+                issues.append(("Ouders", "Ouderregistraties conflicteren tussen bronregels"))
+            elif registered_parents(person) is None:
+                issues.append(("Ouders", "Geen bruikbare ouderregistratie beschikbaar"))
+            for criterion, issue in issues:
+                details.append(FamilyDiagnostic(other_id, person.name or "Naam onbekend", subject,
+                                                criterion, issue, explanation))
+    return tuple(details)
+
+
+@dataclass(frozen=True)
 class DutyControlRow:
     person_id: str
     member: str
@@ -63,6 +119,7 @@ class DutyControlRow:
     why: str
     registered: str
     status: str
+    family_diagnostics: tuple[FamilyDiagnostic, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -106,7 +163,7 @@ def present_controls(source, controls):
                     "—" if control.expected_required_hours is None else str(control.expected_required_hours),
                     "; ".join(dict.fromkeys(explanations)),
                     "—" if control.registered_required_hours is None else str(control.registered_required_hours),
-                    control.status))
+                    control.status, family_diagnostics(control.expectation)))
     return DutyControlDashboard(tuple(rows), source)
 
 
