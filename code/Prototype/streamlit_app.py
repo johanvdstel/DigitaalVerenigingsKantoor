@@ -24,7 +24,7 @@ from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding
 from dvk.real_data_import import SportlinkRealDataAdapter
-from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard
+from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard, suggested_season, validate_season
 import os
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
@@ -311,9 +311,9 @@ def _render_planning():
     if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
     else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     st.markdown("### Databronnen")
-    st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True)
+    st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True, height=360)
     st.markdown("### Datakwaliteit")
-    if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True)
+    if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
     else: st.success("Geen datakwaliteitssignalen voor deze planning.")
     st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
 
@@ -338,18 +338,36 @@ st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vra
 with st.sidebar:
     st.header("Taakplichtcontrole")
     control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
-    control_period = st.text_input("Periode / seizoen van Overzicht per periode", key="duty-control-period")
+    control_period = st.text_input("Periode / seizoen van Overzicht per periode",
+                                   value=suggested_season(control_as_of), key="duty-control-period",
+                                   placeholder="2026-2027",
+                                   help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
 st.caption("Voer de peildatum en de periode / het seizoen in bij Taakplichtcontrole in de zijbalk.")
 control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
                  for dataset, (label, _) in EXPORTS.items()}
 control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")
-if all(file is not None for file in control_files.values()) and control_period.strip():
+try:
+    validated_period = validate_season(control_period)
+except ValueError as exc:
+    validated_period = None
+    st.error(str(exc))
+if all(file is not None for file in control_files.values()) and validated_period is not None:
     try:
         dashboard = load_duty_dashboard({key: file.getvalue() for key, file in control_files.items()},
-                                        as_of=control_as_of, source_period=control_period)
+                                        as_of=control_as_of, source_period=validated_period)
     except ValueError as exc:
         st.error(str(exc))
     else:
+        st.markdown("#### Selectieverantwoording")
+        for column, (label, count) in zip(st.columns(4), dashboard.selection_counts.items()):
+            column.metric(label, count)
+        with st.expander("Redenen voor uitsluiting en selectieproblemen"):
+            selection_rows = [{"Lid": r.member, "Relatiecode": r.person_id,
+                               "Selectie": r.outcome, "Reden": r.reason}
+                              for r in dashboard.selection if r.outcome != "Meegenomen"]
+            st.caption(f"{len(selection_rows)} records getoond. Ledenregels zonder relatiecode blijven in de brondiagnose.")
+            st.dataframe(selection_rows, hide_index=True, use_container_width=True, height=360)
+        st.markdown("#### Taakplichtbeoordeling")
         for column, (label, count) in zip(st.columns(4), dashboard.counts.items()):
             column.metric(label.capitalize(), count)
         st.caption(f"Peildatum: {control_as_of:%d-%m-%Y} · Periode: {control_period}")
@@ -357,13 +375,15 @@ if all(file is not None for file in control_files.values()) and control_period.s
                          "Sportlink-A": r.registered, "Controlestatus": r.status,
                          "Relatiecode": r.person_id} for r in dashboard.filtered(control_filter)]
         if control_rows:
-            st.dataframe(control_rows, hide_index=True, use_container_width=True)
+            st.caption(f"{len(control_rows)} van {len(dashboard.rows)} beoordeelde leden getoond.")
+            st.dataframe(control_rows, hide_index=True, use_container_width=True, height=360)
         else:
             st.info("Geen leden binnen dit filter.")
         with st.expander("Bron- en controlediagnose"):
             st.caption("Relatiecode is de koppelsleutel. Bronregels die niet gekoppeld of verwerkt konden worden blijven hier zichtbaar.")
+            st.caption(f"{len(dashboard.source.signals)} diagnosemeldingen getoond.")
             st.dataframe([{"Bron": s.dataset, "Ernst": s.severity, "Code": s.code,
                            "Bronreferentie": s.record_key, "Melding": s.message}
-                          for s in dashboard.source.signals], hide_index=True, use_container_width=True)
+                          for s in dashboard.source.signals], hide_index=True, use_container_width=True, height=360)
 else:
     st.info("Selecteer alle vijf CSV-bestanden en vul hun periode / seizoen in om de controle te tonen.")

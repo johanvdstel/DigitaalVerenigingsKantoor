@@ -1,9 +1,12 @@
 """Read-only application/presentation boundary for local duty controls."""
 import csv
+import re
 from dataclasses import dataclass
 from datetime import date
 from io import StringIO
 
+from .duty_control_selection import SelectionRow, select_population
+from .no_show import season_id
 from .real_data_import import SportlinkRealDataAdapter, RealDataImportResult
 
 EXPORTS = {
@@ -66,6 +69,13 @@ class DutyControlRow:
 class DutyControlDashboard:
     rows: tuple[DutyControlRow, ...]
     source: RealDataImportResult
+    selection: tuple[SelectionRow, ...] = ()
+
+    @property
+    def selection_counts(self):
+        return {"Ingelezen unieke leden": len(self.selection), **{label: sum(r.outcome == outcome for r in self.selection)
+                for label, outcome in (("Meegenomen", "Meegenomen"), ("Uitgesloten", "Uitgesloten"),
+                                       ("Selectieproblemen", "Selectieprobleem"))}}
 
     def filtered(self, selection="Alle"):
         status = FILTERS[selection]
@@ -100,11 +110,26 @@ def present_controls(source, controls):
     return DutyControlDashboard(tuple(rows), source)
 
 
+def suggested_season(as_of: date) -> str:
+    return season_id(as_of).replace("/", "-")
+
+
+def validate_season(value: str) -> str:
+    value = value.strip()
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{4}", value):
+        raise ValueError("Gebruik JJJJ-JJJJ voor het seizoen, bijvoorbeeld 2026-2027.")
+    start, end = map(int, value.split("-"))
+    if not 1 <= start < 9999 or end != start + 1:
+        raise ValueError("Gebruik twee opeenvolgende jaren, bijvoorbeeld 2026-2027.")
+    return value
+
+
 def load_duty_dashboard(exports: dict[str, bytes], *, as_of: date, source_period: str):
     """Use the existing adapter with in-memory text streams; never persist uploads."""
     if not source_period.strip():
         raise ValueError("Vul de periode of het seizoen van Overzicht per periode in.")
     streams = {}
+    member_rows = []
     for dataset, (label, argument) in EXPORTS.items():
         if exports.get(dataset) is None:
             raise ValueError(f"Selecteer het bestand {label}.")
@@ -125,8 +150,15 @@ def load_duty_dashboard(exports: dict[str, bytes], *, as_of: date, source_period
             message = str(exc).replace("missing columns", "ontbrekende verplichte kolommen")
             raise ValueError(f"{label}: {message}") from None
         streams[argument] = StringIO(text)
+        if dataset == "leden":
+            member_rows = rows
     try:
         source = SportlinkRealDataAdapter().load_exports(**streams, as_of=as_of, source_period=source_period.strip())
     except (ValueError, csv.Error, TypeError, AttributeError):
         raise ValueError("De CSV's bevatten een onleesbare regel of ongeldige bronwaarde. Controleer de exports, waaronder datums en kolomwaarden.") from None
-    return present_controls(source, source.compare_required_hours(as_of))
+    selection = select_population(member_rows, source, as_of)
+    included = {r.person_id for r in selection if r.outcome == "Meegenomen"}
+    # Derive with the complete source context; selection must not remove household evidence.
+    dashboard = present_controls(source, tuple(c for c in source.compare_required_hours(as_of)
+                                               if c.person_id in included))
+    return DutyControlDashboard(dashboard.rows, source, selection)

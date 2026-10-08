@@ -91,13 +91,13 @@ def test_five_uploads_render_without_sqlite_or_sportlink_access(tmp_path, monkey
     monkeypatch.setattr(st, 'file_uploader', lambda label, **kwargs:
                         BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
     app = AppTest.from_file(str(path))
-    app.session_state['duty-control-period'] = 'Synthetisch seizoen'
+    app.session_state['duty-control-period'] = '2026-2027'
     app.session_state['duty-control-date'] = TODAY
     app.run(timeout=20)
     assert not app.exception
     assert len(app.error) == 1
     assert any(item.label == 'Totaal' and item.value == '1' for item in app.metric)
-    assert app.dataframe[0].value.iloc[0]['Lid'] == 'Synthetisch lid'
+    assert next(item.value for item in app.dataframe if 'Controlestatus' in item.value.columns).iloc[0]['Lid'] == 'Synthetisch lid'
     assert not (tmp_path / 'dvk_v05.sqlite').exists()
 
 
