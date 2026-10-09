@@ -82,12 +82,13 @@
 | Oorspronkelijke kolom | Status | Functie |
 | --- | --- | --- |
 | `Rel. code` | T | Koppeling naar lid |
+| `Naam` | F, nog niet T | Herkenbare weergave van het commissielid |
 | `Commissie` | T/F | Commissie-identiteit voor CKC-functieclassificatie |
 | `Functie` | T/F | Oorspronkelijke functie binnen commissie |
-| `Begindatum` | G / bronaanwezigheid bevestigd | Datum bewaren; geaccepteerde export had dit voor alle registraties |
+| `Begindatum` | F, nog niet T | Start van de commissieregistratie; geaccepteerde export had dit voor alle registraties |
 | `Einddatum` | G / in gecontroleerde export niet ingevuld | Alleen gebruiken indien werkelijk aangeleverd |
 
-**Controles:** combinatie commissie + functie intact houden, bronrelatie controleren, datumvalidatie waar van toepassing, geen dubbeltelling met Functies, geen zelfbedachte einddatums. Vaststellen of `Begindatum` formeel als verplicht exportveld moet gelden (momenteel niet T).
+**Door opdrachtgever bevestigd minimum:** vijf kolommen: `Rel. code`, `Naam`, `Commissie`, `Functie`, `Begindatum`. `Einddatum` blijft buiten de minimumselectie. De huidige importer dwingt `Naam` en `Begindatum` nog niet als technische kolommen af.\n\n**Controles:** combinatie commissie + functie intact houden, bronrelatie controleren, datumvalidatie waar van toepassing, geen dubbeltelling met Functies, geen zelfbedachte einddatums. Vaststellen of `Begindatum` formeel als verplicht exportveld moet gelden (momenteel niet T).
 
 **Basis:** `real_data_import.py`; herijkte baseline B-04/B-11.
 
@@ -170,7 +171,7 @@ aanvangstijd,status,accommodatie,veld,locatie,plaats
 - **V-01:** Zijn dit werkelijk alle *eerder afgesproken* minimumvelden per bron, of bestaan nog aanvullende historische veldlijsten in oudere chats/documentatie?
 - **V-02:** Leden: formeel verplicht stellen van `Afmelddatum`, `Postcode`, `Huisnummer` en eventuele andere functionele bronkolommen, met onderscheid tussen aanwezige kolom en lege toegestane waarde.
 - **V-03:** Teams: `Teamsoort` van gesignaleerd ontbrekend naar technisch verplicht brengen? Dit vraagt apart code- en testbesluit, geen wijziging door dit document.
-- **V-04:** Commissies: `Begindatum` verplicht in exportselectie, ondanks huidige optionele parser?
+- **V-04:** Commissies: opdrachtgever bevestigde `Begindatum` en `Naam` als verplichte exportkolommen; technische importvalidatie volgt afzonderlijk.
 - **V-05:** Vrijwilligers API: welke velden en stabiele identificatie levert de echte respons; hoe zijn naam en relatiecode betrouwbaar te koppelen?
 - **V-06:** Programma API: welke aangevraagde velden zijn werkelijk noodzakelijk en betrouwbaar aanwezig; klopt teamkoppeling met Teams-export?
 - **V-07:** Overzicht per periode: bevestig B/C/D/E en seizoenssemantiek bij planner; houd BL-03 vorigeseizoensachterstand apart van A.
