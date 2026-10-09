@@ -99,13 +99,14 @@
 | Oorspronkelijke kolom | Status | Betekenis |
 | --- | --- | --- |
 | `Relatiecode` | T | Koppeling naar lid; let op verschil met `Rel. code` |
+| `Volledige naam` | F, nog niet T | Betekenisvolle leesbaarheid en herkenning van het lid in de urencontrole |
 | `Verplichte punten` | T/F | Sportlink A — verplichte uren/punten |
 | `Gecorrigeerde punten` | T/F | Sportlink B — correcties |
 | `Voldaan` | T/F | Sportlink C — voldaan |
 | `Nog ingedeeld` | T/F | Sportlink D — reeds ingedeeld |
 | `Niet ingedeeld` | T/F | Sportlink E — resterend |
 
-**Controles:** vijf urenwaarden moeten aanwezig zijn en geldige gehele getallen zijn; controleer `E = A − B − C − D`; negatieve E kan geldig zijn; koppel op relatiecode; leg seizoen en ophaaldatum vast als importmetadata. Betekenis en praktische correctiecyclus B/C/D/E vragen aanvullende bronverificatie (BL-07). **Sportlink A is reeds met echte CKC-export functioneel getoetst.**
+**Door opdrachtgever aangevuld minimum:** zeven kolommen: `Relatiecode`, `Volledige naam`, `Verplichte punten`, `Gecorrigeerde punten`, `Voldaan`, `Nog ingedeeld`, `Niet ingedeeld`. De huidige importer dwingt `Volledige naam` nog niet technisch af.\n\n**Controles:** vijf urenwaarden moeten aanwezig zijn en geldige gehele getallen zijn; controleer `E = A − B − C − D`; negatieve E kan geldig zijn; koppel op relatiecode; leg seizoen en ophaaldatum vast als importmetadata. Betekenis en praktische correctiecyclus B/C/D/E vragen aanvullende bronverificatie (BL-07). **Sportlink A is reeds met echte CKC-export functioneel getoetst.**
 
 **Basis:** `real_data_import.py`, `hours_control.py`, herijkte baseline B-08/B-10.
 
