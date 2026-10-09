@@ -126,7 +126,7 @@
 | `vrijwilligerstaakcode` (requestparameter) | F | Taakcode voor bronopvraag en koppeling aan CKC-dienstencatalogus |
 | `aantaldagen`, `weekoffset`, `client_id` (requestparameters) | G | Venster en authenticatie/configuratie; geen persoonsvelden |
 
-**Controles:** taakcode, concrete dienstperiode, geldige tijdzone, unieke toewijzing aan dienst, feitelijke bezetting, niet-gokbare persoonsidentificatie, ontbrekende/ambigue registratie en bronactualiteit. De bestaande adapter leidt een technische boekingsidentiteit af; die is **niet hetzelfde** als een door Sportlink bevestigd stabiel boekings-ID. Live-respons en werkelijk minimumcontract zijn nog afzonderlijk te accepteren.
+**Door opdrachtgever bevestigd minimum:** zeven API-velden: `naam`, `datumvanaf`, `datumtot`, `tijdvanaf`, `tijdtot`, `lokatie`, `heledag`; daarnaast de aanvraagparameter `vrijwilligerstaakcode`. De exacte opbouw van `naam` en de betrouwbaarheid van koppeling met de Leden-export zijn nog te verifiëren bij API-acceptatie. De API levert geen relatienummer; ambigue persoonsmatches mogen niet automatisch worden toegewezen.\n\n**Controles:** taakcode, concrete dienstperiode, geldige tijdzone, unieke toewijzing aan dienst, feitelijke bezetting, niet-gokbare persoonsidentificatie, ontbrekende/ambigue registratie en bronactualiteit. De bestaande adapter leidt een technische boekingsidentiteit af; die is **niet hetzelfde** als een door Sportlink bevestigd stabiel boekings-ID. Live-respons en werkelijk minimumcontract zijn nog afzonderlijk te accepteren.
 
 **Basis:** `vrijwilligers_adapter.py`, `vrijwilligers_client.py`, v0.4-baseline.
 
