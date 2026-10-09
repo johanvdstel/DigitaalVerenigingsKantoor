@@ -68,13 +68,12 @@
 | Oorspronkelijke kolom | Status | Functie |
 | --- | --- | --- |
 | `Rel. code` | T | Koppeling naar lid |
+| `Naam` | F, nog niet T | Herkenbare weergave van het teamlid |
 | `Team` | T | Teamregistratie |
 | `Teamsoort` | **F, momenteel niet T** | Onderscheid `Bond` / `Vereniging` |
 | `Teamrol` | T/F | Vereist `Teamspeler` voor kwalificerende deelname |
 | `Spelend lid` | T/F | Vereist `Ja` voor kwalificerende deelname |
-| `Naam` | G | Herkenbare exportcontext; niet nodig voor koppeling als relatiecode bestaat |
-
-**Controles:** alleen **dezelfde actuele teamregel** met `Teamsoort = Bond`, `Teamrol = Teamspeler`, `Spelend lid = Ja` bewijst bondsteamdeelname; meerdere regels zijn toegestaan. Onbekende/ontbrekende teamsoort of ongeldige speelstatus signaleren. **Open implementatieverschil:** importer accepteert technisch een bestand zonder `Teamsoort`, maar functioneel is deze kolom noodzakelijk. `Teamrol` en `Spelend lid` zijn door Sportlink gegenereerde waarden voor ingeschreven teamleden. Geen bancaire gegevens importeren.
+**Door opdrachtgever bevestigd minimum:** zes kolommen: `Rel. code`, `Naam`, `Team`, `Teamsoort`, `Teamrol`, `Spelend lid`. De aanwezigheid van `Naam` en `Teamsoort` is functioneel verplicht, hoewel de huidige importer ze nog niet beide als technische minimumkolommen afdwingt.\n\n**Controles:** alleen **dezelfde actuele teamregel** met `Teamsoort = Bond`, `Teamrol = Teamspeler`, `Spelend lid = Ja` bewijst bondsteamdeelname; meerdere regels zijn toegestaan. Onbekende/ontbrekende teamsoort of ongeldige speelstatus signaleren. **Open implementatieverschil:** importer accepteert technisch een bestand zonder `Teamsoort`, maar functioneel is deze kolom noodzakelijk. `Teamrol` en `Spelend lid` zijn door Sportlink gegenereerde waarden voor ingeschreven teamleden. Geen bancaire gegevens importeren.
 
 **Basis:** `real_data_import.py`; `tests/test_real_data_import_v04.py`; baseline B-02.
 
