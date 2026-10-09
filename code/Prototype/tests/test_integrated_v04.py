@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
@@ -101,8 +102,8 @@ def test_r17_integrated_weekend_reaches_proposal_human_decision_and_assignment()
     updated_case = apply_assignment_to_case(case, assignment)
     after = duty_position_from_registration(updated_case.sportlink_duty)
     assert (after.A, after.B, after.C) == (before.A, before.B, before.C)
-    assert after.D == before.D + 1
-    assert after.E == before.E - 1
+    assert after.D == before.D
+    assert after.E == before.E
 
 
 def test_r17_rejection_never_creates_assignment_or_mutates_source_position():

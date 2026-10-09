@@ -7,6 +7,7 @@ name = "dvk-prototype"
 version = "0.4.0"
 description = "Deterministisch prototype voor het Digitaal Verenigingskantoor"
 requires-python = ">=3.11"
+dependencies = ["streamlit>=1.40,<2"]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
@@ -14,6 +15,9 @@ test = ["pytest>=8"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["dvk*"]
+
+[tool.setuptools.package-data]
+dvk = ["configuration/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
