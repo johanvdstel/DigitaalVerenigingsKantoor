@@ -55,10 +55,11 @@
 | Oorspronkelijke kolom | Status | Functie |
 | --- | --- | --- |
 | `Rel. code` | T | Koppeling naar lid |
+| `Naam` | F, nog niet T | Betekenisvolle leesbaarheid en herkenning van de functiehouder in DVK |
 | `Functie` | T/F | Oorspronkelijke functietitel; CKC-classificatie betaald/onbetaald/erelid en vrijstelling |
 | `Begindatum`, `Einddatum` | G, **niet aanwezig in gecontroleerde export** | Alleen verwerken als latere bronstructuur ze daadwerkelijk levert |
 
-**Controles:** bestaande relatiecode, originele functienaam bewaren, onbekende/lege functie signaleren, dubbelen niet dubbel tellen; exportmoment als geldigheidsgrens zolang begin/einddatum ontbreken. `Verzorger` blijft bronclassificatievraag BL-08. Gevoelige en bancaire exportkolommen zijn niet nodig.
+**Door opdrachtgever aangevuld minimum:** drie kolommen: `Rel. code`, `Naam`, `Functie`. De kolom `Naam` is vereist voor begrijpelijke weergave, ook al gebruikt de huidige importer vooral de relatiecode voor koppeling.\n\n**Controles:** bestaande relatiecode, originele functienaam bewaren, onbekende/lege functie signaleren, dubbelen niet dubbel tellen; exportmoment als geldigheidsgrens zolang begin/einddatum ontbreken. `Verzorger` blijft bronclassificatievraag BL-08. Gevoelige en bancaire exportkolommen zijn niet nodig.
 
 **Basis:** `real_data_import.py`; herijkte baseline B-04/B-11 en broncontrole.
 
