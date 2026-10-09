@@ -146,3 +146,16 @@ def test_mixed_population_counts_and_filters(tmp_path):
     assert len(view.filtered('Alle')) == 3
     assert len(view.filtered('Alleen afwijkingen')) == 1
     assert len(view.filtered('Alleen niet betrouwbaar beoordeelbaar')) == 1
+
+
+@pytest.mark.parametrize('values,status', [((10,0,0,0,10), 'overeenkomst'),
+                                           ((0,0,0,0,0), 'afwijking')])
+def test_contact_value_preserves_imported_control_status(tmp_path, values, status):
+    data = load(tmp_path, values=values)
+    rows = []
+    for contact in (True, False, None):
+        changed = replace(data, persons=(replace(data.persons[0], contact_via_parent=contact),))
+        row, = present_controls(changed, changed.compare_required_hours(TODAY)).rows
+        assert row.status == status
+        rows.append(row)
+    assert rows[0] == rows[1] == rows[2]

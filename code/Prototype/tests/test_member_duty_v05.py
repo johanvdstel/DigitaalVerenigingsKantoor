@@ -1,4 +1,4 @@
-"""Development regressions for the accepted round-2 rules, not release acceptance."""
+"""Synthetic development regressions for address-based B-05/B-06/B-07."""
 import csv
 from dataclasses import replace
 from datetime import date
@@ -46,18 +46,18 @@ def test_free_address_and_conflicting_address_do_not_prove_household():
     assert canonical_address(replace(person("P"), address_conflicting=True)) is None
 
 
-@pytest.mark.parametrize("left,right,match", [
-    (("Ouder A", "Ouder B"), ("Ouder B", "Ouder A"), True),
-    (("Ouder A", None), (None, "Ouder A"), True),
-    (("Ouder A", None), ("Ouder A", "Ouder B"), False),
-    (("Ouder A", "Ouder B"), ("Ouder A", "Ouder C"), False),
-    ((None, None), (None, None), False),
-    (("Anna Gelijk", None), ("Ben Gelijk", None), False),
+@pytest.mark.parametrize("left,right", [
+    (("Ouder A", "Ouder B"), ("Ouder B", "Ouder A")),
+    (("Ouder A", None), (None, "Ouder A")),
+    (("Ouder A", None), ("Ouder A", "Ouder B")),
+    (("Ouder A", "Ouder B"), ("Ouder A", "Ouder C")),
+    ((None, None), (None, None)),
+    (("Anna Gelijk", None), ("Ben Gelijk", None)),
 ])
-def test_complete_parent_registration(left, right, match):
+def test_parent_registration_never_proves_household(left, right):
     a = person("A", parent_names=left)
     b = replace(person("B", parent_names=right), house_number="18")
-    assert ("parents" in family_criteria(a, b)) is match
+    assert family_criteria(a, b) == ()
 
 
 def test_address_is_independent_and_addition_distinguishes():
@@ -136,7 +136,7 @@ def test_nontransitive_pair_comparison():
     b = person("B", date(2012, 1, 1), parent_names=("Ouder A", None))
     c = replace(person("C", date(2014, 1, 1), parent_names=("Ouder C", None)), house_number="18")
     b = replace(b, house_number="18")
-    assert family_criteria(a, b) == ("parents",)
+    assert family_criteria(a, b) == ()
     assert family_criteria(b, c) == ("address",)
     assert family_criteria(a, c) == ()
     r = outcomes(source(a, b, c))
@@ -234,7 +234,7 @@ def test_conflicting_parent_data_cannot_prove_parent_match_but_address_still_can
     assert family_criteria(a, b) == ("address",)
     assert outcomes(source(a, b))["B"].expected_required_hours == 0
     b = replace(b, house_number="18")
-    assert outcomes(source(a, b))["B"].expected_required_hours is None
+    assert outcomes(source(a, b))["B"].expected_required_hours == 10
 
 
 def test_unknown_household_function_and_separate_source_facts():
@@ -295,3 +295,95 @@ def test_import_to_round2_with_actual_headers_and_teams(tmp_path):
     assert ground.registrations[0].source.provenance.kind == "SOURCE_FACT"
     assert len(data.persons) == 2
     assert data.duty_records == ()
+
+
+@pytest.mark.parametrize("parents", [("Ouder A", "Ouder B"), ("Ouder A", None), (None, None)])
+def test_other_addresses_never_use_parents_or_unknown_birth(parents):
+    a = person("A", date(2012, 1, 1), parent_names=("Ouder A", "Ouder B"))
+    others = tuple(replace(person(str(i), None, parent_names=parents), house_number=str(100+i))
+                   for i in range(30))
+    r = outcomes(source(a, *others))["A"]
+    assert r.expected_required_hours == 10
+    assert codes(r) == {"oldest_minor"}
+    assert not any(isinstance(f, Person) and f.person_id != "A" for f in r.source_facts)
+
+
+def test_same_address_different_names_and_no_parents_use_oldest():
+    a = replace(person("A", date(2010, 1, 1)), name="Anna Voorbeeld")
+    b = replace(person("B", date(2012, 1, 1)), name="Ben Anders")
+    r = outcomes(source(a, b))
+    assert r["A"].expected_required_hours == 10
+    assert r["B"].expected_required_hours == 0
+
+
+@pytest.mark.parametrize("conflicting", [False, True])
+@pytest.mark.parametrize("born", [date(2012, 1, 1), date(1990, 1, 1)])
+def test_own_unusable_address_cannot_prove_duty_and_personal_exemption_wins(conflicting, born):
+    p = replace(person("A", born), address_conflicting=conflicting,
+                postal_code="8000AA" if conflicting else None)
+    assert outcomes(source(p))["A"].expected_required_hours is None
+    assert outcomes(source(p, roles=(RoleAssignment("A", "Assistenttrainer"),)))["A"].expected_required_hours == 0
+
+
+@pytest.mark.parametrize("same_address", [False, True])
+def test_unknown_birth_only_matters_for_address_related_oldest(same_address):
+    a = person("A", date(2012, 1, 1))
+    b = replace(person("B", None), house_number="17" if same_address else "18")
+    r = outcomes(source(a, b))["A"]
+    assert r.expected_required_hours == (None if same_address else 10)
+    assert ("family_birth_date_insufficient" in codes(r)) is same_address
+
+
+@pytest.mark.parametrize("role", [None, "Assistenttrainer"])
+@pytest.mark.parametrize("missing_address", [False, True])
+def test_contact_via_parent_does_not_change_decision_or_comparison(role, missing_address):
+    a = replace(person("A", date(2012, 1, 1)), postal_code=None if missing_address else "8000AA")
+    b = person("B", date(2010, 1, 1))
+    values = []
+    for contact in (True, False, None):
+        data = source(replace(a, contact_via_parent=contact), replace(b, contact_via_parent=contact),
+                      roles=() if role is None else (RoleAssignment("B", role),))
+        r = outcomes(data)["A"]
+        c = next(c for c in data.compare_required_hours(TODAY) if c.person_id == "A")
+        values.append((r.status, r.expected_required_hours, r.grounds, c.status))
+    assert values[0] == values[1] == values[2]
+
+
+def test_address_case_and_outer_spaces_normalize_without_merging_additions():
+    a = person("A", house_number_addition=" a ")
+    b = replace(person("B", house_number_addition="A"), postal_code=" 8000aa ", house_number=" 17 ")
+    assert family_criteria(a, b) == ("address",)
+    assert family_criteria(a, replace(b, house_number_addition="B")) == ()
+
+
+@pytest.mark.parametrize('addition,expected', [('', 0), (None, 0), ('A', 10)])
+def test_additions_separate_minor_households(addition, expected):
+    a = person('A', date(2010, 1, 1))
+    b = person('B', date(2012, 1, 1), house_number_addition=addition)
+    assert outcomes(source(a, b))['B'].expected_required_hours == expected
+
+
+@pytest.mark.parametrize('parents', [('Ouder A', 'Ouder B'), ('Ouder A', None), (None, None)])
+def test_known_older_minor_at_other_address_cannot_exempt(parents):
+    a = person('A', date(2010, 1, 1), parent_names=parents)
+    b = replace(person('B', date(2012, 1, 1), parent_names=('Ouder A', 'Ouder B')), house_number='18')
+    assert outcomes(source(a, b))['B'].expected_required_hours == 10
+
+
+def test_duplicate_import_normalizes_only_unambiguous_address_notation(tmp_path):
+    adapter = SportlinkRealDataAdapter()
+    row = {'Rel. code': 'M1', 'Naam': 'Synthetisch lid', 'Geb.dat.': '01-01-2012',
+           'Lidstatus': 'Definitief', 'Lidsoort': 'Bondslid', 'Status lidmaatschap': '',
+           'Postcode': '8000 aa', 'Huisnummer': '17', 'Toevoeging': 'a'}
+    def imported(addition):
+        members = write_export(tmp_path, 'members.csv', [row, {**row, 'Postcode': ' 8000AA ',
+                               'Huisnummer': ' 17 ', 'Toevoeging': addition}], list(row))
+        paths = {key: write_export(tmp_path, key+'.csv', [], sorted(adapter.REQUIRED_COLUMNS[key]))
+                 for key in ('functies', 'commissies', 'teams')}
+        return adapter.load_exports(members_path=members, functions_path=paths['functies'],
+                                    committees_path=paths['commissies'], teams_path=paths['teams'], duty_path=None)
+    data = imported(' A ')
+    assert canonical_address(data.persons[0]) == ('8000AA', '17', 'A')
+    assert not data.persons[0].address_conflicting
+    assert any(p.source_value == 'a' for p in data.provenance)
+    assert imported('B').persons[0].address_conflicting

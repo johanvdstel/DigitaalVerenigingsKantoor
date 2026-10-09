@@ -38,7 +38,7 @@ def test_missing_address_field_is_specific(field, label):
     p = replace(younger(), **{field: None})
     row = diagnosed(source(p))
     assert any(label in d.issue and d.subject == 'Beoordeeld lid' for d in row.family_diagnostics)
-    assert any(d.criterion == 'Ouders' for d in row.family_diagnostics)
+    assert not any(d.criterion == 'Ouders' for d in row.family_diagnostics)
     assert row.expected == '—'
 
 
@@ -55,13 +55,8 @@ def test_missing_parents_identifies_which_member(whose):
     if whose == 'assessed': a = replace(a, parent_names=(None, None))
     else: b = replace(b, parent_names=(None, None))
     row = diagnosed(source(a,b))
-    assert len(row.family_diagnostics) == 1
-    d, = row.family_diagnostics
-    assert d.involved_member == ('Lid Y' if whose == 'assessed' else 'Lid O')
-    assert d.subject == ('Beoordeeld lid' if whose == 'assessed' else 'Ander vergeleken lid')
-    assert d.criterion == 'Ouders' and d.compared_person_id == 'O'
-    assert 'woonadressen verschillen' in d.explanation
-    assert 'Synthetische ouder' not in str(d)
+    assert row.expected == '10'
+    assert row.family_diagnostics == ()
 
 
 def test_multiple_members_and_causes_stay_separate():
@@ -70,13 +65,13 @@ def test_multiple_members_and_causes_stay_separate():
     c = replace(older(), person_id='C', name='Ander synthetisch lid', postal_code=None,
                 house_number=None, address_conflicting=True, parent_data_conflicting=True)
     row = diagnosed(source(a,b,c))
-    assert {d.compared_person_id for d in row.family_diagnostics} == {'O','C'}
+    assert {d.compared_person_id for d in row.family_diagnostics} == {'C'}
     c_details = [d for d in row.family_diagnostics if d.compared_person_id == 'C']
-    assert len(c_details) == 4
+    assert len(c_details) == 3
     assert any('Postcode' in d.issue for d in c_details)
     assert any('Huisnummer' in d.issue for d in c_details)
     assert any(d.criterion == 'Adres' and 'conflicteren' in d.issue for d in c_details)
-    assert any(d.criterion == 'Ouders' and 'conflicteren' in d.issue for d in c_details)
+    assert not any(d.criterion == 'Ouders' for d in c_details)
 
 
 @pytest.mark.parametrize('whose', ['assessed', 'other'])
@@ -85,7 +80,7 @@ def test_conflicts_are_explained_without_guessed_conflicting_fields(whose):
     b = replace(older(address_conflicting=whose == 'other', parent_data_conflicting=whose == 'other'), house_number='18')
     row = diagnosed(source(a,b))
     conflicts = [d for d in row.family_diagnostics if 'conflicteren' in d.issue]
-    assert len(conflicts) == (4 if whose == 'assessed' else 2)
+    assert len(conflicts) == (2 if whose == 'assessed' else 1)
     assert {d.involved_member for d in conflicts} == {a.name if whose == 'assessed' else b.name}
     assert not any('Postcode' in d.issue or 'Huisnummer' in d.issue for d in conflicts)
 
@@ -108,7 +103,7 @@ def test_valid_single_parent_is_not_called_incomplete():
 def test_ui_details_are_read_only_and_follow_filter(tmp_path, monkeypatch):
     import streamlit as st
     from dvk.vrijwilligers_client import SportlinkVrijwilligersClient
-    members = [member('M1', **{'Geb.dat.':'01-01-2012'}),
+    members = [member('M1', **{'Geb.dat.':'01-01-2012', 'Postcode':''}),
                member('M2', **{'Geb.dat.':'01-01-2010'})]
     files = exports(tmp_path, members)
     files['teams'] = files['teams'] + b'M2;Senioren;Bond;Teamspeler;Ja\r\n'
@@ -135,3 +130,15 @@ def test_ui_details_are_read_only_and_follow_filter(tmp_path, monkeypatch):
     app.radio(key='duty-control-filter').set_value('Alleen afwijkingen').run()
     assert not app.exception
     assert not any('Oorzaak' in item.value.columns for item in app.dataframe)
+
+
+@pytest.mark.parametrize('same_address', [False, True])
+def test_birth_diagnosis_requires_same_registered_address(same_address):
+    b = replace(older(), birth_date=None, house_number='17' if same_address else '18')
+    row = diagnosed(source(younger(), b))
+    assert bool(row.family_diagnostics) is same_address
+    if same_address:
+        d, = row.family_diagnostics
+        assert d.criterion == 'Geboortedatum'
+        assert d.subject == 'Ander vergeleken lid'
+        assert d.involved_member == 'Lid O'

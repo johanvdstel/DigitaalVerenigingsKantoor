@@ -8,7 +8,6 @@ from io import StringIO
 from .duty_control_selection import SelectionRow, select_population
 from .no_show import season_id
 from .model import Person
-from .member_duty import canonical_address, registered_parents
 from .real_data_import import SportlinkRealDataAdapter, RealDataImportResult
 
 EXPORTS = {
@@ -34,11 +33,11 @@ GROUND_TEXT = {
     "function_classification_unknown": "Onbekende functieclassificatie",
     "household_function_classification_unknown": "Onbekende functieclassificatie bij huishoudlid {name}",
     "household_membership_unknown": "Onzeker lidmaatschap van huishoudlid {name}",
-    "household_address_insufficient": "Onvoldoende of tegenstrijdige adresgegevens voor huishoudvrijstelling met {name}",
+    "household_address_insufficient": "Onvoldoende of tegenstrijdige adresgegevens voor huishoudvrijstelling ({name})",
     "birth_date_insufficient": "Geboortedatum ontbreekt of is ongeldig",
-    "family_data_insufficient": "Onvoldoende gezins- of adresgegevens voor de gezinsregel",
-    "family_birth_date_insufficient": "Geboortedatum van mogelijk gezinslid {name} ontbreekt of is ongeldig",
-    "family_membership_unknown": "Onzeker lidmaatschap van mogelijk gezinslid {name}",
+    "family_data_insufficient": "Onvoldoende of tegenstrijdige adresgegevens voor broederdienst",
+    "family_birth_date_insufficient": "Geboortedatum van adresgenoot {name} ontbreekt of is ongeldig",
+    "family_membership_unknown": "Onzeker lidmaatschap van mogelijk huishoudlid {name}",
     "oldest_minor_undetermined": "Oudste kwalificerende minderjarige niet eenduidig vast te stellen met {name}",
 }
 SIGNAL_TEXT = {
@@ -73,23 +72,22 @@ def family_diagnostics(expectation):
     assessed = persons.get(expectation.person_id)
     details = []
     for ground in expectation.grounds:
-        if ground.code != "family_data_insufficient":
+        if ground.code not in {"family_data_insufficient", "household_address_insufficient",
+                               "family_birth_date_insufficient", "oldest_minor_undetermined"}:
             continue
         other_id = ground.supporting_person_id
         other = persons.get(other_id)
-        if other_id is None:
-            explanation = "Zowel het oudercriterium als het adrescriterium is bij dit lid niet bruikbaar voor de gezinsregel."
-            subjects = ((assessed, "Beoordeeld lid"),)
-        else:
-            different_addresses = (assessed is not None and other is not None
-                                   and canonical_address(assessed) is not None
-                                   and canonical_address(other) is not None
-                                   and canonical_address(assessed) != canonical_address(other))
-            explanation = ("De volledige woonadressen verschillen; het oudercriterium kan niet volledig worden beoordeeld."
-                           if different_addresses else
-                           "Een gezinsverband met dit andere lid is niet aangetoond; het ouder- of adrescriterium kan niet volledig worden beoordeeld.")
-            explanation += " De bestaande gezinsregel houdt deze vergelijking daarom onzeker."
-            subjects = ((assessed, "Beoordeeld lid"), (other, "Ander vergeleken lid"))
+        if ground.code in {"family_birth_date_insufficient", "oldest_minor_undetermined"}:
+            issue = ("Geboortedatum ontbreekt of is ongeldig" if ground.code == "family_birth_date_insufficient"
+                     else "Gelijke geboortedatums; oudste minderjarige niet eenduidig")
+            if other is not None:
+                details.append(FamilyDiagnostic(other_id, other.name or "Naam onbekend", "Ander vergeleken lid",
+                                                "Geboortedatum", issue,
+                                                "Binnen hetzelfde geregistreerde huishouden is de oudste-kindregel niet betrouwbaar toe te passen."))
+            continue
+        explanation = "Het volledige geregistreerde woonadres is niet betrouwbaar vast te stellen; een adresgebonden vrijstelling kan niet worden uitgesloten."
+        subjects = ((assessed, "Beoordeeld lid"),) if other_id is None else (
+            (assessed, "Beoordeeld lid"), (other, "Ander vergeleken lid"))
         for person, subject in subjects:
             if person is None:
                 # Do not invent a missing source field when facts are unavailable.
@@ -101,10 +99,6 @@ def family_diagnostics(expectation):
                 issues.append(("Adres", "Huisnummer ontbreekt of is niet bruikbaar"))
             if person.address_conflicting:
                 issues.append(("Adres", "Adresgegevens conflicteren tussen bronregels"))
-            if person.parent_data_conflicting:
-                issues.append(("Ouders", "Ouderregistraties conflicteren tussen bronregels"))
-            elif registered_parents(person) is None:
-                issues.append(("Ouders", "Geen bruikbare ouderregistratie beschikbaar"))
             for criterion, issue in issues:
                 details.append(FamilyDiagnostic(other_id, person.name or "Naam onbekend", subject,
                                                 criterion, issue, explanation))

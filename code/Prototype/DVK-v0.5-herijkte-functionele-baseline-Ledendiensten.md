@@ -40,15 +40,17 @@ Erkende **onbetaalde** vrijwilligersfuncties, waaronder de afzonderlijk geregist
 
 ### B-05 — Huishoudvrijstelling op adres
 
-Een erkende **onbetaalde** vrijwilligersfunctie geeft vrijstelling aan de functionaris én de andere relevante leden op **hetzelfde volledig geregistreerde woonadres**, ongeacht familieband. Het adres bestaat uit postcode, huisnummer en eventuele toevoeging; onschuldige notatieverschillen mogen worden genormaliseerd, maar ontbrekende gegevens mogen niet worden gegokt. Betaalde functies en eretitels geven geen huishoudvrijstelling. Ontbrekende of tegenstrijdige adressen leiden waar relevant tot een signaal.
+Een erkende **onbetaalde** vrijwilligersfunctie geeft vrijstelling aan de functionaris én de andere relevante leden op **hetzelfde volledig geregistreerde woonadres**, ongeacht familieband. Ouders, achternaam en `Contact via ouders` zijn geen criterium. Het adres bestaat uit postcode, huisnummer en eventuele toevoeging; onschuldige notatieverschillen mogen worden genormaliseerd, maar ontbrekende gegevens mogen niet worden gegokt. Betaalde functies en eretitels geven geen huishoudvrijstelling. Ontbrekende of tegenstrijdige adressen leiden waar relevant tot een signaal.
 
 ### B-06 — Gezinsregel voor minderjarige leden
 
-Twee minderjarige leden kunnen voor de gezinsregel als hetzelfde gezin worden beoordeeld wanneer (a) hun **volledig geregistreerde oudergegevens** overeenkomen — bij twee geregistreerde ouders moeten beide overeenkomen; bij één aan beide zijden dezelfde ene ouder — **of** (b) hun volledig geregistreerde woonadres overeenkomt. Eén gemeenschappelijke ouder is bij twee verschillend geregistreerde ouderparen onvoldoende; één versus twee geregistreerde ouders is op zichzelf onvoldoende voor het oudercriterium. Een gedeelde achternaam bewijst niets. De vergelijking gebeurt rechtstreeks per betrokken kind: overeenkomsten A–B en B–C leiden niet automatisch tot een gezinsverband A–C. DVK verzint geen ouderrelatiecodes die niet in de bron bestaan.
+**Expliciete beleidsherijking — 9 oktober 2026:** uitsluitend het volledige geregistreerde woonadres (postcode, huisnummer en eventuele toevoeging) bepaalt het gezamenlijke huishouden voor B-05 en B-06/B-07. Een lege toevoeging is geldig. Kwalificerende minderjarige leden op hetzelfde adres behoren administratief tot hetzelfde huishouden, ongeacht achternaam, familierelatie, geregistreerde ouders en `Contact via ouders`. Deze gegevens zijn geen besliscriteria. Verschillende volledige woonadressen betekenen afzonderlijke huishoudens, ook bij dezelfde ouders. Ontbrekende of conflicterende noodzakelijke adresgegevens bewijzen geen huishouden en sluiten een vrijstelling niet betrouwbaar uit; bewezen vrijstellingen houden voorrang.
+
+Ouders kunnen reclameren bij een afwijkende feitelijke gezinssituatie. De Vrijwilligerscommissie beoordeelt het verzoek; bij escalatie beslist het bestuur. DVK neemt hierover geen zelfstandig besluit. Registratie en verwerking van uitzonderingsbesluiten vallen buiten deze implementatie.
 
 ### B-07 — Peildatum en oudste minderjarige
 
-De planningsdatum is bepalend. Van de relevante minderjarige kinderen draagt in beginsel het oudste kwalificerende kind de gezinsgebonden verplichting. Wanneer dit kind 18 wordt of het lidmaatschap eindigt, verschuift de gezinsverplichting naar het volgende kwalificerende minderjarige kind. Een vrijstellende vrijwilligersfunctie van het oudste kind kan juist huishoudvrijstelling opleveren; de verplichting schuift dan niet enkel vanwege diens persoonlijke vrijstelling door. Historische posities worden niet met terugwerkende kracht herberekend.
+De planningsdatum is bepalend. Binnen het volgens B-06 vastgestelde huishouden blijft de bestaande oudste-kindregel gelden, inclusief de bestaande leeftijds-, lidmaatschaps- en vrijstellingsvoorwaarden en onzekerheid bij gelijke geboortedatums. Van de relevante minderjarige kinderen draagt in beginsel het oudste kwalificerende kind de gezinsgebonden verplichting. Wanneer dit kind 18 wordt of het lidmaatschap eindigt, verschuift de gezinsverplichting naar het volgende kwalificerende minderjarige kind. Een vrijstellende vrijwilligersfunctie van het oudste kind kan juist huishoudvrijstelling opleveren; de verplichting schuift dan niet enkel vanwege diens persoonlijke vrijstelling door. Historische posities worden niet met terugwerkende kracht herberekend.
 
 ### B-08 — Meerderjarig worden en eventuele urenoverdracht
 
@@ -85,7 +87,7 @@ Een afgesproken maar nog niet uitgevoerde Sportlink-correctie blijft bij relevan
 | **V-01 Voetbaldeelname** | Huidige import leidt spelen af uit ledenvelden en leest `Teamsoort` niet in. | Alle drie B-02-voorwaarden op dezelfde Teams-regel; meerdere teamregistraties, extra trainersrol, recreatieve registratie, ontbrekende/ongeldige waarden testen. |
 | **V-02 Lidmaatschap** | `Afmelddatum` wordt genegeerd; dubbele regels worden gerangschikt op ogenschijnlijk actieve status. | B-03 toepassen op planningsdatum, conflicten signaleren en historie behouden; toekomstige afmelddatum, dag zelf, ontbrekende datum en dubbele regels testen. |
 | **V-03 Functievrijstelling** | Commissies worden niet volledig meegenomen; legacy-lijst is geen CKC-configuratie; functienormalisatie kan betaald/onbetaald verwarren. | Beide bronnen combineren, oorspronkelijke namen bewaren, afzonderlijke zelf-/huishoudvrijstelling configureren, actuele bronstructuur respecteren en onbekende functies signaleren. |
-| **V-04 Gezinsregel** | Huidige code acht één gedeelde ouder voldoende en ondersteunt het volledige adres niet als zelfstandig criterium. | B-06 rechtstreeks per kinderpaar uitvoeren; samengestelde gezinnen, één/twee ouders, verschillende adressen en niet-transitieve A–B–C-situatie testen. |
+| **V-04 Broederdienst** | De eerdere oudergebaseerde interpretatie is per 9 oktober 2026 vervallen. | Uitsluitend het volledige adres vergelijken; oudste-kindregel, toevoegingen, ontbrekende/conflicterende adressen en onafhankelijkheid van ouders/contactwaarde testen. |
 | **V-05 Plannerbeslissingen/urenoverdracht** | A-vergelijking en E-formule bestaan; duurzame beslisstatus en volledige correctiecontrole ontbreken. | B-08/B-09/B-14 implementeren; volledige/gedeeltelijke overdracht, slechts één B-correctie, nog niet uitgevoerde correctie, geaccepteerde afwijking en herbeoordeling testen. |
 
 Alle vijf punten zijn **inhoudelijk geaccepteerd**, niet technisch afgetest.
@@ -119,7 +121,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 - Verwerk lidmaatschapsstatus en afmelddatum volgens B-03; maak conflicten in dubbele ledenregels zichtbaar in plaats van één schijnbaar gunstige regel te kiezen.
 - Verwerk Teams volgens B-02, inclusief `Teamsoort` en alle afzonderlijke teamregistraties.
 - Bewaar Functies- en Commissies-registraties met originele naam, bron en eventuele begindatum; verwijder semantische samenvoegingen zoals `Trainer`.
-- Verwerk ouders en woonadres volgens B-05/B-06; gebruik geen niet-bestaande ouderrelatiecodes of indirecte gezinsgroepering.
+- Verwerk het woonadres volgens B-05/B-06; ouders en contact-via-ouders zijn uitsluitend broncontext en geen taakplichtcriterium.
 - Behoud herkomst en bronactualiteit, en verwerk geen overbodige financiële of identiteitsvelden.
 
 ### 6.2 Domeinlogica en plannerbeslissingen

@@ -13,7 +13,8 @@ FIELDS = ["Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan",
 def load(tmp_path, values=(10, 0, 9, 0, 1), pid="M1", unknown=False, extra=False, duplicate=False):
     adapter = SportlinkRealDataAdapter()
     member = {"Rel. code": "M1", "Naam": "Synthetisch lid", "Geb.dat.": "01-01-1990",
-              "Lidstatus": "Definitief", "Lidsoort": "Bondslid", "Status lidmaatschap": ""}
+              "Lidstatus": "Definitief", "Lidsoort": "Bondslid", "Status lidmaatschap": "",
+              "Postcode": "8000AA", "Huisnummer": "17", "Toevoeging": ""}
     members = write_export(tmp_path, "members.csv", [member], list(member))
     function_rows = [{"Rel. code": "M1", "Functie": "Onbekend"}] if unknown else []
     functions = write_export(tmp_path, "functions.csv", function_rows, ["Rel. code", "Functie"])

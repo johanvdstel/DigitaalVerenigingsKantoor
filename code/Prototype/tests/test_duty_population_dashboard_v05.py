@@ -19,7 +19,7 @@ from test_hours_control_v05 import TODAY
 def member(pid='M1', status='Definitief', end='', **kwargs):
     return {'Rel. code': pid, 'Naam': 'Synthetisch lid', 'Geb.dat.': '01-01-1990',
             'Lidstatus': status, 'Lidsoort': 'Bondslid', 'Status lidmaatschap': '',
-            'Afmelddatum': end, **kwargs}
+            'Afmelddatum': end, 'Postcode': '8000AA', 'Huisnummer': '17', 'Toevoeging': '', **kwargs}
 
 
 def exports(tmp_path, members):

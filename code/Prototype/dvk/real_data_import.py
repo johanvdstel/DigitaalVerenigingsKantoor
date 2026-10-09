@@ -388,7 +388,7 @@ class SportlinkRealDataAdapter:
     @classmethod
     def address_key(cls, row):
         return ("".join(cls.value(row, "Postcode").upper().split()),
-                cls.value(row, "Huisnummer"), cls.value(row, "Toevoeging"))
+                cls.value(row, "Huisnummer").upper(), cls.value(row, "Toevoeging").upper())
 
     @classmethod
     def parent_key(cls, row):
