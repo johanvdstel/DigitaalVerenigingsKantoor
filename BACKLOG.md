@@ -1,45 +1,51 @@
-# DVK — Backlog
+# DVK — Functionele backlog
 
-**Status:** voorlopige, herleidbare werklijst · **Bijgewerkt:** 9 oktober 2026  
-**Scope:** Digitaal Verenigingskantoor, in het bijzonder prototype v0.5.  
-**Doel:** openstaande werkzaamheden en besluiten bewaren voor latere opvolging. Dit document is geen functionele baseline en geen bewijs dat een onderdeel nog geheel ontbreekt.
+**Status:** bijgewerkt naar aanleiding van backlogbespreking 9 oktober 2026  
+**Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
+**Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
-> De eerdere backlog uit een verwijderde chat is niet beschikbaar. Onderstaande punten zijn gereconstrueerd uit de actuele v0.5-documenten in GitHub en de nadien expliciet gemaakte afspraken. Bij vervolgwerk eerst de actuele code, branches en eventuele GitHub Issues controleren. Niet automatisch als nieuwe implementatieopdrachten beschouwen.
+De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelijkheden. De volgorde, afzonderlijke ontwikkelstappen en integrale acceptatiemijlpaal staan in de prototypeplanning. Statussen beschrijven wat is afgesproken; ze bewijzen niet dat code al bestaat.
 
-## Actieve werkzaamheden
+## Afgerond
 
-| ID | Onderwerp | Status / eerstvolgende stap | Bron |
+| ID | Onderwerp | Status / bewijs |
+| --- | --- | --- |
+| BL-01 | Adresgebaseerde huishoud- en minderjarigenregels B-05/B-06/B-07 | **Afgerond en functioneel geaccepteerd** in Stap 2 ronde 4; uitsluitend volledig geregistreerd adres als automatische huishoudsleutel; relevante leden op peildatum; geen ouder-/achternaamheuristiek. |
+| BL-02 | Read-only taakplichtcontroledashboard | **Afgerond en functioneel geaccepteerd.** Lokale CKC-acceptatie: 650 relevante leden, 563 overeenkomsten, 87 afwijkingen, 0 niet betrouwbaar beoordeelbaar. Bron- en controlediagnose behouden. [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged naar `prototype-v0.5`. |
+
+## Open / geprioriteerd
+
+| ID | Onderwerp | Afspraak en eerstvolgende stap | Afhankelijkheid |
 | --- | --- | --- | --- |
-| BL-01 | Taakplichtcontrole: adresgebaseerde broederdienst B-06/B-07 | **Actief.** Functionele baseline, code en synthetische regressies aanpassen en daarna lokaal met CKC-exports hertesten. Zelfde volledige adres is het enige automatische gezinscriterium; ouders, achternaam en `Contact via ouders` zijn geen beslisgegevens. | Herijkingsbesluit 9 oktober 2026; `DVK-v0.5-herijkte-functionele-baseline-Ledendiensten.md` B-05–B-07 |
-| BL-02 | Read-only taakplichtcontroledashboard | **In uitvoering / functionele hertest open.** Vergelijk DVK-afleiding met Sportlink A, inclusief afwijkingen, onzekerheden en bron- en controlediagnose. | `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` E-06; baseline B-09/B-10 |
+| BL-03 | Achterstallige uren vorig seizoen | **Hoge prioriteit, v0.5.** Planner bevestigt beschikbaar Excel-overzicht; bestand/kolommen nog te ontvangen en lokaal te verifiëren. Koppeling bij voorkeur op Sportlink-lidnummer, met seizoen, openstaande uren en controle op duplicaten/ontbrekende matches. Achterstand beïnvloedt kandidaatprioritering **tot en met 31 december**; vanaf 1 januari niet meer. Niet optellen bij Sportlink A van het nieuwe seizoen. **Wijziging B-13** t.o.v. eerdere grens 1 december: functionele baseline, configuratie en regressietests expliciet bijwerken vóór implementatie. | Excel van planner; bronsemantiek en seizoensidentificatie |
+| BL-04 | DVK-frontend, hoofdmenu, licht portaal | **Eerstvolgende ontwikkelstap.** DVK-welkomstpagina met moduleoverzicht; Ledendienst Planning toegankelijk, taakplichtcontrole als functie daarbinnen. Rooster Generator tonen als operationeel buiten DVK, overige modules eerlijk als toekomstig. Lichte Streamlit-navigatie; geen nieuw portaalframework, geen beleidslogica in UI. | F-01–F-08; actuele UI verifiëren |
+| BL-05 | Duurzame plannerbeslissingen bij taakplichtafwijkingen | **v0.5, na terugkoppeling planner.** Leg besluit, reden, actor, tijdstip, geldigheid en herbeoordeling na bronvernieuwing vast; onderscheid DVK-afleiding van menselijke administratieve beslissing. Ontwerp mede op basis van beoordeling van de 87 afwijkingen. | Terugkoppeling CKC-planner; B-09/B-14 |
+| BL-06 | Urenoverdracht bij 18 jaar | **v0.5.** Signaleer overdrachtsmogelijkheid; uitsluitend menselijke goedkeuring en twee tegengestelde handmatige Sportlink-B-correcties; na nieuwe import beide verifiëren. Geen automatische Sportlink-mutatie. | B-08; verificatie Sportlink B |
+| BL-07 | Sportlink-urenbron en seizoensgegevens | **Gedeeltelijk gevalideerd.** Sportlink A is voor read-only taakplichtcontrole met echte CKC-exports getoetst. Nog open: werkelijke B/C/D/E-betekenis, beschikbare velden, seizoensafbakening en controle van correcties na import. | Brononderzoek Sportlink |
+| BL-08 | Functieclassificatie `Verzorger` | **Wacht op CKC-broncorrectie.** Onderscheid betaalde en onbetaalde functie in Sportlink nog niet betrouwbaar; huidige tijdelijke classificatie niet persoonsgebonden hardcoden. Na correctie lokaal opnieuw controleren. Blokkeert ander v0.5-werk niet. | CKC/Sportlink |
+| BL-09 | Bronactualiteit functies en commissies | **Bewaken binnen v0.5.** Bestaande bron- en controlediagnose behouden; verouderde of onvolledige bronfeiten signaleren, geen ontbrekende functiedatums verzinnen. Geen aparte ontwikkelronde tenzij controle een concrete tekortkoming aantoont. | Nieuwe bronexports |
+| BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **v0.5, integrale verificatie.** Bestaande implementatie eerst inspecteren; controleer directe bezettings- en beschikbaarheidseffecten, undo, handmatige Sportlink-verwerking, succesvolle sync als grens en behoud werkvoorraad bij mislukte sync. Alleen aantoonbare gaps herstellen. | API Vrijwilligers; FR-02–FR-08 |
+| BL-11 | No-shows en handmatige Sportlink-correctiewerkvoorraad | **v0.5, integrale verificatie.** Controleer koppeling aan feitelijke Sportlink-inroostering, duurzame no-show, intrekking, sanctieafleiding en status openstaand/afgehandeld van handmatige correctie. Hergebruik geaccepteerde functionaliteit. | API Vrijwilligers; FR-09–FR-12 |
 
-## Uitgesteld of nog uit te werken
+## Gegevensintegraties als afzonderlijke ontwikkelstappen
 
-| ID | Onderwerp | Status / eerstvolgende stap | Bron |
-| --- | --- | --- | --- |
-| BL-03 | Achterstallige uren uit vorig seizoen | **Uitgesteld — bron ontbreekt.** Bepaal betrouwbare bron, seizoensidentificatie, peildatum, verwerking en voorkomen van dubbeltelling. Volgens B-13 kunnen openstaande uren **vóór 1 december** meewegen bij kandidaatprioritering; niet automatisch optellen bij nieuwe Sportlink A. Geen blokkade voor BL-01. | Herijkte baseline B-13; besluit 9 oktober 2026 |
-| BL-04 | DVK-frontend / hoofdmenu / licht portaal | **Gepland; actuele implementatiestatus verifiëren.** Eén herkenbare DVK-ingang met modulenavigatie. Ledendienst Planning is één module; toon toekomstige modules eerlijk als niet beschikbaar. Rooster Generator mag als operationeel maar nog niet geïntegreerd zichtbaar zijn. Geen generiek portaalframework nodig voor v0.5. | `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` F-01–F-07; `TECHNISCHE-IMPACTANALYSE-v0.5-vervolg.md` sectie F |
-| BL-05 | Duurzame plannerbeslissingen en afwijkingen | **Status verifiëren / resterende functionaliteit afbakenen.** Reden, verantwoordelijke, geldigheid, bevestiging na nieuwe import en herbeoordeling van geaccepteerde afwijkingen. | Herijkte baseline B-09/B-14; V-05 |
-| BL-06 | Urenoverdracht bij 18 jaar | **Status verifiëren.** Alleen na menselijke goedkeuring via twee tegengestelde Sportlink-B-correcties; samen controleren na nieuwe import. Geen automatische overdracht. | Herijkte baseline B-08; V-05 |
-| BL-07 | Sportlink-urenbron en seizoensgegevens | **Bronverificatie open.** Werkelijke velden/semantiek A/B/C/D/E, seizoensidentificatie en verificatie van B-correcties. | Herijkte baseline §7 |
-| BL-08 | Functieclassificatie `Verzorger` | **Wachten op broncorrectie CKC.** Eén onbetaalde `Verzorger` is tijdelijk als betaald geclassificeerd; na onderscheidende Sportlink-titel opnieuw classificeren. Geen persoonsgebonden hardcode. | Herijkte baseline B-04 |
-| BL-09 | Bronactualiteit en geldigheid functies/commissies | **Bewaken / nader verifiëren bij bronwijziging.** Huidige exports hebben beperkte datumvelden; signalering van verouderde bronnen behouden. | Herijkte baseline B-11/B-12 |
-| BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **Integrale status/acceptatie verifiëren.** Bestaande implementaties en tests controleren; read-only, gezamenlijke syncgrens en behoud tijdelijke werkvoorraad bij fouten. | `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` FR-02–FR-08; GitHub Issues #12 en #14 |
-| BL-11 | No-shows en handmatige correctiewerkvoorraad | **Integrale status/acceptatie verifiëren.** No-showfeiten, sancties en handmatige Sportlink-correcties in samenhang toetsen. | Herijkte baseline §5; `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` FR-09–FR-12 |
-| BL-12 | Integrale acceptatie prototype v0.5 | **Nog open.** Samenhangende functionele acceptatie en regressie van broncontracten, taakplicht, planning, synchronisatie, no-shows en portaal. | Herijkte baseline §§6–8; root `README.md` |
+De **Vrijwilligers API** en **Programma API** zijn noodzakelijke bouwstenen voor Stap 3 Planning. Ze staan als aparte acceptatiestappen in [DVK-PROTOTYPE-PLANNING.md](DVK-PROTOTYPE-PLANNING.md), niet als verondersteld geheel nieuwe backlogfunctionaliteit. Eerst de actuele adapters, broncontracten en werkelijke integratiestatus verifiëren; geen duplicatie.
 
-## Afspraken voor opvolging
+## Niet in de backlog
 
-1. **Geen dubbele backlog:** controleer bij vervolg eerst of een punt al als GitHub Issue of implementatiecontract bestaat.
-2. **Prioriteit:** rond BL-01/BL-02 af vóór nieuwe uitgestelde functionaliteit; verdere prioritering later expliciet afspreken.
-3. **Privacy:** echte CKC-bronbestanden blijven op de computer van de opdrachtgever; geen persoonsgegevens in GitHub.
-4. **Wijzigingsbeheer:** backlogitems wijzigen de geaccepteerde baseline niet automatisch. Functionele keuzes, code en regressies worden afzonderlijk gecontroleerd.
-5. **Onbekende historische items:** deze inventaris is niet noodzakelijk volledig; vul aan wanneer oudere afspraken alsnog worden teruggevonden.
+Voormalig **BL-12 — Integrale acceptatie prototype v0.5** is een **implementatie-/acceptatiemijlpaal**, geen functionele backlogwens. Deze staat daarom in de [prototypeplanning](DVK-PROTOTYPE-PLANNING.md).
 
-## Brondocumenten
+## Werkafspraken
 
-- [Herijkte functionele baseline](code/Prototype/DVK-v0.5-herijkte-functionele-baseline-Ledendiensten.md)
+1. Besluiten uit deze bespreking vormen geen stilzwijgende codewijziging. Functionele baseline, technische implementatie en tests worden traceerbaar bijgewerkt.
+2. Echte CKC-bestanden (Sportlink CSV's, planner-Excel), persoonsgegevens en lokale databases blijven op de eigen computer; niet uploaden naar GitHub, Codex of ChatGPT. Alleen synthetische voorbeelden en niet-herleidbare aggregaten in repository.
+3. Elke ontwikkelstap krijgt een afgebakende branch/PR, regressie en expliciete functionele acceptatie; geen merge zonder akkoord.
+4. Productievereisten worden apart beheerd in [PRODUCTIE-ROADMAP.md](PRODUCTIE-ROADMAP.md).
+5. De historische backlog is een gereconstrueerde werklijst; controleer bij uitvoering de actuele code en GitHub Issues voordat iets als ontbrekend wordt aangemerkt.
+
+## Functionele bronnen
+
+- [Herijkte functionele baseline Ledendiensten](code/Prototype/DVK-v0.5-herijkte-functionele-baseline-Ledendiensten.md)
 - [Functioneel contract v0.5 vervolg](code/Prototype/FUNCTIONEEL-CONTRACT-v0.5-vervolg.md)
 - [Technische impactanalyse v0.5 vervolg](code/Prototype/TECHNISCHE-IMPACTANALYSE-v0.5-vervolg.md)
-- [GitHub Issue #12](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/12)
-- [GitHub Issue #14](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/14)
+- [GitHub Issue #12](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/12) en [#14](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/14)
