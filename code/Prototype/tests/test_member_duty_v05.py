@@ -304,7 +304,7 @@ def test_other_addresses_never_use_parents_or_unknown_birth(parents):
                    for i in range(30))
     r = outcomes(source(a, *others))["A"]
     assert r.expected_required_hours == 10
-    assert codes(r) == {"oldest_minor"}
+    assert codes(r) == {"no_exemption_found"}
     assert not any(isinstance(f, Person) and f.person_id != "A" for f in r.source_facts)
 
 

@@ -159,8 +159,12 @@ def derive_member_duties(source: RealDataImportResult, as_of: date,
             status, hours = "niet betrouwbaar beoordeelbaar", None
         else:
             status, hours = "taakplichtig", policy.required_hours
-            grounds.append(DutyGround("oldest_minor" if ages[pid] is not None and ages[pid] < 18
-                                      else "no_exemption_found"))
+            # FB-01: only the explanation changes; status and hours are already set.
+            multiple_minors = ages[pid] is not None and ages[pid] < 18 and any(
+                other_id != pid and ages.get(other_id) is not None and ages[other_id] < 18
+                and other_id in persons and family_criteria(person, persons[other_id])
+                for other_id in relevant)
+            grounds.append(DutyGround("oldest_minor" if multiple_minors else "no_exemption_found"))
         facts = tuple(persons[sid] for sid in sorted(support_ids) if sid in persons)
         facts += tuple(memberships[sid] for sid in sorted(support_ids) if sid in memberships)
         facts += tuple(t for t in source.team_memberships if t.person_id in support_ids)
