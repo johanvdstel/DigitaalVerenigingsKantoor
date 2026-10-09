@@ -154,7 +154,7 @@ aanvangstijd,status,accommodatie,veld,locatie,plaats
 | `accommodatie` | G | Locatiecontext |
 | `teamnaam`, `teamvolgorde`, `competitiesoort`, `competitie`, `klasse`, `poule`, `aanvangstijd`, `veld`, `locatie`, `plaats` | G/V | Wel aangevraagd; per veld vaststellen of noodzakelijk voor planning of uitsluitend context |
 
-**Controles:** CKC-clubrelatiecode, HOME/AWAY, teamidentiteit, geldige wedstrijdtijd, unieke wedstrijd, niet-operationele status uitsluiten van normale kandidaatcontext, bronactualiteit en wedstrijdconflicten. Een aangevraagd API-veld is niet automatisch een functioneel verplicht veld; valideer met echte API-respons zonder persoonsgegevens te publiceren.
+**Door opdrachtgever bevestigd uitgangspunt:** alle **21** door de bestaande adapter aangevraagde API-velden blijven in het broncontract. Tijdens API-acceptatie wordt per veld vastgesteld of het verplicht of optioneel is; de huidige tabel is nog geen definitieve validatiespecificatie.\n\n**Controles:** CKC-clubrelatiecode, HOME/AWAY, teamidentiteit, geldige wedstrijdtijd, unieke wedstrijd, niet-operationele status uitsluiten van normale kandidaatcontext, bronactualiteit en wedstrijdconflicten. Een aangevraagd API-veld is niet automatisch een functioneel verplicht veld; valideer met echte API-respons zonder persoonsgegevens te publiceren.
 
 **Basis:** `programma_adapter.py`, `programma_client.py`, v0.4-baseline.
 
