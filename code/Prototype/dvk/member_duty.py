@@ -10,34 +10,20 @@ def canonical_address(person: Person) -> tuple[str, str, str] | None:
     if person.address_conflicting or not person.postal_code or not person.house_number:
         return None
     postcode = "".join(person.postal_code.upper().split())
-    number = person.house_number.strip()
+    number = person.house_number.strip().upper()
     if not postcode or not number:
         return None
-    return postcode, number, (person.house_number_addition or "").strip()
-
-
-def registered_parents(person: Person) -> tuple[str, ...] | None:
-    if person.parent_data_conflicting:
-        return None
-    names = tuple(sorted(n.strip() for n in person.parent_names if n and n.strip()))
-    return names or None
+    return postcode, number, (person.house_number_addition or "").strip().upper()
 
 
 def family_criteria(left: Person, right: Person) -> tuple[str, ...]:
-    """Independent direct comparisons; never construct connected components."""
-    criteria = []
-    a, b = registered_parents(left), registered_parents(right)
-    if a is not None and a == b:
-        criteria.append("parents")
-    a, b = canonical_address(left), canonical_address(right)
-    if a is not None and a == b:
-        criteria.append("address")
-    return tuple(criteria)
+    """Only a complete, non-conflicting registered address proves a household."""
+    address = canonical_address(left)
+    return ("address",) if address is not None and address == canonical_address(right) else ()
 
 
 def _possible_family(left: Person, right: Person) -> bool:
-    return (registered_parents(left) is None or registered_parents(right) is None
-            or canonical_address(left) is None or canonical_address(right) is None)
+    return canonical_address(left) is None or canonical_address(right) is None
 
 
 def _age(person: Person, as_of: date) -> int | None:
@@ -127,21 +113,28 @@ def derive_member_duties(source: RealDataImportResult, as_of: date,
                 grounds.append(DutyGround("household_function", other_id, ("address",), household))
             elif address is None or other_address is None:
                 uncertainty.append(DutyGround("household_address_insufficient", other_id, registrations=household))
+        if pid in relevant and canonical_address(person) is None and ages[pid] is not None and ages[pid] >= 18:
+            uncertainty.append(DutyGround("household_address_insufficient"))
         older = []
         if ages[pid] is None:
             uncertainty.append(DutyGround("birth_date_insufficient"))
         elif ages[pid] < 18 and pid in relevant:
-            if registered_parents(person) is None and canonical_address(person) is None:
+            if canonical_address(person) is None:
                 uncertainty.append(DutyGround("family_data_insufficient"))
             for other_id in sorted(possible_relevant - {pid}):
                 other = persons.get(other_id)
-                if other is None or ages.get(other_id) is None:
+                if other is None:
+                    continue
+                criteria = family_criteria(person, other)
+                if not criteria and not _possible_family(person, other):
+                    continue
+                if ages.get(other_id) is None:
                     support_ids.add(other_id)
-                    uncertainty.append(DutyGround("family_birth_date_insufficient", other_id))
+                    uncertainty.append(DutyGround("family_birth_date_insufficient" if criteria
+                                                  else "family_data_insufficient", other_id, criteria))
                     continue
                 if ages[other_id] >= 18 or other.birth_date > person.birth_date:
                     continue
-                criteria = family_criteria(person, other)
                 if current[other_id] is None:
                     if criteria or _possible_family(person, other):
                         support_ids.add(other_id)
@@ -166,8 +159,12 @@ def derive_member_duties(source: RealDataImportResult, as_of: date,
             status, hours = "niet betrouwbaar beoordeelbaar", None
         else:
             status, hours = "taakplichtig", policy.required_hours
-            grounds.append(DutyGround("oldest_minor" if ages[pid] is not None and ages[pid] < 18
-                                      else "no_exemption_found"))
+            # FB-01: only the explanation changes; status and hours are already set.
+            multiple_minors = ages[pid] is not None and ages[pid] < 18 and any(
+                other_id != pid and ages.get(other_id) is not None and ages[other_id] < 18
+                and other_id in persons and family_criteria(person, persons[other_id])
+                for other_id in relevant)
+            grounds.append(DutyGround("oldest_minor" if multiple_minors else "no_exemption_found"))
         facts = tuple(persons[sid] for sid in sorted(support_ids) if sid in persons)
         facts += tuple(memberships[sid] for sid in sorted(support_ids) if sid in memberships)
         facts += tuple(t for t in source.team_memberships if t.person_id in support_ids)
