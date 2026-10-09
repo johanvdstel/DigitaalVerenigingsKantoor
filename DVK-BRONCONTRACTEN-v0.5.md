@@ -41,7 +41,8 @@
 | `Postcode` | F | Huishoudsleutel |
 | `Huisnummer` | F | Huishoudsleutel |
 | `Toevoeging` | F | Onderdeel van huishoudsleutel indien aanwezig; leeg is geldig |
-| `Straatnaam`, `Plaats` | G | Adrescontext, provenance/diagnostiek; niet de beslissleutel voor huishouden |
+| `Straatnaam` | F, nog niet T | Volledig adres, presentatie en diagnostiek; niet zelfstandig de huishoudsleutel |
+| `Plaats` | F, nog niet T | Plaatsnaam, volledig adres en diagnostiek; niet zelfstandig de huishoudsleutel |
 | `Naam ouder/verzorger 1`, `Naam ouder/verzorger 2`, `Contact via ouder/verzorger` | G | Broncontext/diagnostiek; **niet** gebruiken als huishoud- of gezinscriterium |
 | `Spelactiviteiten (bond)` | G | Broncontext; **geen** vervanging voor Teams-bewijs |
 
