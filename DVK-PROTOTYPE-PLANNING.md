@@ -58,3 +58,22 @@ Vastgelegde restpunten en bewuste beperkingen mogen expliciet worden geaccepteer
 ## Na het prototype
 
 De aparte [productieroadmap](PRODUCTIE-ROADMAP.md) behandelt hosting, echte database, veilige imports, identity & access management, security, privacy, operations en migratie. Productiearchitectuur wordt later gekozen; v0.5 houdt businesslogica en UI/gegevensinfrastructuur gescheiden.
+
+## Releasevervolg — RPA (BL-13), toegevoegd 12 oktober 2026
+
+**Voorstel op verzoek van opdrachtgever:** RPA krijgt de eerste afgebakende vervolgproef na integrale functionele acceptatie van v0.5. De bestaande v0.5-stappen en read-only scope blijven gelden. Er zijn nog geen vaste kalenderdata of geaccepteerde versienummers voor dit vervolg.
+
+| Volgorde / releasevenster | Onderdeel | Besluit / acceptatie |
+| --- | --- | --- |
+| Huidige v0.5 | Portaal, afzonderlijke API-acceptaties, achterstanden, Stap 3 Planning en integrale verificatie | Bestaande planning afronden; Sportlink-verwerking blijft handmatig |
+| Eerstvolgende vervolgiteratie na acceptatie v0.5 | BL-13a — RPA-haalbaarheidsproef | Eén goedgekeurde indeling, teruglezen, dubbele invoer voorkomen en onderbreking veilig hervatten; go/no-go voor pilot |
+| Volgende pilotrelease na positieve proef | BL-13b — Kleine batch onder toezicht | Resultaat per indeling en veilige herstart; actuele bezetting opnieuw controleren; fouten naar planner |
+| Productierelease na pilotacceptatie en productievoorwaarden | BL-13c — Beheerde RPA-invoering | Voorwaarden P1–P3 uit productieroadmap, operationeel beheer en expliciete productie-go/no-go |
+
+**Motivering:** eerst bewijzen dat DVK met actuele bronnen de juiste voorstellen en synchronisatie levert; daarna pas de externe invoer automatiseren. Zo wordt RPA een vervangbare uitvoercomponent en blijft de bestaande functionele baseline toetsbaar.
+
+**Afhankelijkheden:** Stap 3 Planning, BL-10, unieke bronidentificatie, goedgekeurde indelingen en actuele bezetting. De proef kan lokaal onder toezicht plaatsvinden; een gehoste productierobot is daarvoor geen vereiste. P1 kan de uitvoeromgeving alvast onderzoeken, maar P2-productiebouw volgt pas na positief proefresultaat.
+
+**Aannames / open punten:** Sportlink-browserschermen en rechten zijn nog niet beproefd; ontbreken van een schrijf-API is een uitgangspunt van opdrachtgever. Playwright + Python is een technische kandidaat, geen definitief architectuurbesluit. Exacte datum, releasenummer, beschikbare capaciteit en onderhoudseigenaar worden bij start bepaald. Geen vervroeging van writeback naar v0.5 en geen wijziging van CKC-beleid.
+
+De gedetailleerde scope en acceptatiecriteria staan bij [BL-13](BACKLOG.md#bl-13--rpa-voor-invoer-van-goedgekeurde-ledendiensten-in-sportlink).
