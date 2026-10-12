@@ -16,7 +16,7 @@ Het prototype bewijst functionele bruikbaarheid. De **productiefase** maakt DVK 
 | Duurzame database | Relationele database (bijv. PostgreSQL als kandidaat), schema-/datamigraties, transacties, toegangsbeheer, back-ups, herstel en bewaarbeleid. Geen productieafhankelijkheid van lokale prototype-SQLite. | Migratieproef, integriteit, back-up/restore-test |
 | Veilige importfunctionaliteit | Beheerde Sportlink API-import en veilige handmatige Excel/CSV-import waar nodig; uploadbeperkingen, schema-/bestandsvalidatie, duplicaatdetectie, bronherkomst, peildatum, staging, expliciete bevestiging en veilige foutafhandeling. | Test met synthetische en gecontroleerde CKC-data, rollback-/foutscenario's |
 | API-koppelingen | Vrijwilligers en Programma met veilige authenticatie, secretsbeheer, retries/rate limits, time-outs, bronstatus en monitoring. Behoud Sportlink als bronhouder; schrijfbevoegdheden alleen na apart besluit. | Contract-, integratie- en storingsproeven |
-| Identity management | Persoonlijke gebruikersaccounts; passende authenticatie, MFA voor bevoegde rollen, accountuitgifte, intrekking en herstel; eventueel federatie/SSO onderzoeken. | In-/uitdienst- en toegangsproeven |
+| RPA-uitvoer Ledendiensten (BL-13) | Afzonderlijke browseruitvoer van menselijk goedgekeurde indelingen; Playwright + Python als kandidaat. Veilige sessies/rechten, unieke bronidentificatie, controle op gewijzigde bezetting, voorkomen dubbele invoer, teruglezen, herstel en onderhoud bij schermwijzigingen. Eerst lokale proef en pilot; geen v0.5-writeback. | Positieve BL-13a/b-acceptatie; uitvoer- en herstelproef; eigenaar en handmatige terugvalprocedure |\n| Identity management | Persoonlijke gebruikersaccounts; passende authenticatie, MFA voor bevoegde rollen, accountuitgifte, intrekking en herstel; eventueel federatie/SSO onderzoeken. | In-/uitdienst- en toegangsproeven |
 | Autorisatie | Rollen en rechten per module en handeling, least privilege, server-side afdwinging, functiescheiding voor gevoelige beslissingen. | Autorisatiematrix en negatieve toegangsproeven |
 | Security en privacy | Versleuteling onderweg en waar passend in opslag, secretsbeheer, kwetsbaarhedenbeheer, logging zonder onnodige persoonsgegevens, AVG-grondslag, dataminimalisatie, bewaartermijnen en verwerkersafspraken. DPIA-behoefte beoordelen. | Securityreview, privacybeoordeling, pentest/gerichte beveiligingstests |
 | Audit en beheer | Herleidbare mutaties en plannerbeslissingen, auditretentie, monitoring/alarmering, incidentrespons, patchbeheer en gecontroleerde releases. | Auditproef, incident- en beheerprocedures |
@@ -50,6 +50,17 @@ Het prototype bewijst functionele bruikbaarheid. De **productiefase** maakt DVK 
 - Toegestane bronkanalen, bewaartermijnen, importfrequentie en eigenaarschap.
 - Privacyrollen, verwerkersovereenkomsten en noodzaak van DPIA.
 - Beschikbaarheid, hersteldoelen, support en operationeel budget.
-- Scope van een eventuele toekomstige Sportlink-schrijfkoppeling (niet besloten).
+- Scope en uitvoeromgeving van RPA voor Ledendienstindelingen (BL-13); backlogopname gevraagd op 12 oktober 2026, implementatie en productiebevoegdheid nog niet geaccepteerd. Eventuele overige Sportlink-schrijfkoppelingen blijven apart te besluiten.
 
 **Geen productiestap uitvoeren of productiegeschiktheid claimen zonder afzonderlijke toets en expliciet akkoord.**
+
+## Plaats van RPA in de productiefasering
+
+**Voorstel, 12 oktober 2026:** BL-13a start als lokale haalbaarheidsproef na integrale v0.5-acceptatie; BL-13b volgt als kleine pilot onder toezicht. RPA hoeft de eerste read-only productielivegang niet te blokkeren: handmatige Sportlink-invoer blijft mogelijk.
+
+- **P0/P1:** scope, bevoegde planner, rechten, eventuele Sportlink-notificaties, uitvoeromgeving en onderhoudseigenaar onderzoeken; definitieve techniek pas na de proef.
+- **P2:** na positief proefresultaat de uitvoercomponent en resultaatregistratie beheerd inbouwen, inclusief veilige herstart en controle op dubbele of inmiddels gewijzigde indelingen.
+- **P3:** pilotresultaten, autorisatie, terugleescontrole, gedeeltelijke uitvoering, sessieverloop en herstel toetsen; apart go/no-go voor externe mutaties.
+- **P4:** gecontroleerd activeren voor bevoegde planners, met monitoring, support en handmatige terugval.
+
+Deze planning autoriseert geen daadwerkelijke Sportlink-mutaties. Exacte datums en releasenummers zijn nog niet vastgesteld. De uitvoercomponent blijft gescheiden van de DVK-domeinlogica, zodat een later beschikbare schrijf-API onderzocht kan worden zonder het selectiebeleid te vervangen.
