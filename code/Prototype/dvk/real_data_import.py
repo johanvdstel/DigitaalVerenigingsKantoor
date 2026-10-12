@@ -3,9 +3,16 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from .model import DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
+from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
+
+if TYPE_CHECKING:
+    from .function_classification import FunctionClassificationResult
+    from .member_duty import MemberDutyExpectation
+    from .hours_control import RequiredHoursControl
 
 
 @dataclass(frozen=True)
@@ -43,6 +50,9 @@ class CommitteeMembership:
     person_id: str
     committee: str
     committee_role: str
+    start_date: date | None = None
+    end_date: date | None = None
+    provenance: Provenance | None = None
 
 
 @dataclass(frozen=True)
@@ -50,8 +60,8 @@ class RealTeamMembership:
     person_id: str
     team_id: str
     team_role: str | None
-    team_function: str | None
     playing_member: bool | None
+    team_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -59,15 +69,10 @@ class DutyImportRecord:
     registration: SportlinkDutyRegistration
     source_remaining_hours: int
     position: DutyPosition
-    expected_required_hours: int | None = None
 
     @property
     def source_formula_matches(self) -> bool:
         return self.source_remaining_hours == self.position.E
-
-    @property
-    def required_hours_mismatch(self) -> bool:
-        return self.expected_required_hours is not None and self.registration.required_hours != self.expected_required_hours
 
 
 @dataclass(frozen=True)
@@ -81,30 +86,60 @@ class RealDataImportResult:
     duty_records: tuple[DutyImportRecord, ...]
     provenance: tuple[Provenance, ...]
     signals: tuple[DataQualitySignal, ...]
+    source_dates: tuple[tuple[str, date], ...] = ()
+    membership_as_of: tuple[tuple[str, bool | None], ...] = ()
+
+    @property
+    def function_classification(self) -> FunctionClassificationResult:
+        """Separately derived CKC rights, also used by the round-2 derivation."""
+        from .function_classification import FunctionClassifier
+        return FunctionClassifier().classify_many((*self.roles, *self.committees))
+
+    def derive_member_duties(self, as_of: date, policy: DutyPolicy | None = None) -> tuple[MemberDutyExpectation, ...]:
+        """Round-2 source-based expectation; no Sportlink hours comparison."""
+        from .member_duty import derive_member_duties
+        return derive_member_duties(self, as_of, policy or DutyPolicy(version="ckc-v05-round2"))
+
+    def compare_required_hours(self, as_of: date, policy: DutyPolicy | None = None) -> tuple[RequiredHoursControl, ...]:
+        """Read-only round-3 control using the source-based round-2 expectation."""
+        from .hours_control import compare_required_hours
+        return compare_required_hours(self, as_of, policy)
 
 
 class SportlinkRealDataAdapter:
     """Read-only v0.4 adapter. Sportlink field names live only in this layer."""
 
     REQUIRED_COLUMNS = {
-        "leden": {"Rel. code", "Naam", "Geboortedatum", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
+        "leden": {"Rel. code", "Naam", "Lidstatus", "Lidsoort", "Status lidmaatschap"},
         "functies": {"Rel. code", "Functie"},
         "commissies": {"Rel. code", "Commissie", "Functie"},
         "vrijwilligers_periode": {"Relatiecode", "Verplichte punten", "Gecorrigeerde punten", "Voldaan", "Nog ingedeeld", "Niet ingedeeld"},
-        "teams": {"Rel. code", "Team", "Teamrol", "Functie", "Spelend lid"},
+        "teams": {"Rel. code", "Team", "Teamrol", "Spelend lid"},
     }
 
     def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
-                     imported_at=None, source_period=None, expected_required_hours=None) -> RealDataImportResult:
+                     imported_at=None, source_period=None,
+                     source_dates: dict[str, date] | None = None, as_of: date | None = None,
+                     previous_planning_date: date | None = None,
+                     previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
         imported_at = imported_at or datetime.now(timezone.utc)
-        expected_required_hours = expected_required_hours or {}
+        source_dates = source_dates or {}
+        previous_source_dates = previous_source_dates or {}
+        membership_as_of: list[tuple[str, bool | None]] = []
         signals: list[DataQualitySignal] = []
         provenance: list[Provenance] = []
+        for dataset, fetched_on in source_dates.items():
+            if previous_planning_date is not None and fetched_on < previous_planning_date:
+                signals.append(DataQualitySignal("SOURCE_PREDATES_PREVIOUS_PLANNING", "WARNING", dataset, None,
+                                                 "Bron ouder dan vorige planning; beoordeel actualiteit"))
+            if dataset in previous_source_dates and fetched_on <= previous_source_dates[dataset]:
+                signals.append(DataQualitySignal("SOURCE_NOT_REFRESHED", "WARNING", dataset, None,
+                                                 "Geen nieuwere ophaaldatum sinds vorige planning"))
 
         member_rows = self.read_rows(members_path, "leden")
         function_rows = self.read_rows(functions_path, "functies")
         committee_rows = self.read_rows(committees_path, "commissies")
-        duty_rows = self.read_rows(duty_path, "vrijwilligers_periode")
+        duty_rows = self.read_rows(duty_path, "vrijwilligers_periode") if duty_path is not None else []
         team_rows = self.read_rows(teams_path, "teams")
 
         grouped: dict[str, list[dict[str, str]]] = {}
@@ -120,18 +155,68 @@ class SportlinkRealDataAdapter:
             if len(variants) > 1:
                 signals.append(DataQualitySignal("DUPLICATE_PERSON_SOURCE_RECORD", "WARNING", "leden", pid,
                                                  f"{len(variants)} bronregels met dezelfde Rel. code"))
-            identities = {(self.value(r, "Naam"), self.value(r, "Geboortedatum")) for r in variants}
+            identities = {(self.value(r, "Naam"), self.value(r, "Geb.dat.") or self.value(r, "Geboortedatum")) for r in variants}
             if len(identities) > 1:
                 signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_IDENTITY", "ERROR", "leden", pid,
                                                  "Dubbele Rel. code heeft conflicterende naam/geboortedatum"))
                 continue
-            row = max(variants, key=self._member_score)
+            status_dates = {(self.value(r, "Lidstatus"), self.value(r, "Afmelddatum")) for r in variants}
+            if len(status_dates) > 1:
+                signals.append(DataQualitySignal("CONFLICTING_DUPLICATE_MEMBERSHIP", "ERROR", "leden", pid,
+                                                 "Dubbele Rel. code heeft conflicterende lidstatus of afmelddatum"))
+                continue
+            row = variants[0]
+            termination = self.value(row, "Afmelddatum")
+            if termination:
+                try:
+                    self.parse_date(termination)
+                except ValueError:
+                    signals.append(DataQualitySignal("INVALID_TERMINATION_DATE", "ERROR", "leden", pid,
+                                                     "Ongeldige Afmelddatum"))
+                    continue
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
-            plays = bool(activity) or local_status.lower() == "spelend lid"
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geboortedatum"))))
-            memberships.append(Membership(pid, self.value(row, "Lidstatus"), self.value(row, "Lidsoort"),
-                                          plays_football=plays,
+            plays = False  # B-02: only a qualifying Teams row proves bond-team participation
+            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum")),
+                                  sportlink_name=self.sportlink_name(row),
+                                  postal_code=self.value(row, "Postcode") or None,
+                                  house_number=self.value(row, "Huisnummer") or None,
+                                  house_number_addition=self.value(row, "Toevoeging") or None,
+                                  parent_names=(self.value(row, "Naam ouder/verzorger 1") or None,
+                                                self.value(row, "Naam ouder/verzorger 2") or None),
+                                  street_name=self.value(row, "Straatnaam") or None,
+                                  city=self.value(row, "Plaats") or None,
+                                  contact_via_parent=self.optional_bool(self.value(row, "Contact via ouder/verzorger")),
+                                  address_conflicting=len({self.address_key(r) for r in variants}) > 1,
+                                  parent_data_conflicting=len({self.parent_key(r) for r in variants}) > 1))
+            for field in ("Geb.dat.", "Straatnaam", "Huisnummer", "Toevoeging", "Postcode", "Plaats",
+                          "Contact via ouder/verzorger", "Naam ouder/verzorger 1", "Naam ouder/verzorger 2"):
+                for variant_index, variant in enumerate(variants, 1):
+                    if field in variant:
+                        provenance.append(self.prov("leden", f"{pid}:{variant_index}", imported_at, source_period,
+                                                    source_field=field, source_value=variant[field],
+                                                    normalized_value=self.value(variant, field)))
+            for conflicting, code in ((persons[-1].address_conflicting, "CONFLICTING_MEMBER_ADDRESS"),
+                                      (persons[-1].parent_data_conflicting, "CONFLICTING_PARENT_DATA")):
+                if conflicting:
+                    signals.append(DataQualitySignal(code, "WARNING", "leden", pid,
+                                                     "Dubbele ledenregels bevatten tegenstrijdige brongegevens"))
+            raw_status = self.value(row, "Lidstatus")
+            status = raw_status.casefold()
+            end_date = self.parse_date(termination)
+            if status not in {"definitief", "afgemeld"}:
+                signals.append(DataQualitySignal("UNKNOWN_MEMBERSHIP_STATUS", "WARNING", "leden", pid,
+                                                 f"Onbekende Lidstatus: {raw_status!r}"))
+            if status == "afgemeld" and end_date is None:
+                signals.append(DataQualitySignal("MISSING_TERMINATION_DATE", "WARNING", "leden", pid,
+                                                 "Afgemeld zonder Afmelddatum: peildatumstatus onduidelijk"))
+            if as_of is not None:
+                membership_as_of.append((pid, self.current_membership(raw_status, end_date, as_of)))
+            if as_of is not None and status == "definitief" and end_date is not None and as_of >= end_date:
+                signals.append(DataQualitySignal("MEMBERSHIP_ENDED_AS_OF", "INFO", "leden", pid,
+                                                 "Afmelddatum bereikt op peildatum"))
+            memberships.append(Membership(pid, raw_status, self.value(row, "Lidsoort"),
+                                          end_date=end_date, plays_football=plays,
                                           recreational=local_status.lower() == "recreatief",
                                           honorary=local_status.lower() in {"erelid", "ere lid"}))
             football.append(FootballParticipation(pid, local_status, activity or None, plays))
@@ -146,10 +231,19 @@ class SportlinkRealDataAdapter:
             role = self.value(row, "Functie")
             if role:
                 normalized_role = self.normalize_role(role)
-                roles.append(RoleAssignment(pid, normalized_role))
-                provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
-                                            source_field="Functie", source_value=role,
-                                            normalized_value=normalized_role))
+                role_provenance = self.prov("functies", f"{pid}:{i}", imported_at, source_period,
+                                            source_field="Functie", source_value=row.get("Functie") or "",
+                                            normalized_value=normalized_role)
+                try:
+                    start_date = self.parse_date(self.value(row, "Begindatum"))
+                    end_date = self.parse_date(self.value(row, "Einddatum"))
+                except ValueError:
+                    signals.append(DataQualitySignal("INVALID_FUNCTION_DATE", "ERROR", "functies", f"{pid}:{i}",
+                                                     "Ongeldige geldigheidsdatum functieregistratie"))
+                    continue
+                roles.append(RoleAssignment(pid, normalized_role, start_date, end_date,
+                                            source_role=row.get("Functie") or "", provenance=role_provenance))
+                provenance.append(role_provenance)
             else:
                 signals.append(DataQualitySignal("UNKNOWN_FUNCTION", "WARNING", "functies", pid, "Lege functienaam"))
                 provenance.append(self.prov("functies", f"{pid}:{i}", imported_at, source_period,
@@ -160,8 +254,23 @@ class SportlinkRealDataAdapter:
             pid = self.value(row, "Rel. code")
             if not self.known_person(pid, person_ids, "commissies", str(i), signals):
                 continue
-            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"), self.value(row, "Functie")))
-            provenance.append(self.prov("commissies", f"{pid}:{i}", imported_at, source_period))
+            committee_start = self.value(row, "Begindatum")
+            try:
+                start_date = self.parse_date(committee_start)
+            except ValueError:
+                signals.append(DataQualitySignal("INVALID_COMMITTEE_START_DATE", "ERROR", "commissies", f"{pid}:{i}",
+                                                 "Ongeldige begindatum commissieregistratie"))
+                continue
+            try:
+                end_date = self.parse_date(self.value(row, "Einddatum"))
+            except ValueError:
+                signals.append(DataQualitySignal("INVALID_COMMITTEE_END_DATE", "ERROR", "commissies", f"{pid}:{i}",
+                                                 "Ongeldige einddatum commissieregistratie"))
+                continue
+            committee_provenance = self.prov("commissies", f"{pid}:{i}", imported_at, source_period)
+            committees.append(CommitteeMembership(pid, self.value(row, "Commissie"),
+                                                  self.value(row, "Functie"), start_date, end_date, committee_provenance))
+            provenance.append(committee_provenance)
 
         teams: list[RealTeamMembership] = []
         for i, row in enumerate(team_rows, 1):
@@ -177,15 +286,35 @@ class SportlinkRealDataAdapter:
             if playing_value and playing_member is None:
                 signals.append(DataQualitySignal("UNKNOWN_PLAYING_MEMBER_VALUE", "WARNING", "teams", f"{pid}:{i}",
                                                  f"Onbekende waarde Spelend lid: {playing_value!r}"))
+            team_type = self.value(row, "Teamsoort")
+            if not team_type:
+                signals.append(DataQualitySignal("MISSING_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 "Teamsoort ontbreekt: bondsteamdeelname niet betrouwbaar te beoordelen"))
+            elif team_type.casefold() not in {"bond", "vereniging"}:
+                signals.append(DataQualitySignal("UNKNOWN_TEAM_TYPE", "WARNING", "teams", f"{pid}:{i}",
+                                                 f"Onbekende Teamsoort: {team_type!r}"))
             teams.append(RealTeamMembership(pid, team, self.value(row, "Teamrol") or None,
-                                            self.value(row, "Functie") or None, playing_member))
+                                            playing_member, team_type or None))
             provenance.append(self.prov("teams", f"{pid}:{i}", imported_at, source_period,
                                         source_field="Spelend lid", source_value=playing_value,
                                         normalized_value=None if playing_member is None else str(playing_member)))
 
+        # Only one current Teams record satisfying all three criteria proves participation.
+        qualifying_ids = {t.person_id for t in teams if t.team_type and t.team_type.casefold() == "bond"
+                          and t.team_role and t.team_role.casefold() == "teamspeler" and t.playing_member is True}
+        memberships = [Membership(m.person_id, m.status, m.kind, start_date=m.start_date,
+                                  end_date=m.end_date, plays_football=m.person_id in qualifying_ids,
+                                  recreational=m.recreational, honorary=m.honorary) for m in memberships]
+        football = [FootballParticipation(f.person_id, f.source_status, f.bond_activity,
+                                          f.person_id in qualifying_ids) for f in football]
+
         duties: list[DutyImportRecord] = []
         for i, row in enumerate(duty_rows, 1):
             pid = self.value(row, "Relatiecode")
+            for field in sorted(self.REQUIRED_COLUMNS["vrijwilligers_periode"]):
+                provenance.append(self.prov("vrijwilligers_periode", f"{pid}:{i}", imported_at, source_period,
+                                            source_field=field, source_value=row.get(field) or "",
+                                            normalized_value=self.value(row, field)))
             if not self.known_person(pid, person_ids, "vrijwilligers_periode", str(i), signals):
                 continue
             try:
@@ -198,25 +327,26 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("INVALID_DUTY_VALUE", "ERROR", "vrijwilligers_periode", pid, str(exc)))
                 continue
             registration = SportlinkDutyRegistration(pid, a, b, c, d)
-            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d), expected_required_hours.get(pid))
+            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d))
             duties.append(record)
             if not record.source_formula_matches:
                 signals.append(DataQualitySignal("DUTY_REMAINING_MISMATCH", "ERROR", "vrijwilligers_periode", pid,
                                                  f"Sportlink E={source_e} maar A-B-C-D={record.position.E}"))
-            if record.required_hours_mismatch:
-                signals.append(DataQualitySignal("REQUIRED_HOURS_MISMATCH", "WARNING", "vrijwilligers_periode", pid,
-                                                 f"Sportlink A={a} maar DVK verwacht A={record.expected_required_hours}"))
-            provenance.append(self.prov("vrijwilligers_periode", pid, imported_at, source_period,
-                                        source_field="Niet ingedeeld", source_value=str(source_e),
-                                        normalized_value=str(record.position.E)))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
-                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals))
+                                    tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
+                                    tuple(sorted(source_dates.items())), tuple(membership_as_of))
 
     @classmethod
     def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
+        if hasattr(path, "read"):
+            return cls.read_rows_text(path.read().lstrip("\ufeff"), dataset)
         path = Path(path)
         text = path.read_text(encoding="utf-8-sig")
+        return cls.read_rows_text(text, dataset, name=path.name)
+
+    @classmethod
+    def read_rows_text(cls, text: str, dataset: str, *, name="CSV") -> list[dict[str, str]]:
         try:
             delimiter = csv.Sniffer().sniff(text[:8192], delimiters=";,\t").delimiter
         except csv.Error:
@@ -224,8 +354,46 @@ class SportlinkRealDataAdapter:
         reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
-            raise ValueError(f"{path.name}: missing columns: {', '.join(sorted(missing))}")
+            raise ValueError(f"{name}: missing columns: {', '.join(sorted(missing))}")
+        if dataset == "leden" and not ({"Geb.dat.", "Geboortedatum"} & set(reader.fieldnames or ())):
+            raise ValueError(f"{name}: missing columns: Geb.dat. (or legacy Geboortedatum)")
         return list(reader)
+
+    @classmethod
+    def read_volunteer_persons(cls, text: str) -> tuple[Person, ...]:
+        rows = cls.read_rows_text(text.lstrip("\ufeff"), "leden")
+        return tuple(Person(cls.value(row, "Rel. code"), cls.value(row, "Naam"),
+                            sportlink_name=cls.sportlink_name(row))
+                     for row in rows if cls.value(row, "Rel. code"))
+
+    @staticmethod
+    def sportlink_name(row: dict[str, str]) -> str | None:
+        """Only the CKC-verified complete form; missing-part formats are unknown."""
+        parts = tuple((row.get(key) or "").strip() for key in
+                      ("Achternaam", "Voorletter(s)", "Tussenvoegsel(s)", "Roepnaam"))
+        if not all(parts):
+            return None
+        surname, initials, prefix, familiar = parts
+        return f"{surname}, {initials} {prefix} ({familiar})"
+
+    @staticmethod
+    def current_membership(status: str, end_date: date | None, as_of: date) -> bool | None:
+        """CKC B-03: Afmelddatum is first day without membership; unknown stays unknown."""
+        if end_date is not None:
+            return as_of < end_date
+        if status.strip().casefold() == "definitief":
+            return True
+        return None
+
+    @classmethod
+    def address_key(cls, row):
+        return ("".join(cls.value(row, "Postcode").upper().split()),
+                cls.value(row, "Huisnummer").upper(), cls.value(row, "Toevoeging").upper())
+
+    @classmethod
+    def parent_key(cls, row):
+        return tuple(sorted(cls.value(row, field) for field in
+                            ("Naam ouder/verzorger 1", "Naam ouder/verzorger 2") if cls.value(row, field)))
 
     @staticmethod
     def _member_score(row):
@@ -235,11 +403,6 @@ class SportlinkRealDataAdapter:
     @staticmethod
     def normalize_role(role: str) -> str:
         cleaned = " ".join(role.strip().split())
-        lower = cleaned.lower().replace("-", " ")
-        if lower in {"vice voorzitter", "vicevoorzitter"}:
-            return "Vice voorzitter"
-        if lower.startswith("trainer ") or lower == "hoofdtrainer":
-            return "Trainer"
         return cleaned
 
     @staticmethod
@@ -282,10 +445,10 @@ class SportlinkRealDataAdapter:
         if not normalized:
             raise ValueError(f"Ontbrekende verplichte waarde {field_name}")
         try:
-            number = float(normalized)
-        except ValueError as exc:
+            number = Decimal(normalized)
+        except InvalidOperation as exc:
             raise ValueError(f"Ongeldige waarde {field_name}: {value!r}") from exc
-        if not number.is_integer():
+        if not number.is_finite() or number != number.to_integral_value():
             raise ValueError(f"Verwacht geheel aantal punten/uren voor {field_name}, kreeg {value!r}")
         return int(number)
 

@@ -165,7 +165,7 @@ def scenario_1_approval():
     field("Dienst", definition.service_type)
     field("Urenpositie vóór", position(before))
     field("Urenpositie na", position(after))
-    field("Effect", f"D {before.D} → {after.D}; E {before.E} → {after.E}; A/B/C ongewijzigd")
+    field("Effect", f"Tijdelijke DVK-planning: {assignment.scheduled_hours} uur; Sportlink A/B/C/D/E ongewijzigd")
 
     section("8. PROVENANCE — Wat is feit, configuratie en afleiding?")
     field("ShiftCatalog", next(iter({p.kind for p in shift.provenance})))
@@ -174,7 +174,7 @@ def scenario_1_approval():
     field("Open behoefte", staffing_provenance(need, derived_at=IMPORTED_AT).kind)
     field("Voorstel", "DVK-afleiding / voorstel")
     field("Goedkeuring", "MENSELIJKE BESLISSING")
-    return after.D == before.D + 1 and after.E == before.E - 1
+    return after == before and assignment.scheduled_hours == 1
 
 
 def scenario_2_rejection():
