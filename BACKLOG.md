@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt na backlogbespreking 9 oktober en RPA-opdracht 12 oktober 2026  
+**Status:** bijgewerkt na afronding BL-04 op 19 oktober 2026  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -12,13 +12,13 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 | --- | --- | --- |
 | BL-01 | Adresgebaseerde huishoud- en minderjarigenregels B-05/B-06/B-07 | **Afgerond en functioneel geaccepteerd** in Stap 2 ronde 4; uitsluitend volledig geregistreerd adres als automatische huishoudsleutel; relevante leden op peildatum; geen ouder-/achternaamheuristiek. |
 | BL-02 | Read-only taakplichtcontroledashboard | **Afgerond en functioneel geaccepteerd.** Lokale CKC-acceptatie: 650 relevante leden, 563 overeenkomsten, 87 afwijkingen, 0 niet betrouwbaar beoordeelbaar. Bron- en controlediagnose behouden. [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged naar `prototype-v0.5`. |
+| BL-04 | DVK-frontend, hoofdmenu, licht portaal | **Afgerond en functioneel geaccepteerd op 19 oktober 2026.** Startscherm met acht functies in drie groepen, één per regel; zijbalk uitsluitend navigatie; instellingen op eigen scherm. Rooster Generator als uitgeschakelde knop. Correcties BL-04-01/03/04 verwerkt; BL-04-02 vervallen. 62 gerichte tests, 636 regressietests en CI groen. [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged naar `prototype-v0.5` (`68ae25fa`). CSV-uploads moeten na schermwisseling opnieuw worden geselecteerd. |
 
 ## Open / geprioriteerd
 
 | ID | Onderwerp | Afspraak en eerstvolgende stap | Afhankelijkheid |
 | --- | --- | --- | --- |
 | BL-03 | Achterstallige uren vorig seizoen | **Hoge prioriteit, v0.5.** Planner bevestigt beschikbaar Excel-overzicht; bestand/kolommen nog te ontvangen en lokaal te verifiëren. Koppeling bij voorkeur op Sportlink-lidnummer, met seizoen, openstaande uren en controle op duplicaten/ontbrekende matches. Achterstand beïnvloedt kandidaatprioritering **tot en met 31 december**; vanaf 1 januari niet meer. Niet optellen bij Sportlink A van het nieuwe seizoen. **Wijziging B-13** t.o.v. eerdere grens 1 december: functionele baseline, configuratie en regressietests expliciet bijwerken vóór implementatie. | Excel van planner; bronsemantiek en seizoensidentificatie |
-| BL-04 | DVK-frontend, hoofdmenu, licht portaal | **Eerstvolgende ontwikkelstap.** DVK-welkomstpagina met moduleoverzicht; Ledendienst Planning toegankelijk, taakplichtcontrole als functie daarbinnen. Rooster Generator tonen als operationeel buiten DVK, overige modules eerlijk als toekomstig. Lichte Streamlit-navigatie; geen nieuw portaalframework, geen beleidslogica in UI. | F-01–F-08; actuele UI verifiëren |
 | BL-05 | Duurzame plannerbeslissingen bij taakplichtafwijkingen | **v0.5, na terugkoppeling planner.** Leg besluit, reden, actor, tijdstip, geldigheid en herbeoordeling na bronvernieuwing vast; onderscheid DVK-afleiding van menselijke administratieve beslissing. Ontwerp mede op basis van beoordeling van de 87 afwijkingen. | Terugkoppeling CKC-planner; B-09/B-14 |
 | BL-06 | Urenoverdracht bij 18 jaar | **v0.5.** Signaleer overdrachtsmogelijkheid; uitsluitend menselijke goedkeuring en twee tegengestelde handmatige Sportlink-B-correcties; na nieuwe import beide verifiëren. Geen automatische Sportlink-mutatie. | B-08; verificatie Sportlink B |
 | BL-07 | Sportlink-urenbron en seizoensgegevens | **Gedeeltelijk gevalideerd.** Sportlink A is voor read-only taakplichtcontrole met echte CKC-exports getoetst. Nog open: werkelijke B/C/D/E-betekenis, beschikbare velden, seizoensafbakening en controle van correcties na import. | Brononderzoek Sportlink |
