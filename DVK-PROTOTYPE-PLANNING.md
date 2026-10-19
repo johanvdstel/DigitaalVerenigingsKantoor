@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** voorgestelde en op hoofdlijnen afgestemde ontwikkelvolgorde, 9 oktober 2026.  
+**Status:** ontwikkelvolgorde bijgewerkt na afronding BL-04 op 19 oktober 2026.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -9,7 +9,7 @@
 | Volgorde | Stap | Gewenst resultaat / acceptatie | Status |
 | --- | --- | --- | --- |
 | Afgerond | Stap 2 ronde 4 — taakplichtcontrole | Read-only afleiding, vergelijking met Sportlink A, bron- en controlediagnose; lokaal functioneel geaccepteerd en [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged. | **Afgerond** |
-| 1 | BL-04 — DVK-portaal | Welkomstpagina en moduleoverzicht, correcte beschikbaarheidsstatus; Ledendienst Planning toegankelijk, bestaande functies blijven werken. | **Volgende stap** |
+| Afgerond | BL-04 — DVK-portaal | Startscherm en modulenavigatie; lokaal geaccepteerd en [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged. | **Afgerond (19 oktober 2026)** |
 | 2 | Integratie Vrijwilligers API | Actuele diensten, Sportlink-inroosteringen en bezetting betrouwbaar ophalen/vertalen; bronstatus, fouten, peildatum en herhaalbaarheid controleren. | **Apart onderzoeken, implementeren en accepteren** |
 | 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Apart onderzoeken, implementeren en accepteren** |
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
@@ -18,6 +18,10 @@
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder beschikbaar komen en in parallel worden voorbereid. Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's. De API-integraties zijn **twee afzonderlijke ontwikkel- en acceptatiestappen**.
+
+### Afronding BL-04
+
+BL-04 is lokaal visueel geaccepteerd en via [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged naar `prototype-v0.5` (`68ae25fa`). BL-04-01: functiespecifieke instellingen direct onder de betreffende schermtitels; BL-04-03: overbodige toelichting verwijderd, Rooster Generator als uitgeschakelde knop; BL-04-04: acht functies uniform één per regel op het startscherm. BL-04-02 is vervallen en niet geïmplementeerd; Planning blijft bewust met demonstratiegegevens werken. 62 gerichte tests, 636 regressietests en CI groen. Bekende beperking: CSV-uploads van Taakplichtcontrole na schermwisseling opnieuw selecteren. Volgende stap: afzonderlijke verificatie en acceptatie Vrijwilligers API.
 
 ## Acceptatie per stap
 
@@ -65,7 +69,7 @@ De aparte [productieroadmap](PRODUCTIE-ROADMAP.md) behandelt hosting, echte data
 
 | Volgorde / releasevenster | Onderdeel | Besluit / acceptatie |
 | --- | --- | --- |
-| Huidige v0.5 | Portaal, afzonderlijke API-acceptaties, achterstanden, Stap 3 Planning en integrale verificatie | Bestaande planning afronden; Sportlink-verwerking blijft handmatig |
+| Huidige v0.5 | Portaal (BL-04 afgerond), afzonderlijke API-acceptaties, achterstanden, Stap 3 Planning en integrale verificatie | Resterende planning afronden; Sportlink-verwerking blijft handmatig |
 | Eerstvolgende vervolgiteratie na acceptatie v0.5 | BL-13a — RPA-haalbaarheidsproef | Eén goedgekeurde indeling, teruglezen, dubbele invoer voorkomen en onderbreking veilig hervatten; go/no-go voor pilot |
 | Volgende pilotrelease na positieve proef | BL-13b — Kleine batch onder toezicht | Resultaat per indeling en veilige herstart; actuele bezetting opnieuw controleren; fouten naar planner |
 | Productierelease na pilotacceptatie en productievoorwaarden | BL-13c — Beheerde RPA-invoering | Voorwaarden P1–P3 uit productieroadmap, operationeel beheer en expliciete productie-go/no-go |
