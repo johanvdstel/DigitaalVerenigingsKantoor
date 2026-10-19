@@ -119,7 +119,9 @@ def test_streamlit_initial_render(tmp_path):
     app_file = Path(__file__).parents[1] / 'streamlit_app.py'
     local_app = tmp_path / 'streamlit_app.py'
     local_app.write_text(app_file.read_text())
-    app = AppTest.from_file(str(local_app)).run(timeout=20)
+    app = AppTest.from_file(str(local_app))
+    app.session_state['dvk-screen'] = 'control'
+    app.run(timeout=20)
     assert not app.exception
     assert any('Taakplichtcontrole' in item.value for item in app.markdown)
     assert any(item.label == 'Peildatum taakplichtcontrole' for item in app.date_input)

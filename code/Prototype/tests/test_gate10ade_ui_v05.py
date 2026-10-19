@@ -87,7 +87,9 @@ def rendered_app(tmp_path):
             when = source.starts_at
             NoShowApplicationService(uow, Identity("vc1", "VC", frozenset({Permission.MANAGE_NO_SHOWS}))).register(
                 NoShowEvent(f"technical-no-show-{i}", source.assignment_id, context.assignment.person_id, when, when, "vc1", "2026/2027"))
-    app = AppTest.from_file(str(script), default_timeout=15).run()
+    app = AppTest.from_file(str(script), default_timeout=15)
+    app.session_state["dvk-screen"] = "planning"
+    app.run()
     assert not app.exception
     return app, db
 

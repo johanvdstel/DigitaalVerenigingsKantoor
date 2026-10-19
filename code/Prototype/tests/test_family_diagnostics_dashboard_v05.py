@@ -119,6 +119,7 @@ def test_ui_details_are_read_only_and_follow_filter(tmp_path, monkeypatch):
     monkeypatch.setattr(SportlinkVrijwilligersClient,'fetch_rows',forbidden)
     monkeypatch.setattr(st,'file_uploader',lambda label, **kwargs: BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
     app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-date'] = TODAY
     app.session_state['duty-control-period'] = '2026-2027'
     app.run(timeout=20)
