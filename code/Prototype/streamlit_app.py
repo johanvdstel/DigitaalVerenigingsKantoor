@@ -77,7 +77,7 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
     return cases, plan_proposals(proposals, need)
 
-st.set_page_config(page_title="DVK — Ledendienst Planning", page_icon="📋", layout="wide")
+st.set_page_config(page_title="DVK — Digitaal Verenigingskantoor", page_icon="📋", layout="wide")
 st.title("CKC Digitaal Verenigings Kantoor (DVK)")
 
 
@@ -86,13 +86,13 @@ def _render_planning():
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
     with st.sidebar:
         st.header("Periode")
-        mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1)
-        selected = st.date_input("Vanaf", value=date.today())
+        mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
+        selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
         if mode == "Dag": period = PlanningPeriod(selected, selected)
         elif mode == "Week":
             monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
         else:
-            until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected); period = PlanningPeriod(selected, until)
+            until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
 
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
@@ -318,81 +318,139 @@ def _render_planning():
     st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
 
 
-try:
-    _render_planning()
-except sqlite3.DatabaseError as exc:
-    # Known schema/storage failures may block planning, but never the CSV control.
-    # Unknown SQL errors and programming errors must remain visible to developers.
-    storage_codes = {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY,
-                     sqlite3.SQLITE_CANTOPEN, sqlite3.SQLITE_IOERR, sqlite3.SQLITE_FULL,
-                     sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}
-    missing_schema = isinstance(exc, sqlite3.OperationalError) and str(exc).startswith(
-        ("no such table:", "no such column:"))
-    if not missing_schema and (getattr(exc, "sqlite_errorcode", 0) & 0xff) not in storage_codes:
-        raise
-    st.error("De planning en no-showregistratie zijn niet beschikbaar door een databaseprobleem. "
-             "Laat de database afzonderlijk controleren. De taakplichtcontrole hieronder blijft beschikbaar.")
-
-st.markdown("### Taakplichtcontrole — read-only")
-st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
-with st.sidebar:
-    st.header("Taakplichtcontrole")
-    control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
-    control_period = st.text_input("Periode / seizoen van Overzicht per periode",
-                                   value=suggested_season(control_as_of), key="duty-control-period",
-                                   placeholder="2026-2027",
-                                   help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
-st.caption("Voer de peildatum en de periode / het seizoen in bij Taakplichtcontrole in de zijbalk.")
-control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
-                 for dataset, (label, _) in EXPORTS.items()}
-control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")
-try:
-    validated_period = validate_season(control_period)
-except ValueError as exc:
-    validated_period = None
-    st.error(str(exc))
-if all(file is not None for file in control_files.values()) and validated_period is not None:
+def _render_planning_screen():
     try:
-        dashboard = load_duty_dashboard({key: file.getvalue() for key, file in control_files.items()},
-                                        as_of=control_as_of, source_period=validated_period)
+        _render_planning()
+    except sqlite3.DatabaseError as exc:
+        # Known schema/storage failures may block planning, but never the CSV control.
+        # Unknown SQL errors and programming errors must remain visible to developers.
+        storage_codes = {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY,
+                         sqlite3.SQLITE_CANTOPEN, sqlite3.SQLITE_IOERR, sqlite3.SQLITE_FULL,
+                         sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}
+        missing_schema = isinstance(exc, sqlite3.OperationalError) and str(exc).startswith(
+            ("no such table:", "no such column:"))
+        if not missing_schema and (getattr(exc, "sqlite_errorcode", 0) & 0xff) not in storage_codes:
+            raise
+        st.error("De planning en no-showregistratie zijn niet beschikbaar door een databaseprobleem. "
+                 "Laat de database afzonderlijk controleren. Open Taakplichtcontrole via de zijbalk; die blijft beschikbaar.")
+
+
+# Only retain scalar input values. Uploads and action/selection widgets follow
+# Streamlit's normal cleanup when their screen is no longer rendered.
+for _key in ("planning-mode", "planning-from", "planning-until",
+             "duty-control-date", "duty-control-period", "duty-control-filter"):
+    if _key in st.session_state:
+        st.session_state[_key] = st.session_state[_key]
+
+
+def _navigate(screen):
+    st.session_state["dvk-screen"] = screen
+
+
+def _render_navigation():
+    with st.sidebar:
+        st.header("DVK")
+        st.button("Startscherm", key="nav-home", on_click=_navigate, args=("home",))
+        st.subheader("Ledendiensten & Vrijwilligersbeleid")
+        st.button("Ledendienst Planning", key="nav-planning", on_click=_navigate, args=("planning",))
+        st.button("Taakplichtcontrole", key="nav-control", on_click=_navigate, args=("control",))
+        st.caption("Taakplichtcontrole is een functie binnen Ledendienst Planning.")
+        st.caption("Rooster Generator — extern, nog niet geïntegreerd")
+        st.subheader("Overige werkgebieden")
+        for name in ("Ledenadministratie", "Wedstrijdsecretariaat", "Kledingadministratie"):
+            st.button(f"{name} — niet beschikbaar", disabled=True, key=f"nav-{name}")
+        st.subheader("DVK Beheer")
+        for name in ("Toegangsbeheer", "Tabelonderhoud"):
+            st.button(f"{name} — niet beschikbaar", disabled=True, key=f"nav-{name}")
+
+
+def _render_home():
+    st.subheader("Welkom bij het Digitaal Verenigingskantoor")
+    st.write("Kies een scherm via de zijbalk. Via Startscherm keer je altijd terug naar dit overzicht.")
+    st.markdown("### Ledendiensten & Vrijwilligersbeleid")
+    st.write("**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.")
+    st.write("**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.")
+    st.write("**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.")
+    st.markdown("### Overige werkgebieden")
+    st.write("Ledenadministratie · Wedstrijdsecretariaat · Kledingadministratie — toekomstig, niet beschikbaar.")
+    st.markdown("### DVK Beheer")
+    st.write("Toegangsbeheer · Tabelonderhoud — toekomstig, niet beschikbaar.")
+    st.info("Bij het verlaten van Taakplichtcontrole worden de bestandsuploads niet bewaard. "
+            "Selecteer de vijf bestanden opnieuw wanneer je terugkomt. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
+
+
+def _render_duty_control():
+    st.markdown("### Taakplichtcontrole — read-only")
+    st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
+    with st.sidebar:
+        st.header("Taakplichtcontrole")
+        control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
+        control_period = st.text_input("Periode / seizoen van Overzicht per periode",
+                                       value=suggested_season(control_as_of), key="duty-control-period",
+                                       placeholder="2026-2027",
+                                       help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
+    st.caption("Voer de peildatum en de periode / het seizoen in bij Taakplichtcontrole in de zijbalk.")
+    st.caption("Bij het verlaten van dit scherm vervallen de uploads. Selecteer de vijf bestanden opnieuw wanneer je terugkomt.")
+    control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
+                     for dataset, (label, _) in EXPORTS.items()}
+    control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")
+    try:
+        validated_period = validate_season(control_period)
     except ValueError as exc:
+        validated_period = None
         st.error(str(exc))
-    else:
-        st.markdown("#### Selectieverantwoording")
-        for column, (label, count) in zip(st.columns(4), dashboard.selection_counts.items()):
-            column.metric(label, count)
-        with st.expander("Redenen voor uitsluiting en selectieproblemen"):
-            selection_rows = [{"Lid": r.member, "Relatiecode": r.person_id,
-                               "Selectie": r.outcome, "Reden": r.reason}
-                              for r in dashboard.selection if r.outcome != "Meegenomen"]
-            st.caption(f"{len(selection_rows)} records getoond. Ledenregels zonder relatiecode blijven in de brondiagnose.")
-            st.dataframe(selection_rows, hide_index=True, use_container_width=True, height=360)
-        st.markdown("#### Taakplichtbeoordeling")
-        for column, (label, count) in zip(st.columns(4), dashboard.counts.items()):
-            column.metric(label.capitalize(), count)
-        st.caption(f"Peildatum: {control_as_of:%d-%m-%Y} · Periode: {control_period}")
-        control_rows = [{"Lid": r.member, "DVK verwachte A": r.expected, "Waarom": r.why,
-                         "Sportlink-A": r.registered, "Controlestatus": r.status,
-                         "Relatiecode": r.person_id} for r in dashboard.filtered(control_filter)]
-        if control_rows:
-            st.caption(f"{len(control_rows)} van {len(dashboard.rows)} beoordeelde leden getoond.")
-            st.dataframe(control_rows, hide_index=True, use_container_width=True, height=360)
+    if all(file is not None for file in control_files.values()) and validated_period is not None:
+        try:
+            dashboard = load_duty_dashboard({key: file.getvalue() for key, file in control_files.items()},
+                                            as_of=control_as_of, source_period=validated_period)
+        except ValueError as exc:
+            st.error(str(exc))
         else:
-            st.info("Geen leden binnen dit filter.")
-        control_names = {p.person_id: p.name or "Naam onbekend" for p in dashboard.source.persons}
-        family_details = [{"Beoordeeld lid": r.member, "Vergelijking met": control_names.get(d.compared_person_id, "—"),
-                           "Gegevens van": d.subject, "Betrokken lid": d.involved_member,
-                           "Criterium": d.criterion, "Oorzaak": d.issue, "Toelichting": d.explanation}
-                          for r in dashboard.filtered(control_filter) for d in r.family_diagnostics]
-        if family_details:
-            with st.expander("Nadere uitleg bij onvoldoende gezinsgegevens"):
-                st.caption(f"{len(family_details)} oorzaken binnen het gekozen filter. Deze uitleg verandert de beoordeling niet.")
-                st.dataframe(family_details, hide_index=True, use_container_width=True, height=360)
-        with st.expander("Bron- en controlediagnose"):
-            st.caption("Relatiecode is de koppelsleutel. Bronregels die niet gekoppeld of verwerkt konden worden blijven hier zichtbaar.")
-            st.caption(f"{len(dashboard.source.signals)} diagnosemeldingen getoond.")
-            st.dataframe([{"Bron": s.dataset, "Ernst": s.severity, "Code": s.code,
-                           "Bronreferentie": s.record_key, "Melding": s.message}
-                          for s in dashboard.source.signals], hide_index=True, use_container_width=True, height=360)
+            st.markdown("#### Selectieverantwoording")
+            for column, (label, count) in zip(st.columns(4), dashboard.selection_counts.items()):
+                column.metric(label, count)
+            with st.expander("Redenen voor uitsluiting en selectieproblemen"):
+                selection_rows = [{"Lid": r.member, "Relatiecode": r.person_id,
+                                   "Selectie": r.outcome, "Reden": r.reason}
+                                  for r in dashboard.selection if r.outcome != "Meegenomen"]
+                st.caption(f"{len(selection_rows)} records getoond. Ledenregels zonder relatiecode blijven in de brondiagnose.")
+                st.dataframe(selection_rows, hide_index=True, use_container_width=True, height=360)
+            st.markdown("#### Taakplichtbeoordeling")
+            for column, (label, count) in zip(st.columns(4), dashboard.counts.items()):
+                column.metric(label.capitalize(), count)
+            st.caption(f"Peildatum: {control_as_of:%d-%m-%Y} · Periode: {control_period}")
+            control_rows = [{"Lid": r.member, "DVK verwachte A": r.expected, "Waarom": r.why,
+                             "Sportlink-A": r.registered, "Controlestatus": r.status,
+                             "Relatiecode": r.person_id} for r in dashboard.filtered(control_filter)]
+            if control_rows:
+                st.caption(f"{len(control_rows)} van {len(dashboard.rows)} beoordeelde leden getoond.")
+                st.dataframe(control_rows, hide_index=True, use_container_width=True, height=360)
+            else:
+                st.info("Geen leden binnen dit filter.")
+            control_names = {p.person_id: p.name or "Naam onbekend" for p in dashboard.source.persons}
+            family_details = [{"Beoordeeld lid": r.member, "Vergelijking met": control_names.get(d.compared_person_id, "—"),
+                               "Gegevens van": d.subject, "Betrokken lid": d.involved_member,
+                               "Criterium": d.criterion, "Oorzaak": d.issue, "Toelichting": d.explanation}
+                              for r in dashboard.filtered(control_filter) for d in r.family_diagnostics]
+            if family_details:
+                with st.expander("Nadere uitleg bij onvoldoende gezinsgegevens"):
+                    st.caption(f"{len(family_details)} oorzaken binnen het gekozen filter. Deze uitleg verandert de beoordeling niet.")
+                    st.dataframe(family_details, hide_index=True, use_container_width=True, height=360)
+            with st.expander("Bron- en controlediagnose"):
+                st.caption("Relatiecode is de koppelsleutel. Bronregels die niet gekoppeld of verwerkt konden worden blijven hier zichtbaar.")
+                st.caption(f"{len(dashboard.source.signals)} diagnosemeldingen getoond.")
+                st.dataframe([{"Bron": s.dataset, "Ernst": s.severity, "Code": s.code,
+                               "Bronreferentie": s.record_key, "Melding": s.message}
+                              for s in dashboard.source.signals], hide_index=True, use_container_width=True, height=360)
+    else:
+        st.info("Selecteer alle vijf CSV-bestanden en vul hun periode / seizoen in om de controle te tonen.")
+
+
+_render_navigation()
+_screen = st.session_state.get("dvk-screen", "home")
+if _screen == "planning":
+    _render_planning_screen()
+elif _screen == "control":
+    _render_duty_control()
 else:
-    st.info("Selecteer alle vijf CSV-bestanden en vul hun periode / seizoen in om de controle te tonen.")
+    _render_home()

@@ -251,6 +251,7 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
     for _ in range(2):
         # New session, empty session_state; only SQLite preserves the position.
         app = AppTest.from_file(str(script), default_timeout=15).run()
+        app.button(key="nav-planning").click().run()
         app.date_input[0].set_value(date(2026, 9, 14)).run()
         assert not app.exception
         selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
@@ -272,6 +273,7 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     script = tmp_path / "streamlit_app.py"
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
     app = AppTest.from_file(str(script), default_timeout=15).run()
+    app.button(key="nav-planning").click().run()
     app.date_input[0].set_value(date(2026, 9, 14))
     app.session_state["selected_service_id"] = "BAR-WO-1"
     app.run()

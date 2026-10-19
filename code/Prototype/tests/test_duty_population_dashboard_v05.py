@@ -140,6 +140,7 @@ def test_scroll_views_keep_all_records_and_editable_season(tmp_path, monkeypatch
         return original_dataframe(data, **kwargs)
     monkeypatch.setattr(st, 'dataframe', bounded_dataframe)
     app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-date'] = TODAY
     app.run(timeout=20)
     assert not app.exception
@@ -164,7 +165,9 @@ def test_scroll_views_keep_all_records_and_editable_season(tmp_path, monkeypatch
 def test_season_field_validates_before_uploads_and_rejects_empty(tmp_path):
     path = tmp_path / 'streamlit_app.py'
     path.write_text((Path(__file__).parents[1] / 'streamlit_app.py').read_text())
-    app = AppTest.from_file(str(path)).run(timeout=20)
+    app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'control'
+    app.run(timeout=20)
     app.text_input(key='duty-control-period').set_value('').run()
     assert not app.exception
     assert any('JJJJ-JJJJ' in item.value for item in app.error)

@@ -48,12 +48,16 @@ def test_version_12_inconsistency_does_not_block_or_repair(tmp_path, monkeypatch
             connection.execute('CREATE TABLE planning_state (singleton INTEGER PRIMARY KEY)')
             connection.execute('INSERT INTO schema_version VALUES (12)')
     before = db_path.read_bytes()
-    app = AppTest.from_file(str(path)).run(timeout=20)
-    control_visible(app)
+    app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'planning'
+    app.run(timeout=20)
     assert len(app.error) == 1
     assert 'databaseprobleem' in app.error[0].value
     assert 'sportlink_bookings' not in app.error[0].value
     assert db_path.read_bytes() == before
+    app.button(key='nav-control').click().run(timeout=20)
+    control_visible(app)
+    assert not app.error
     with sqlite3.connect(db_path) as connection:
         assert connection.execute('SELECT MAX(version) FROM schema_version').fetchone() == (12,)
         assert not connection.execute("SELECT 1 FROM sqlite_master WHERE name='sportlink_bookings'").fetchone()
@@ -64,12 +68,16 @@ def test_valid_database_preserves_planning_and_no_show_screen(tmp_path):
     db_path = tmp_path / 'dvk_v05.sqlite'
     assert SQLiteDatabase(db_path).initialize() == 12
     before = db_path.read_bytes()
-    app = AppTest.from_file(str(path)).run(timeout=20)
-    control_visible(app)
+    app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'planning'
+    app.run(timeout=20)
     assert not app.error
     assert any(item.label == 'Diensten' for item in app.metric)
     assert any(item.value == '### No-shows' for item in app.markdown)
     assert db_path.read_bytes() == before
+    app.button(key='nav-control').click().run(timeout=20)
+    control_visible(app)
+    assert not app.error
 
 
 def test_five_uploads_render_without_sqlite_or_sportlink_access(tmp_path, monkeypatch):
@@ -91,11 +99,12 @@ def test_five_uploads_render_without_sqlite_or_sportlink_access(tmp_path, monkey
     monkeypatch.setattr(st, 'file_uploader', lambda label, **kwargs:
                         BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
     app = AppTest.from_file(str(path))
+    app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-period'] = '2026-2027'
     app.session_state['duty-control-date'] = TODAY
     app.run(timeout=20)
     assert not app.exception
-    assert len(app.error) == 1
+    assert not app.error
     assert any(item.label == 'Totaal' and item.value == '1' for item in app.metric)
     assert next(item.value for item in app.dataframe if 'Controlestatus' in item.value.columns).iloc[0]['Lid'] == 'Synthetisch lid'
     assert not (tmp_path / 'dvk_v05.sqlite').exists()
@@ -107,7 +116,9 @@ def test_programming_errors_are_not_hidden(tmp_path, monkeypatch, failure):
     def broken(*args, **kwargs):
         raise failure
     monkeypatch.setattr(PlanningApplicationService, 'build_overview', broken)
-    app = AppTest.from_file(str(local_app(tmp_path))).run(timeout=20)
+    app = AppTest.from_file(str(local_app(tmp_path)))
+    app.session_state['dvk-screen'] = 'planning'
+    app.run(timeout=20)
     assert len(app.exception) == 1
     assert str(failure) in app.exception[0].message
     assert not app.error
@@ -120,10 +131,14 @@ def test_later_no_show_database_failure_does_not_block_dashboard(tmp_path, monke
         raise sqlite3.OperationalError('no such table: sportlink_no_show_revocations')
 
     monkeypatch.setattr(NoShowApplicationService, 'revocable_no_shows', unavailable)
-    app = AppTest.from_file(str(local_app(tmp_path))).run(timeout=20)
-    control_visible(app)
+    app = AppTest.from_file(str(local_app(tmp_path)))
+    app.session_state['dvk-screen'] = 'planning'
+    app.run(timeout=20)
     assert len(app.error) == 1
     assert any(item.value == '### No-shows' for item in app.markdown)
+    app.button(key='nav-control').click().run(timeout=20)
+    control_visible(app)
+    assert not app.error
 
 
 def test_database_open_failure_does_not_block_dashboard(tmp_path, monkeypatch):
@@ -133,6 +148,22 @@ def test_database_open_failure_does_not_block_dashboard(tmp_path, monkeypatch):
         raise failure
 
     monkeypatch.setattr(SQLiteDatabase, 'initialize', unavailable)
-    app = AppTest.from_file(str(local_app(tmp_path))).run(timeout=20)
-    control_visible(app)
+    app = AppTest.from_file(str(local_app(tmp_path)))
+    app.session_state['dvk-screen'] = 'planning'
+    app.run(timeout=20)
     assert len(app.error) == 1
+    app.button(key='nav-control').click().run(timeout=20)
+    control_visible(app)
+    assert not app.error
+
+
+def test_control_reachable_after_planning_database_failure(tmp_path, monkeypatch):
+    def unavailable(self):
+        raise sqlite3.OperationalError('no such table: sportlink_bookings')
+    monkeypatch.setattr(SQLiteDatabase, 'initialize', unavailable)
+    app = AppTest.from_file(str(local_app(tmp_path))).run()
+    app.button(key='nav-planning').click().run()
+    assert len(app.error) == 1
+    app.button(key='nav-control').click().run()
+    control_visible(app)
+    assert not app.error
