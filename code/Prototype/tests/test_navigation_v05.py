@@ -27,10 +27,14 @@ def test_home_default_and_honest_module_statuses(tmp_path, monkeypatch):
     assert not (tmp_path / 'dvk_v05.sqlite').exists()
     assert [x.value for x in app.sidebar.subheader] == [
         'Ledendiensten & Vrijwilligersbeleid', 'Overige werkgebieden', 'DVK Beheer']
-    future = [x for x in app.sidebar.button if x.disabled]
+    future = [x for x in app.sidebar.button if x.disabled and x.key != 'nav-rooster']
     assert len(future) == 5
     assert all('niet beschikbaar' in x.label for x in future)
-    assert not any('Rooster' in x.label for x in app.button)
+    rooster = app.sidebar.button(key='nav-rooster')
+    assert rooster.disabled
+    assert rooster.label == 'Rooster Generator — extern, nog niet geïntegreerd'
+    assert not app.sidebar.caption
+    assert not app.sidebar.get('link_button')
     assert any('Rooster Generator' in x.value and 'nog niet geïntegreerd' in x.value
                for x in app.markdown)
     assert not (tmp_path / 'dvk_v05.sqlite').exists()
@@ -109,3 +113,49 @@ def test_uploaded_files_require_reselection_after_leaving_control(tmp_path):
     assert not app.metric
     assert all(app.session_state['duty-control-' + key] is None for key in files)
     assert any('Selecteer alle vijf' in x.value for x in app.info)
+
+
+def test_home_uses_one_consistent_line_per_function(tmp_path):
+    app = app_at(tmp_path)
+    groups = {}
+    current = None
+    for item in app.main.markdown:
+        if item.value.startswith('### '):
+            current = item.value.removeprefix('### ')
+            groups[current] = []
+        elif current and item.value.startswith('**'):
+            groups[current].append(item.value)
+    assert groups == {
+        'Ledendiensten & Vrijwilligersbeleid': [
+            '**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.',
+            '**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.',
+            '**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.'],
+        'Overige werkgebieden': [
+            '**Ledenadministratie** — toekomstig, niet beschikbaar.',
+            '**Wedstrijdsecretariaat** — toekomstig, niet beschikbaar.',
+            '**Kledingadministratie** — toekomstig, niet beschikbaar.'],
+        'DVK Beheer': [
+            '**Toegangsbeheer** — toekomstig, niet beschikbaar.',
+            '**Tabelonderhoud** — toekomstig, niet beschikbaar.'],
+    }
+
+
+def test_function_settings_are_directly_under_main_screen_title(tmp_path):
+    app = app_at(tmp_path)
+    app.button(key='nav-planning').click().run()
+    assert not app.exception
+    children = list(app.main.children.values())
+    assert [x.type for x in children[:4]] == ['title', 'subheader', 'radio', 'date_input']
+    assert app.main.radio(key='planning-mode').value == 'Week'
+    assert app.main.date_input(key='planning-from').value == date.today()
+    app.main.radio(key='planning-mode').set_value('Aangepast').run()
+    assert app.main.date_input(key='planning-until').value > app.main.date_input(key='planning-from').value
+    assert not app.sidebar.radio and not app.sidebar.date_input
+    app.button(key='nav-control').click().run()
+    assert not app.exception
+    children = list(app.main.children.values())
+    assert [x.type for x in children[:4]] == ['title', 'markdown', 'date_input', 'text_input']
+    assert children[1].value == '### Taakplichtcontrole — read-only'
+    assert app.main.date_input(key='duty-control-date').value == date.today()
+    assert not app.sidebar.date_input and not app.sidebar.text_input
+    assert [x.value for x in app.sidebar.header] == ['DVK']

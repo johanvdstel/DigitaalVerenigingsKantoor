@@ -83,16 +83,14 @@ st.title("CKC Digitaal Verenigings Kantoor (DVK)")
 
 def _render_planning():
     st.subheader("Ledendienst Planning")
+    mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
+    selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
+    if mode == "Dag": period = PlanningPeriod(selected, selected)
+    elif mode == "Week":
+        monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
+    else:
+        until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
-    with st.sidebar:
-        st.header("Periode")
-        mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
-        selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
-        if mode == "Dag": period = PlanningPeriod(selected, selected)
-        elif mode == "Week":
-            monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
-        else:
-            until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
 
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
@@ -354,8 +352,7 @@ def _render_navigation():
         st.subheader("Ledendiensten & Vrijwilligersbeleid")
         st.button("Ledendienst Planning", key="nav-planning", on_click=_navigate, args=("planning",))
         st.button("Taakplichtcontrole", key="nav-control", on_click=_navigate, args=("control",))
-        st.caption("Taakplichtcontrole is een functie binnen Ledendienst Planning.")
-        st.caption("Rooster Generator — extern, nog niet geïntegreerd")
+        st.button("Rooster Generator — extern, nog niet geïntegreerd", disabled=True, key="nav-rooster")
         st.subheader("Overige werkgebieden")
         for name in ("Ledenadministratie", "Wedstrijdsecretariaat", "Kledingadministratie"):
             st.button(f"{name} — niet beschikbaar", disabled=True, key=f"nav-{name}")
@@ -372,24 +369,24 @@ def _render_home():
     st.write("**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.")
     st.write("**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.")
     st.markdown("### Overige werkgebieden")
-    st.write("Ledenadministratie · Wedstrijdsecretariaat · Kledingadministratie — toekomstig, niet beschikbaar.")
+    st.write("**Ledenadministratie** — toekomstig, niet beschikbaar.")
+    st.write("**Wedstrijdsecretariaat** — toekomstig, niet beschikbaar.")
+    st.write("**Kledingadministratie** — toekomstig, niet beschikbaar.")
     st.markdown("### DVK Beheer")
-    st.write("Toegangsbeheer · Tabelonderhoud — toekomstig, niet beschikbaar.")
+    st.write("**Toegangsbeheer** — toekomstig, niet beschikbaar.")
+    st.write("**Tabelonderhoud** — toekomstig, niet beschikbaar.")
     st.info("Bij het verlaten van Taakplichtcontrole worden de bestandsuploads niet bewaard. "
             "Selecteer de vijf bestanden opnieuw wanneer je terugkomt. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
 
 
 def _render_duty_control():
     st.markdown("### Taakplichtcontrole — read-only")
+    control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
+    control_period = st.text_input("Periode / seizoen van Overzicht per periode",
+                                   value=suggested_season(control_as_of), key="duty-control-period",
+                                   placeholder="2026-2027",
+                                   help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
     st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
-    with st.sidebar:
-        st.header("Taakplichtcontrole")
-        control_as_of = st.date_input("Peildatum taakplichtcontrole", value=date.today(), key="duty-control-date")
-        control_period = st.text_input("Periode / seizoen van Overzicht per periode",
-                                       value=suggested_season(control_as_of), key="duty-control-period",
-                                       placeholder="2026-2027",
-                                       help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
-    st.caption("Voer de peildatum en de periode / het seizoen in bij Taakplichtcontrole in de zijbalk.")
     st.caption("Bij het verlaten van dit scherm vervallen de uploads. Selecteer de vijf bestanden opnieuw wanneer je terugkomt.")
     control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
                      for dataset, (label, _) in EXPORTS.items()}

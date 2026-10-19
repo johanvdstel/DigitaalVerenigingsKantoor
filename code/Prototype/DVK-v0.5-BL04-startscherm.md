@@ -66,3 +66,36 @@ Geen functioneel of architecturaal beslispunt vastgesteld binnen BL-04. Andere b
 - `git diff --check`: geslaagd.
 - Tussentijdse fouten zijn opgelost: tests met oude aanname van direct zichtbare planning/controle kregen een expliciete schermkeuze; twee eerste navigatieasserties zijn gecorrigeerd omdat AppTest uitgeschakelde knoppen terecht weigert en planning zelf een bestaande, afzonderlijke CSV-upload voor persoonskoppeling heeft. Geen domeinverwachtingen versoepeld.
 - CI-status en commit staan in de PR/oplevering; functionele browseracceptatie blijft bij opdrachtgever.
+
+## Acceptatiecorrecties PR #32 — BL-04-01, BL-04-03 en BL-04-04
+
+Uitgangspunt: bestaande PR-head `93b588866ebc5bbe53a804204f2b450e64e8d616`, gecontroleerd gelijk aan `origin/codex/bl04-startscherm-navigatie`. Integratiebaseline blijft `prototype-v0.5` op `3a436fbcd2a47ca9653ae2e858ea233c7642539e`. De functionele baseline, bronhouders en gegevensstatus uit de context hierboven blijven leidend. Dit zijn uitsluitend expliciet opgedragen presentatiecorrecties binnen de prototypefase; er is geen extra technische maatregel of baselinewijziging nodig.
+
+- **BL-04-01:** periodekeuze en datums staan direct onder de titel van Ledendienst Planning in het hoofdscherm. Peildatum en periode/seizoen staan direct onder de titel van Taakplichtcontrole. De zijbalk bevat uitsluitend DVK-navigatie. De overbodige verwijzing naar instellingen in de zijbalk is verwijderd. Widgetkeys, standaardwaarden, datumgrenzen, seizoensvalidatie, berekeningen en sessieretentie zijn ongewijzigd.
+- **BL-04-03:** de zijbalktoelichting over taakplichtcontrole is verwijderd. Rooster Generator is nu een uitgeschakelde knop met exact het opschrift `Rooster Generator — extern, nog niet geïntegreerd`. Geen koppeling of uitvoerfunctionaliteit toegevoegd.
+- **BL-04-04:** alle acht functies staan op het startscherm afzonderlijk onder elkaar, steeds met een vetgedrukte functienaam en de bestaande beschikbaarheidsaanduiding. Alle drie hoofdgroepen gebruiken dezelfde presentatievorm.
+- **BL-04-02:** vervallen, niet geïmplementeerd. Planning behoudt demonstratiegegevens; geen aanvullende melding toegevoegd.
+
+Gewijzigde bestanden in deze correctieronde:
+
+| Bestand | Reden |
+| --- | --- |
+| `streamlit_app.py` | Uitsluitend bovenstaande drie presentatiecorrecties |
+| `tests/test_navigation_v05.py` | Knopstatus Rooster Generator; uniforme functieregels; instellingen en volgorde in hoofdscherm, afwezigheid in zijbalk; bestaande sessie-/uploadtests behouden |
+| Dit document | Correcties, verificatie en aanvullende acceptatiestappen |
+
+Aanvullende lokale acceptatie met dezelfde startopdracht als hierboven:
+
+1. Controleer op het startscherm één functie per regel en dezelfde vorm voor alle drie groepen.
+2. Controleer dat Rooster Generator een uitgeschakelde knop is en de verwijderde toelichting niet meer in de zijbalk staat.
+3. Open planning: Dag/Week/Aangepast en datums staan direct onder de schermtitel, niet in de zijbalk. Wissel scherm en controleer behoud van de bestaande periodewaarden.
+4. Open taakplichtcontrole: peildatum en seizoen staan direct onder de schermtitel, niet in de zijbalk. Controleer met synthetische bestanden de bestaande validatie, filterwerking en het opnieuw moeten selecteren van uploads na schermwisseling.
+
+Verificatie correctieronde:
+
+- Bestaande navigatietests vóór wijziging: **4 geslaagd**.
+- Gerichte UI-, database-isolatie-, planningswerkvoorraad- en populatie-/seizoentests: **62 geslaagd**.
+- Volledige regressie na correcties: **636 geslaagd**, geen skips (Python 3.11, lokale venv).
+- `git diff --check`: geslaagd. Geen falende tests in deze correctieronde.
+- Bekende beperking blijft gelijk: uploads opnieuw selecteren na schermwisseling. Visuele browseracceptatie blijft bij opdrachtgever. Geen nieuwe functionele of architecturale beslispunten.
+- Commit en actuele CI-status staan in PR #32 en de oplevering; geen nieuwe PR en geen merge.
