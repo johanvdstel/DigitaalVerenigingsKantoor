@@ -12,6 +12,7 @@ from dvk.application_services import PlanningApplicationService, ProposalDecisio
 from dvk.candidate_selection import select_candidates
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod
+from dvk.planning_runtime import prepare_planning, choose_period
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.security import Identity, Permission
@@ -247,6 +248,9 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
     from dvk.demo_data_v05 import demo_planning_data
     services, needs, _, _ = demo_planning_data(date(2026, 9, 14))
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
+    # Seed current-process work only after the previous-process cleanup.
+    prepare_planning(db)
+    choose_period(db, PlanningPeriod(date(2026, 9, 14), date(2026, 9, 20)))
     approve(db, service=services[0], need=needs[0])
     for _ in range(2):
         # New session, empty session_state; only SQLite preserves the position.
@@ -274,7 +278,8 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
     app = AppTest.from_file(str(script), default_timeout=15).run()
     app.button(key="nav-planning").click().run()
-    app.date_input[0].set_value(date(2026, 9, 14))
+    # A period change deliberately discards stale service/widget selections.
+    app.date_input[0].set_value(date(2026, 9, 14)).run()
     app.session_state["selected_service_id"] = "BAR-WO-1"
     app.run()
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")

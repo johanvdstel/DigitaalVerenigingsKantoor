@@ -13,6 +13,7 @@ from dvk.application_services import NoShowApplicationService, PlanningApplicati
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
+from dvk.planning_runtime import prepare_planning, choose_period
 from dvk.proposal_planning import plan_proposals
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
@@ -81,20 +82,56 @@ st.set_page_config(page_title="DVK — Digitaal Verenigingskantoor", page_icon="
 st.title("CKC Digitaal Verenigings Kantoor (DVK)")
 
 
+def _cancel_period_change():
+    for key, value in st.session_state["planning-accepted-inputs"].items():
+        st.session_state[key] = value
+
+
+def _clear_period_widgets():
+    for key in list(st.session_state):
+        if key in {"services_editor", "selected_service_id"} or key.startswith(
+                ("proposal-run-", "confirmed-", "pick-")):
+            del st.session_state[key]
+
+
 def _render_planning():
     st.subheader("Ledendienst Planning")
+    database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
+    database.initialize()
+    active_period = prepare_planning(database)
+    # A new browser connection resumes the process's period, not today's default.
+    if active_period is not None and "planning-mode" not in st.session_state:
+        st.session_state["planning-mode"] = "Aangepast"
+        st.session_state["planning-from"] = active_period.start
+        st.session_state["planning-until"] = active_period.end
     mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
     selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
     if mode == "Dag": period = PlanningPeriod(selected, selected)
     elif mode == "Week":
         monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
     else:
+        if st.session_state.get("planning-until", selected) < selected:
+            st.session_state["planning-until"] = selected + timedelta(days=6)
         until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
+    inputs = {key: st.session_state[key] for key in
+              ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
+    if not choose_period(database, period):
+        st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
+        st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
+                   "Deze actie kan niet ongedaan worden gemaakt. Wil je doorgaan?")
+        if st.button("Periode wijzigen en tijdelijke indelingen verwijderen", key="confirm-period-change"):
+            choose_period(database, period, discard=True)
+            st.session_state["planning-accepted-inputs"] = inputs
+            _clear_period_widgets()
+            st.rerun()
+        st.button("Annuleren", key="cancel-period-change", on_click=_cancel_period_change)
+        return
+    if active_period is not None and active_period != period:
+        _clear_period_widgets()
+    st.session_state["planning-accepted-inputs"] = inputs
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
-    database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
-    database.initialize()
     services, needs, matches, statuses = _demo_data(period.start)
     with database.unit_of_work() as uow:
         planning_app = PlanningApplicationService(identity, uow=uow)
