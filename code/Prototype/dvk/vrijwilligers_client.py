@@ -48,13 +48,13 @@ class SportlinkVrijwilligersClient:
         except OSError as exc:
             raise VrijwilligersFetchError(f"Sportlink Vrijwilligers transport failure: {exc}") from exc
         if not payload:
-            return VrijwilligersFetchResult(code, ())
+            raise VrijwilligersFetchError("Sportlink Vrijwilligers returned an empty HTTP body")
         try:
             data = json.loads(payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise VrijwilligersFetchError("Sportlink Vrijwilligers returned invalid JSON") from exc
         if isinstance(data, dict):
-            data = data.get("items", [])
+            data = data.get("items")
         if not isinstance(data, list):
             raise VrijwilligersFetchError("Sportlink Vrijwilligers response is not a list or items envelope")
         rows = []
