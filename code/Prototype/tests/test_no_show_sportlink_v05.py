@@ -2,6 +2,7 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from io import BytesIO
 import json
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -228,3 +229,61 @@ def test_synchronization_uses_existing_client_and_is_atomic(tmp_path, mode):
             assert bool(signals) is (mode == "unknown")
         assert len(uow.temporary_planning.all()) == (0 if mode == "success" else 1)
         assert len(uow.sportlink_bookings.recent()) == 1
+
+
+# VRIJ-01: invalid responses must never publish even a valid earlier task code.
+@pytest.mark.parametrize("failed_task", ["741", "761"])
+@pytest.mark.parametrize("bad_payload", [
+    b'{"error":"synthetic"}', b'{}', b'{"items":null}',
+    b'{"items":"wrong"}', b'', b'not-json', b'[null]',
+    b'{"items":[{"naam":"valid object"},1]}',
+    HTTPError("https://example.invalid", 401, "synthetic", None, None),
+    HTTPError("https://example.invalid", 403, "synthetic", None, None),
+    URLError("synthetic offline"), TimeoutError("synthetic timeout"),
+])
+def test_vrij01_invalid_response_preserves_complete_persisted_state(
+        tmp_path, monkeypatch, failed_task, bad_payload):
+    from urllib.parse import parse_qs, urlparse
+
+    db = SQLiteDatabase(tmp_path / "invalid-response.sqlite")
+    db.initialize()
+    second = booking("TEST002", task="761", service=replace(SOURCE.service, service_id="S2"))
+    originals = (SOURCE, second)
+    temporary = tuple(TemporaryPlanning(
+        DutyAssignment(f"TEMP-{i}", f"P{i}", source.service_id, f"OTHER-{i}", "member", 4, "planner"),
+        source.service) for i, source in enumerate(originals))
+    seen = []
+
+    def opener(request, timeout):
+        task = parse_qs(urlparse(request.full_url).query)["vrijwilligerstaakcode"][0]
+        seen.append(task)
+        if task == failed_task:
+            if isinstance(bad_payload, Exception):
+                raise bad_payload
+            return BytesIO(bad_payload)
+        # This differs from persisted SOURCE, so partial publication is observable.
+        return BytesIO(json.dumps([rows()[0] | {"lokatie": "Changed synthetic location"}]).encode())
+
+    def forbidden_publication(*args, **kwargs):
+        pytest.fail("An invalid response must not attempt source publication or planning removal")
+
+    with db.unit_of_work() as uow:
+        seed_bookings(uow, originals)
+        for entry in temporary:
+            uow.temporary_planning.add(entry)
+        uow.commit()
+        monkeypatch.setattr(uow.sportlink_bookings, "replace_all", forbidden_publication)
+        monkeypatch.setattr(uow.temporary_planning, "remove", forbidden_publication)
+        with pytest.raises(VrijwilligersFetchError):
+            NoShowApplicationService(uow, IDENTITY).synchronize(
+                client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=opener),
+                client_id="synthetic", bindings=[ServiceBinding(s.task_code, s.service) for s in originals],
+                persons=[Person("TEST001", "Alex", sportlink_name=SOURCE.volunteer_name)],
+                imported_at=SOURCE.ends_at)
+        assert seen == (["741"] if failed_task == "741" else ["741", "761"])
+        # Catching the error and committing must not expose staged partial changes.
+        uow.commit()
+    with db.unit_of_work() as uow:
+        assert {b.assignment_id: b for b in uow.sportlink_bookings.recent()} == {
+            b.assignment_id: b for b in originals}
+        assert uow.temporary_planning.all() == temporary
