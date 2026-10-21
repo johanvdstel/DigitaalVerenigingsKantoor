@@ -16,6 +16,26 @@ from .model import Person
 VRIJWILLIGERS_ENDPOINT = "https://data.sportlink.com/vrijwilligers"
 VRIJWILLIGERS_FIELDS = "naam,datumvanaf,datumtot,tijdvanaf,tijdtot,lokatie,heledag"
 TZ = ZoneInfo("Europe/Amsterdam")
+BAR_TASK_CODES = frozenset({"701", "741", "761"})
+
+
+def same_task_group(source_code: str, catalog_code: str) -> bool:
+    """Confirmed CKC grouping; unknown codes retain exact comparison."""
+    return source_code == catalog_code or source_code in BAR_TASK_CODES and catalog_code in BAR_TASK_CODES
+
+
+def overlaps_service_date(starts_at: datetime, ends_at: datetime, service: DutyService) -> bool:
+    """Rooster2 fill_names: any positive overlap counts, only on the source date.
+
+    Partial overlap counts as occupancy, not as proof of full-slot attendance.
+    Merely touching endpoints does not count. Compare absolute UTC instants.
+    """
+    if starts_at.astimezone(TZ).date() != service.starts_at.astimezone(TZ).date():
+        return False
+    start, end = starts_at.astimezone(timezone.utc), ends_at.astimezone(timezone.utc)
+    slot_start = service.starts_at.astimezone(timezone.utc)
+    slot_end = service.ends_at.astimezone(timezone.utc)
+    return max(start, slot_start) < min(end, slot_end)
 
 
 @dataclass(frozen=True)
@@ -126,8 +146,10 @@ class SportlinkVrijwilligersAdapter:
         imported_at: datetime,
         persons: Iterable[Person] | None = None,
         period=None,
+        catalog_overlap: bool = False,
     ) -> VolunteerImportResult:
-        bindings = tuple(binding for binding in services if binding.task_code == task_code)
+        bindings = tuple(binding for binding in services if
+                         (same_task_group(task_code, binding.task_code) if catalog_overlap else binding.task_code == task_code))
         bookings: list[VolunteerBooking] = []
         provenance: list[Provenance] = []
         signals: list[DataQualitySignal] = []
@@ -162,21 +184,25 @@ class SportlinkVrijwilligersAdapter:
             if period is not None and not period.contains(starts_at.astimezone(TZ)):
                 continue
 
-            matches = [binding.service for binding in bindings if self._same_service_time(binding.service, starts_at, ends_at)]
+            matches = [binding.service for binding in bindings if
+                       (overlaps_service_date(starts_at, ends_at, binding.service) if catalog_overlap
+                        else self._same_service_time(binding.service, starts_at, ends_at))]
             if len(matches) == 0:
                 signals.append(DataQualitySignal(
                     "VOLUNTEER_SERVICE_NOT_FOUND", "ERROR", "sportlink_vrijwilligers", key,
                     f"Geen DutyService gevonden voor taakcode {task_code} op {starts_at.isoformat()}",
                 ))
                 continue
-            if len(matches) > 1:
+            if (len(matches) > 1 and not catalog_overlap) or len({s.service_id for s in matches}) != len(matches):
                 signals.append(DataQualitySignal(
                     "VOLUNTEER_SERVICE_AMBIGUOUS", "ERROR", "sportlink_vrijwilligers", key,
                     f"Meer dan één DutyService past bij taakcode {task_code} op {starts_at.isoformat()}",
                 ))
                 continue
 
-            service = matches[0]
+            # Only an anchor for the existing source context, never a split source
+            # booking. Occupancy is projected independently onto every matching slot.
+            service = min(matches, key=lambda s: (s.starts_at, s.service_id))
             person = None
             if persons is not None:
                 candidates = tuple(p for p in persons if p.sportlink_name == name)

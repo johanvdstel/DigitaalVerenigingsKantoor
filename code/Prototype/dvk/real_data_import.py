@@ -368,13 +368,16 @@ class SportlinkRealDataAdapter:
 
     @staticmethod
     def sportlink_name(row: dict[str, str]) -> str | None:
-        """Only the CKC-verified complete form; missing-part formats are unknown."""
+        """Exact CKC-confirmed form; the prefix column may have an empty value."""
+        if any(key not in row for key in ("Achternaam", "Voorletter(s)", "Tussenvoegsel(s)", "Roepnaam")):
+            return None
         parts = tuple((row.get(key) or "").strip() for key in
                       ("Achternaam", "Voorletter(s)", "Tussenvoegsel(s)", "Roepnaam"))
-        if not all(parts):
-            return None
         surname, initials, prefix, familiar = parts
-        return f"{surname}, {initials} {prefix} ({familiar})"
+        if not all((surname, initials, familiar)):
+            return None
+        given = " ".join(part for part in (initials, prefix) if part)
+        return f"{surname}, {given} ({familiar})"
 
     @staticmethod
     def current_membership(status: str, end_date: date | None, as_of: date) -> bool | None:

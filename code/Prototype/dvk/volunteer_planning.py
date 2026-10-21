@@ -1,5 +1,5 @@
 """One planner, one active period; catalog supply and Sportlink facts stay separate."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -8,6 +8,7 @@ from .planning import PlanningSourceStatus
 from .security import Authorizer, Permission
 from .staffing import calculate_staffing_need
 from .vrijwilligers_client import VrijwilligersFetchError
+from .vrijwilligers_adapter import same_task_group, overlaps_service_date
 
 TZ = ZoneInfo("Europe/Amsterdam")
 
@@ -51,8 +52,12 @@ class VolunteerPlanningApplicationService:
         definitions = {d.task_code: d for d in self.catalog.definitions}
         needs = tuple(calculate_staffing_need(
             service=b.service, definition=definitions[b.task_code],
-            bookings=tuple(x for x in bookings if x.task_code == b.task_code
-                           and x.starts_at == b.service.starts_at and x.ends_at == b.service.ends_at),
+            # Derived view only: one person per slot, even with multiple source
+            # bookings/codes. Stored source IDs, task codes and intervals stay intact.
+            bookings=tuple(replace(x, service_id=b.service.service_id) for x in
+                           {x.person_id: x for x in bookings if x.person_id
+                            and same_task_group(x.task_code, b.task_code)
+                            and overlaps_service_date(x.starts_at, x.ends_at, b.service)}.values()),
             condition="vrijdag" if b.service.starts_at.weekday() == 4 else None) for b in bindings)
         statuses = (PlanningSourceStatus("Sportlink Vrijwilligers", None if success is None else
                     datetime.fromisoformat(success["fetched_at"]), "Opgehaald" if matching else
@@ -83,7 +88,7 @@ class VolunteerPlanningApplicationService:
             signals = NoShowApplicationService(self.uow, self.identity).synchronize(
                 client=TrackingClient(), client_id=client_id, bindings=bindings, persons=persons,
                 imported_at=imported_at, days=window.days, weekoffset=window.weekoffset,
-                task_codes=self.catalog.task_codes, period=period, refresh_state=state)
+                task_codes=self.catalog.task_codes, period=period, refresh_state=state, catalog_overlap=True)
         except VrijwilligersFetchError as exc:
             # Client messages are fixed categories: never persist exception URLs.
             category = str(exc)

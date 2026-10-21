@@ -95,13 +95,35 @@ def test_exact_confirmed_name_build_and_members_csv_route(tmp_path):
     assert imported.bookings[0].volunteer_name == "Voorbeeld, A.B. de (Alex)"
 
 
-@pytest.mark.parametrize("missing", ["Achternaam", "Voorletter(s)", "Tussenvoegsel(s)", "Roepnaam"])
-def test_missing_name_part_is_not_formatted_by_an_unapproved_rule(missing):
-    name = SportlinkRealDataAdapter.sportlink_name(NAME_PARTS | {missing: ""})
+@pytest.mark.parametrize("missing", ["Achternaam", "Voorletter(s)", "Roepnaam"])
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_missing_name_part_is_not_formatted_by_an_unapproved_rule(missing, blank):
+    name = SportlinkRealDataAdapter.sportlink_name(NAME_PARTS | {missing: blank})
     assert name is None
     result = import_rows(rows(), [Person("TEST001", "Alex", sportlink_name=name)])
     assert not result.bookings
     assert result.signals[0].code == "VOLUNTEER_PERSON_NOT_FOUND"
+
+
+@pytest.mark.parametrize("prefix,expected", [(" de ", "Voorbeeld, A.B. de (Alex)"),
+                                          ("", "Voorbeeld, A.B. (Alex)"),
+                                          ("   ", "Voorbeeld, A.B. (Alex)")])
+def test_confirmed_optional_prefix_exact_csv_identity(prefix, expected):
+    values = NAME_PARTS | {"Tussenvoegsel(s)": prefix, "Naam": "Synthetic member",
+                          "Geb.dat.": "01-01-2000", "Lidstatus": "Definitief",
+                          "Lidsoort": "Verenigingslid", "Status lidmaatschap": "spelend lid"}
+    text = ";".join(values) + "\n" + ";".join(values.values())
+    persons = SportlinkRealDataAdapter.read_volunteer_persons(text)
+    assert persons[0].sportlink_name == expected
+    result = import_rows([rows()[0] | {"naam": expected}], persons)
+    assert not result.signals and result.bookings[0].person_id == "TEST001"
+    ambiguous = import_rows([rows()[0] | {"naam": expected}],
+                            (*persons, replace(persons[0], person_id="OTHER")))
+    assert not ambiguous.bookings and ambiguous.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
+
+
+def test_missing_prefix_column_is_not_an_empty_prefix_value():
+    assert SportlinkRealDataAdapter.sportlink_name({k:v for k,v in NAME_PARTS.items() if k != "Tussenvoegsel(s)"}) is None
 
 
 def test_ambiguous_name_never_selects_a_person():

@@ -63,7 +63,7 @@ class NoShowApplicationService:
         return tuple(AssignmentContext(a, a.service, a.person_name) for a in self.available_assignments(limit))
 
     def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1,
-                    task_codes=None, period=None, refresh_state=None):
+                    task_codes=None, period=None, refresh_state=None, catalog_overlap=False):
         """Fetch through the accepted client/adapter; publish only a valid full refresh."""
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         bindings = tuple(bindings)
@@ -77,7 +77,7 @@ class NoShowApplicationService:
         for task_code in codes:
             fetched = client.fetch_rows(client_id=client_id, task_code=task_code, days=days, weekoffset=weekoffset)
             result = SportlinkVrijwilligersAdapter().import_rows(task_code=task_code, rows=fetched.rows,
-                services=bindings, imported_at=imported_at, persons=persons, period=period)
+                services=bindings, imported_at=imported_at, persons=persons, period=period, catalog_overlap=catalog_overlap)
             bookings.extend(result.bookings)
             signals.extend(result.signals)
         if any(s.severity == "ERROR" for s in signals):

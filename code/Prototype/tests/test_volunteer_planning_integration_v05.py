@@ -20,6 +20,7 @@ from dvk.security import Identity, Permission
 from dvk.shift_catalog import ShiftCatalog, ShiftDefinition, WeeklySlot, load_shift_catalog
 from dvk.volunteer_planning import VolunteerPlanningApplicationService, request_window
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter
+from dvk.real_data_import import SportlinkRealDataAdapter
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient
 from dvk.workstream_model import DutyAssignment
 
@@ -174,7 +175,9 @@ def test_invalid_identity_or_service_never_publishes(db,catalog,mode):
     value = row(service,ps[0])
     if mode == "missing": ps = (replace(ps[0],sportlink_name=None),)
     if mode == "ambiguous": ps = (ps[0],replace(ps[0],person_id="P2"))
-    if mode == "service": value["datumvanaf"] = (service.starts_at + timedelta(minutes=1)).isoformat()
+    if mode == "service":
+        value["datumvanaf"] = service.ends_at.isoformat()  # Boundary contact has no positive overlap.
+        value["datumtot"] = (service.ends_at + timedelta(hours=1)).isoformat()
     if mode == "interval": value["datumtot"] = service.starts_at.isoformat()
     assert sync(db,catalog,{"A":[value]},ps)[0]
     assert snapshot(db) == before
@@ -261,3 +264,166 @@ def test_no_access_does_not_fetch_or_change_source(db,catalog):
         with pytest.raises(PermissionError):
             app.synchronize(period=PERIOD,client=client({},seen),client_id="synthetic",persons=(),imported_at=NOW)
     assert seen == []
+
+
+@pytest.mark.parametrize("source_code", ["701", "741", "761"])
+def test_wednesday_booking_spans_both_catalog_codes_without_splitting_source(db,source_code):
+    catalog = load_shift_catalog()
+    bindings = catalog.bindings(PERIOD)
+    slot = next(b.service for b in bindings if b.service.starts_at.weekday() == 2 and b.service.starts_at.hour == 19)
+    long = replace(slot, ends_at=slot.ends_at.replace(hour=22,minute=30))
+    source_row = row(long,people()[0])
+    assert sync(db,catalog,{source_code:[source_row]})[0] is None
+    with db.unit_of_work() as uow:
+        source = uow.sportlink_bookings.all()
+        assert len(source) == 1
+        original = source[0]
+        assert original.task_code == source_code
+        assert (original.starts_at,original.ends_at) == (long.starts_at,long.ends_at)
+        assert original.provenance.source_value == str(source_row)
+        assert original.service.starts_at == original.starts_at and original.service.ends_at == original.ends_at
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+        occupied = [(s.starts_at.hour,s.ends_at.hour) for s,n in zip(services,needs) if n.confirmed_occupancy]
+        assert occupied == [(19,20),(20,22)]
+        assert len(services) == 29
+        # Reading the derived occupancy does not mutate/split the source.
+        assert uow.sportlink_bookings.all() == source
+        app = NoShowApplicationService(uow,IDENTITY)
+        app.register(NoShowEvent("N-OVERLAP",original.assignment_id,original.person_id,original.starts_at,
+                                 original.ends_at,IDENTITY.subject_id,"2026/2027"))
+    assert sync(db,catalog,{})[0] is None
+    with db.unit_of_work() as uow:
+        assert uow.no_shows.get("N-OVERLAP").booking == original
+
+
+@pytest.mark.parametrize("source_code",["701","741","761","442"])
+def test_saturday_parallel_bar_and_commissiekamer_never_mix(db,source_code):
+    catalog = load_shift_catalog()
+    slot = next(b.service for b in catalog.bindings(PERIOD)
+                if b.service.starts_at.weekday()==5 and b.task_code=="741")
+    assert sync(db,catalog,{source_code:[row(slot,people()[0])]})[0] is None
+    with db.unit_of_work() as uow:
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+    expected = "Commissiekamer" if source_code=="442" else "Bar weekend"
+    assert [s.service_type for s,n in zip(services,needs) if n.confirmed_occupancy] == [expected]
+
+
+def test_one_person_counts_once_despite_multiple_original_bookings_and_codes(db):
+    catalog = load_shift_catalog()
+    slot = next(b.service for b in catalog.bindings(PERIOD)
+                if b.service.starts_at.weekday()==2 and b.service.starts_at.hour==19)
+    long = replace(slot,ends_at=slot.ends_at.replace(hour=22,minute=30))
+    partial = replace(long,starts_at=long.starts_at.replace(minute=30),ends_at=long.ends_at.replace(hour=20))
+    ps = people(2)
+    payloads = {code:[row(long,ps[0])] for code in ("701","741","761")}
+    payloads["701"] += [row(partial,ps[0]),row(long,ps[1])]
+    assert sync(db,catalog,payloads,ps)[0] is None
+    with db.unit_of_work() as uow:
+        assert len(uow.sportlink_bookings.all()) == 5
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+        assert [n.confirmed_occupancy for n in needs if n.confirmed_occupancy] == [2,2]
+        assert sum(r["bookings"] for r in uow.sportlink_bookings.refresh_state()["tasks"]) == 5
+        assert len(services) == 29
+
+
+@pytest.mark.parametrize("start,end,expected", [(18,20,[1,1]),(18,19,[1,0]),(19,20,[0,1]),(20,21,[0,0])])
+def test_adjacent_slots_and_boundary_contact_in_published_source(db,start,end,expected):
+    catalog = ShiftCatalog((ShiftDefinition("701","Synthetic bar",1,1,2),),
+                           (WeeklySlot(0,time(18),time(19),"701"),WeeklySlot(0,time(19),time(20),"701")))
+    slot = catalog.bindings(PERIOD)[0].service
+    booking_service = replace(slot, starts_at=slot.starts_at.replace(hour=start),ends_at=slot.ends_at.replace(hour=end))
+    error,_ = sync(db,catalog,{"701":[row(booking_service,people()[0])]})
+    if expected == [0,0]:
+        assert error  # No real positive match: no fabricated service/publication.
+    else:
+        assert error is None
+        with db.unit_of_work() as uow:
+            _,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+        assert [n.confirmed_occupancy for n in needs] == expected
+
+
+def test_partial_overlap_with_later_failure_preserves_bookings_work_and_success(db):
+    catalog = load_shift_catalog()
+    slot = next(b.service for b in catalog.bindings(PERIOD) if b.task_code=="741")
+    partial = replace(slot,starts_at=slot.starts_at+timedelta(minutes=15))
+    assert sync(db,catalog,{"741":[row(partial,people()[0])]})[0] is None
+    seed_work(db,slot)
+    before = snapshot(db)
+    assert sync(db,catalog,{"741":[row(partial,people()[0])],"442":TimeoutError("synthetic")})[0]
+    assert snapshot(db) == before
+
+
+def test_empty_prefix_person_links_in_real_planning_route(db,catalog):
+    name = SportlinkRealDataAdapter.sportlink_name({"Achternaam":"Example","Voorletter(s)":"A.",
+                                                  "Tussenvoegsel(s)":"","Roepnaam":"Synthetic"})
+    person = Person("SYNTHETIC", "Synthetic member",sportlink_name=name)
+    assert name == "Example, A. (Synthetic)"
+    slot = catalog.bindings(PERIOD)[0].service
+    assert sync(db,catalog,{"A":[row(slot,person)]},[person])[0] is None
+    with db.unit_of_work() as uow:
+        assert uow.sportlink_bookings.all()[0].person_id == "SYNTHETIC"
+
+
+@pytest.mark.parametrize("source_code", ["701", "741", "761", "442"])
+@pytest.mark.parametrize("catalog_code", ["701", "741", "761", "442"])
+def test_confirmed_task_groups_through_refresh_and_planning(db, source_code, catalog_code):
+    grouped = ShiftCatalog(tuple(ShiftDefinition(code, "Synthetic", 1, 1, 2)
+                                for code in ("701", "741", "761", "442")),
+                           (WeeklySlot(2, time(19), time(20), catalog_code),))
+    service = grouped.bindings(PERIOD)[0].service
+    error, _ = sync(db, grouped, {source_code: [row(service, people()[0])]})
+    same_group = (source_code == "442") == (catalog_code == "442")
+    if not same_group:
+        assert error and not snapshot(db)[0] and snapshot(db)[2] is None
+        return
+    assert error is None
+    with db.unit_of_work() as uow:
+        needs = VolunteerPlanningApplicationService(uow, IDENTITY, grouped).planning_data(PERIOD)[1]
+        assert needs[0].confirmed_occupancy == 1
+        assert uow.sportlink_bookings.all()[0].task_code == source_code
+
+
+@pytest.mark.parametrize("source_code", ["701", "741", "761"])
+def test_long_booking_occupies_two_catalog_slots_without_splitting_source(db, source_code):
+    catalog = load_shift_catalog()
+    bindings = catalog.bindings(PERIOD)
+    first = next(b.service for b in bindings if b.task_code == "701"
+                 and b.service.starts_at.weekday() == 2 and b.service.starts_at.hour == 19)
+    second = next(b.service for b in bindings if b.task_code == "761"
+                  and b.service.starts_at.weekday() == 2)
+    value = row(first, people()[0]) | {"datumtot": second.ends_at.isoformat()}
+    assert sync(db, catalog, {source_code: [value]})[0] is None
+    before = snapshot(db)[0]
+    assert len(before) == 1
+    booking = before[0]
+    assert (booking.task_code, booking.starts_at, booking.ends_at) == (
+        source_code, first.starts_at, second.ends_at)
+    assert booking.provenance.kind == "SOURCE_FACT"
+    assert value["datumtot"] in booking.provenance.source_value
+    with db.unit_of_work() as uow:
+        needs = VolunteerPlanningApplicationService(uow, IDENTITY, catalog).planning_data(PERIOD)[1]
+        assert {n.service_id for n in needs if n.confirmed_occupancy} == {first.service_id, second.service_id}
+        assert all(n.confirmed_occupancy == 1 for n in needs if n.confirmed_occupancy)
+    assert snapshot(db)[0] == before
+    assert sync(db, catalog, {source_code: [value]})[0] is None
+    assert snapshot(db)[0] == before  # Repeated refresh does not accumulate occupancy.
+
+
+def test_multiple_source_codes_and_intervals_count_each_person_once_per_slot(db):
+    catalog = load_shift_catalog()
+    service = next(b.service for b in catalog.bindings(PERIOD)
+                   if b.task_code == "701" and b.service.starts_at.weekday() == 2
+                   and b.service.starts_at.hour == 19)
+    ps = people(2)
+    payloads = {code: [row(service, ps[0])] for code in ("701", "741", "761")}
+    payloads["701"].append(row(service, ps[1]))
+    payloads["701"].append(row(service, ps[0]) | {
+        "datumvanaf": (service.starts_at + timedelta(minutes=15)).isoformat()})
+    assert sync(db, catalog, payloads, ps)[0] is None
+    before = snapshot(db)[0]
+    assert len(before) == 5 and len({b.assignment_id for b in before}) == 5
+    with db.unit_of_work() as uow:
+        need = next(n for n in VolunteerPlanningApplicationService(uow, IDENTITY, catalog)
+                    .planning_data(PERIOD)[1] if n.service_id == service.service_id)
+        assert (need.confirmed_occupancy, need.open_need, need.remaining_capacity) == (2, 0, 0)
+    assert snapshot(db)[0] == before

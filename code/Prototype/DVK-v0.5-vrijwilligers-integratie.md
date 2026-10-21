@@ -26,11 +26,11 @@ Onderzocht: `johanvdstel/Rooster2/app.py`, versie 3.6.7.3, blob `e7e2be506bb46f1
 
 `ShiftCatalog → concrete diensten → vaste taakcodeset → bestaande GET-client → bestaande adapter/naamcontract → SQLite-bookings → planningservice → dashboard`.
 
-Alle actieve codes worden eenmaal opgevraagd, ook wanneer een code geen diensten op de gekozen dag heeft. De UI biedt geen beperkbare taakcodeset of aanvraagparameters. De bredere respons wordt op de gekozen periode gefilterd na datumparsing. Een onleesbare regel wordt niet stilzwijgend weggefilterd. Binnen de periode blijven unieke exacte dienst- en naamkoppeling vereist. Afwijkende intervallen blokkeren de verversing; er worden geen fictieve diensten uit bookings gemaakt.
+Alle actieve codes worden eenmaal opgevraagd, ook wanneer een code geen diensten op de gekozen dag heeft. De UI biedt geen beperkbare taakcodeset of aanvraagparameters. De bredere respons wordt op de gekozen periode gefilterd na datumparsing. Een onleesbare regel wordt niet stilzwijgend weggefilterd. Binnen de periode blijft unieke exacte naamkoppeling vereist. Volgens het aanvullende functionele besluit voor PR #38 vormen 701, 741 en 761 één bargroep; 442 is een afzonderlijke commissiekamergroep. Iedere positieve tijdsoverlap op dezelfde brondag telt binnen de passende groep als bezetting. Alleen rakende grenzen tellen niet mee. Zonder passende overlap blokkeert de verversing; er worden geen fictieve diensten uit bookings gemaakt.
 
 `NoShowApplicationService.synchronize()` behoudt VRIJ-01 en publiceert pas na alle fetches en normalisaties. Boekingen, opruiming tijdelijke planning en metadata van de geslaagde bronset worden in dezelfde transactie vastgelegd. De metadata gebruikt de bestaande `dvk_records`-opslag via de bookingrepository: geen schemawijziging of migratie. Een laatste poging wordt afzonderlijk geregistreerd met veilige statusinformatie. Een fout overschrijft de laatste geslaagde bronset niet.
 
-De planningservice leest alle bookings zonder de bestaande `recent(50)`-limiet. Zij gebruikt alleen bookings met passende taakcode, concrete dienstidentiteit en exacte tijdgrenzen. Bronbezetting wordt via `calculate_staffing_need()` gecombineerd met tijdelijke planning. Een andere geselecteerde periode of taakcodeset wordt niet als gedekt voorgesteld. Zonder passende geslaagde bron zijn bezetting en behoefte onbekend; een geldige lege geslaagde bron betekent nul.
+De planningservice leest alle bookings zonder de bestaande `recent(50)`-limiet. Zij projecteert bookings op alle positief overlappende catalogusdiensten binnen dezelfde groep. Per dienst telt iedere gekoppelde persoon eenmaal, ook bij meerdere broncodes of overlappende bronregistraties. Eén broninroostering blijft één bronfeit met oorspronkelijke taakcode, interval, identiteit en provenance; een catalogusbinding is alleen een contextanker. Een gedeeltelijke overlap bewijst geen volledige aanwezigheid gedurende de catalogusdienst. Het bestaande exacte adapterpad buiten de catalogusplanning blijft behouden. Bronbezetting wordt via `calculate_staffing_need()` gecombineerd met tijdelijke planning. Een andere geselecteerde periode of taakcodeset wordt niet als gedekt voorgesteld. Zonder passende geslaagde bron zijn bezetting en behoefte onbekend; een geldige lege geslaagde bron betekent nul.
 
 ## Aanvraagvenster: bewijs en acceptatiegrens
 
@@ -40,7 +40,7 @@ Technische keuze: `request_window()` behoudt minimaal het bestaande venster -1/6
 
 ## Persoonskoppeling, demonstratie en privacy
 
-Het exacte naamcontract blijft ongewijzigd: `Achternaam, Voorletter(s) Tussenvoegsel(s) (Roepnaam)`, precies één match naar relatiecode. Een ontbrekend tussenvoegsel leidt in de bestaande implementatie tot geen geconstrueerde naam; geen nieuwe formatteringsregel, fuzzy matching of terugval naar `Naam` toegevoegd. Bij zulke leden blokkeert de synchronisatie met een expliciete melding. Een nieuwe naamvorm vergt apart bevestigd broncontract.
+Het exacte naamcontract blijft ongewijzigd: `Achternaam, Voorletter(s) Tussenvoegsel(s) (Roepnaam)`, precies één match naar relatiecode. De bevestigde naamcorrectie staat een lege waarde in de verplichte kolom `Tussenvoegsel(s)` toe: `Achternaam, Voorletter(s) (Roepnaam)`. De overige drie naamwaarden en alle vier kolommen blijven verplicht. Geen fuzzy matching of terugval naar `Naam`; ontbrekende of meervoudige exacte persoonskoppeling blokkeert publicatie.
 
 De standaardweergave gebruikt de catalogus en gevalideerde bronbezetting. De afzonderlijke demonstratieweergave behoudt bestaande synthetische kandidaatselectie, wedstrijden, achterstanden, bevestiging en undo; verversen naar Sportlink is daar uitgeschakeld. Echte kandidaatselectie en persoonsconflicten op Sportlink-bookings zijn niet operationeel en worden ook niet zo gepresenteerd. PR #35-levensduur blijft ongewijzigd.
 
@@ -64,7 +64,7 @@ Gebruik een lokale, niet door Git gevolgde database en de bestaande Python-omgev
 6. Gebruik de demonstratie om de bestaande kandidaatselectie te testen: selecteren alleen doet niets; bevestigen voegt tijdelijke planning toe; undo verwijdert die; navigatie en browser-refresh behouden werk. Wisselen van periode met werk vraagt bevestiging. Stop/start van het echte applicatieproces wist werk, niet bookings/no-shows.
 7. Met tijdelijke planning aanwezig: test een mislukte verversing door lokaal de verbinding te verbreken. Verwacht begrijpelijke melding, vorige bookings en werk behouden, vorig succesoverzicht zichtbaar plus mislukte poging. Herstel verbinding; alleen een volledig geslaagde verversing wist werk. Deel geen foutdump met URL of credentials.
 8. Controleer met een lokale periode waarvan bekend is dat alle vier codes leeg zijn: geslaagde bronset, alle codes zichtbaar met nul, catalogusdiensten blijven bestaan en tijdelijke planning vervalt.
-9. Controleer ontbrekende of dubbele naamkoppeling uitsluitend met wegwerp/synthetische invoer; verwacht geen publicatie. Een leeg tussenvoegsel wordt momenteel niet automatisch opgelost. Geen export aanpassen om een echte identiteit kunstmatig passend te maken.
+9. Controleer ontbrekende of dubbele naamkoppeling uitsluitend met wegwerp/synthetische invoer; verwacht geen publicatie. Een leeg tussenvoegsel is toegestaan; controleer de exacte naamvorm zonder extra spatie vóór de haakjes. Geen export aanpassen om een echte identiteit kunstmatig passend te maken.
 10. Bestaande duurzame no-shows en intrekkingen moeten na verversing en echte herstart behouden blijven. Maak geen fictieve no-show op echte CKC-inroosteringen voor een technische proef. Synthetische regressies toetsen dit afzonderlijk.
 
 Rapporteer alleen: geslaagd/mislukt per stap, gekozen datumbereik, geanonimiseerde aantallen per taakcode en eventuele ontbrekende functionele afspraak. Geen namen, relatiecodes, exports, screenshots met persoonsgegevens, databases, ruwe responsen of credentials naar GitHub/Codex/ChatGPT.
@@ -93,3 +93,22 @@ Gerichte ketenregressie: **137 geslaagd** (nieuwe integratie, client/adapter, no
 | `tests/test_planning_runtime_v05.py` | Demo expliciet kiezen; behoud bij rerun zonder vrij instelbare uitvraagparameters |
 | `tests/test_duty_population_dashboard_v05.py` | Bestaande hoogtecontrole uitbreiden naar de gevraagde negende tabel |
 | Dit rapport | Herleiding, beperkingen, wijzigingsreden, testresultaat en lokaal acceptatiescript |
+
+
+## Aanvullend functioneel besluit PR #38 — 21 oktober 2026
+
+Grondslag: expliciet besluit van Johan/CKC in de vervolgopdracht voor PR #38. De barcodes 701/741/761 zijn voor deze koppeling onderling uitwisselbaar; 442 blijft gescheiden. Catalogusdefinities en oorspronkelijke bronfeiten blijven intact. Geen migratie of wijziging van historische geaccepteerde cases nodig. De naamcorrectie en de vooraf opnieuw geverifieerde 728 geslaagde tests blijven behouden.
+
+Aanvullende synthetische ketentests: alle zestien combinaties van broncode/cataloguscode, een 19:00–22:30-inroostering onder iedere barcode over diensten 701 19:00–20:00 en 761 20:00–22:30, herhaalde verversing, meerdere broncodes/intervallen voor dezelfde persoon en twee verschillende personen. De bestaande overlaptests beschermen gedeeltelijke overlap, rakende grenzen, datums en UTC-equivalentie.
+
+Hernieuwde lokale acceptatie (naast de bestaande stappen):
+
+1. Gebruik de bijgewerkte werkbranch en herstart het applicatieproces. Selecteer de juiste periode en ververs bewust de volledige Sportlink-bron; een geslaagde verversing wist tijdelijke planning.
+2. Controleer voor 701, 741 en 761 dat iedere positief overlappende broninroostering de bardienst bezet, ongeacht de oorspronkelijke barcode. Controleer afzonderlijk dat 442 alleen commissiekamerdiensten bezet, ook bij gelijktijdige bardiensten.
+3. Vergelijk een bestaande inroostering 19:00–22:30 met de catalogusdiensten 701 19:00–20:00 en 761 20:00–22:30: dezelfde persoon bezet beide eenmaal. Alleen grenscontact met de voorafgaande dienst telt niet mee. Gebruik synthetische lokale invoer als dit bronvoorbeeld niet aanwezig is; verander geen echte CKC-registraties voor deze proef.
+4. Controleer bij meerdere inroosteringen voor dezelfde persoon dat iedere dienst die persoon eenmaal telt; verschillende personen tellen afzonderlijk. Het controleoverzicht blijft bronregistraties per oorspronkelijke taakcode tellen en hoeft daarom niet gelijk te zijn aan opgetelde dienstbezetting. Herhaal verversing: geen oplopende telling.
+5. Controleer exacte naamkoppeling met en zonder tussenvoegsel. Ontbrekende/verkeerd gekoppelde personen blijven blokkeren. Controleer behoud van no-shows/intrekkingen en behoud van de vorige bronset bij mislukking.
+
+Wijzigingsredenen vervolg: `real_data_import.py` en `test_no_show_sportlink_v05.py` behouden de naamcorrectie; `vrijwilligers_adapter.py` verzorgt groepsvergelijking en positieve overlap met behoud van bronfeiten; `application_services.py` activeert dit uitsluitend op het cataloguspad; `volunteer_planning.py` projecteert en dedupliceert bezetting per persoon/dienst; `test_volunteer_overlap_v05.py` en `test_volunteer_planning_integration_v05.py` beschermen deze afspraken. Dit rapport vervangt de eerdere exacte-interval- en verplichte-tussenvoegselbeschrijving.
+
+Eindverificatie vervolg: **778 tests geslaagd**, 0 mislukt; de vooraf aanwezige 728 tests zijn behouden. Gerichte ketenselectie (overlap, planningintegratie, naam/no-shows, bestaande Vrijwilligers- en bezettingsregressies): **148 geslaagd**. `git diff --check` geslaagd. Eerste gerichte testaanroep vanuit de repositoryroot vond de relatieve testpaden niet; opnieuw uitgevoerd vanuit `code/Prototype`, zonder testwijziging. Live functionele acceptatie is nog niet uitgevoerd. CI-status en vervolgcommit worden bij PR #38 vastgelegd.
