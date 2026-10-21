@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** ontwikkelvolgorde bijgewerkt na afronding BL-04 op 19 oktober 2026.  
+**Status:** ontwikkelvolgorde bijgewerkt op 21 oktober 2026; BL-04 en voorbereidende verbeteringen PR #34/#35 afgerond.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -10,6 +10,7 @@
 | --- | --- | --- | --- |
 | Afgerond | Stap 2 ronde 4 — taakplichtcontrole | Read-only afleiding, vergelijking met Sportlink A, bron- en controlediagnose; lokaal functioneel geaccepteerd en [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged. | **Afgerond** |
 | Afgerond | BL-04 — DVK-portaal | Startscherm en modulenavigatie; lokaal geaccepteerd en [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged. | **Afgerond (19 oktober 2026)** |
+| Voorbereiding afgerond | Vrijwilligers API-responsvalidatie (PR #34) en tijdelijke planning (PR #35) | Ongeldige bronresponsen worden vóór publicatie geweigerd; tijdelijke planning blijft behouden bij normale navigatie, wordt na bevestigde periodewisseling verwijderd en vervalt bij procesherstart. | **Afgerond en lokaal geaccepteerd waar van toepassing; geen volledige live API-integratie** |
 | 2 | Integratie Vrijwilligers API | Actuele diensten, Sportlink-inroosteringen en bezetting betrouwbaar ophalen/vertalen; bronstatus, fouten, peildatum en herhaalbaarheid controleren. | **Apart onderzoeken, implementeren en accepteren** |
 | 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Apart onderzoeken, implementeren en accepteren** |
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
@@ -18,6 +19,12 @@
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder beschikbaar komen en in parallel worden voorbereid. Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's. De API-integraties zijn **twee afzonderlijke ontwikkel- en acceptatiestappen**.
+
+### Aanvullende afgeronde voorbereidingen (21 oktober 2026)
+
+- **PR #34 — VRIJ-01:** ongeldige of lege Vrijwilligers API-responsen worden vóór publicatie geweigerd; bestaande bronfeiten en tijdelijke planning blijven behouden bij een mislukte verversing. Gemerged naar `prototype-v0.5` (merge-commit `8ccdb473`). Dit is bronveiligheid, **geen** bewijs dat de volledige live API-integratie is geaccepteerd.
+- **PR #35 — tijdelijke planning:** werkvoorraad blijft behouden tijdens schermwisselingen en browser-refresh binnen hetzelfde applicatieproces; een periodewisseling met tijdelijke indelingen vereist waarschuwing en expliciete bevestiging; na een echte applicatieherstart wordt de tijdelijke werkvoorraad gewist. Lokaal vijf acceptatiescenario's geslaagd; 693 regressietests en CI groen. Gemerged naar `prototype-v0.5` (merge-commit `e7d173e7`). Duurzame no-showgegevens blijven buiten deze wisacties.
+- **Resterend:** feitelijke Vrijwilligers API-integratie, Programma API, achterstallige uren en de integrale planning/acceptatie blijven open volgens onderstaande volgorde.
 
 ### Afronding BL-04
 

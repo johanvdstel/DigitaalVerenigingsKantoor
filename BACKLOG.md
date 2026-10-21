@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt na afronding BL-04 op 19 oktober 2026  
+**Status:** bijgewerkt op 21 oktober 2026 met geaccepteerde voorbereidingen PR #34 en #35; BL-10 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -24,7 +24,7 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 | BL-07 | Sportlink-urenbron en seizoensgegevens | **Gedeeltelijk gevalideerd.** Sportlink A is voor read-only taakplichtcontrole met echte CKC-exports getoetst. Nog open: werkelijke B/C/D/E-betekenis, beschikbare velden, seizoensafbakening en controle van correcties na import. | Brononderzoek Sportlink |
 | BL-08 | Functieclassificatie `Verzorger` | **Wacht op CKC-broncorrectie.** Onderscheid betaalde en onbetaalde functie in Sportlink nog niet betrouwbaar; huidige tijdelijke classificatie niet persoonsgebonden hardcoden. Na correctie lokaal opnieuw controleren. Blokkeert ander v0.5-werk niet. | CKC/Sportlink |
 | BL-09 | Bronactualiteit functies en commissies | **Bewaken binnen v0.5.** Bestaande bron- en controlediagnose behouden; verouderde of onvolledige bronfeiten signaleren, geen ontbrekende functiedatums verzinnen. Geen aparte ontwikkelronde tenzij controle een concrete tekortkoming aantoont. | Nieuwe bronexports |
-| BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **v0.5, integrale verificatie.** Bestaande implementatie eerst inspecteren; controleer directe bezettings- en beschikbaarheidseffecten, undo, handmatige Sportlink-verwerking, succesvolle sync als grens en behoud werkvoorraad bij mislukte sync. Alleen aantoonbare gaps herstellen. | API Vrijwilligers; FR-02–FR-08 |
+| BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **v0.5, gedeeltelijk afgerond; integrale verificatie open.** PR #34 borgt afwijzing van ongeldige Vrijwilligers-responsen vóór publicatie en behoud van bestaande gegevens bij mislukte verversing. PR #35 borgt behoud tijdens navigatie/refresh, bevestigde periodewisseling en wissen bij procesherstart; vijf lokale acceptatiescenario's geslaagd. Nog te toetsen in de volledige API-/planningsketen: actuele bezetting en beschikbaarheid, undo, handmatige Sportlink-verwerking en succesvolle bronverversing als wisgrens. Alleen aantoonbare gaps herstellen. | API Vrijwilligers; FR-02–FR-08 |
 | BL-11 | No-shows en handmatige Sportlink-correctiewerkvoorraad | **v0.5, integrale verificatie.** Controleer koppeling aan feitelijke Sportlink-inroostering, duurzame no-show, intrekking, sanctieafleiding en status openstaand/afgehandeld van handmatige correctie. Hergebruik geaccepteerde functionaliteit. | API Vrijwilligers; FR-09–FR-12 |
 
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
