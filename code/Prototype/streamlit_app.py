@@ -25,6 +25,8 @@ from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding
 from dvk.real_data_import import SportlinkRealDataAdapter
+from dvk.shift_catalog import load_shift_catalog
+from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard, suggested_season, validate_season
 import os
 
@@ -132,14 +134,26 @@ def _render_planning():
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
-    services, needs, matches, statuses = _demo_data(period.start)
+    demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
+    catalog = load_shift_catalog()
+    with database.unit_of_work() as uow:
+        source_app = VolunteerPlanningApplicationService(uow, identity, catalog)
+        success, attempt, source_matches = source_app.source(period)
+        services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
+    if demo:
+        st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
+    else:
+        st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Operationele kandidaatselectie en persoonsconflicten met Sportlink zijn nog niet aangesloten.")
+        if not source_matches:
+            st.warning("Geen gevalideerde Sportlink-bezetting voor deze periode. Bezetting en resterende behoefte zijn onbekend totdat de bron succesvol is opgehaald.")
     with database.unit_of_work() as uow:
         planning_app = PlanningApplicationService(identity, uow=uow)
         overview = planning_app.build_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=statuses)
         needs = planning_app.staffing_needs(services=services, source_needs=needs)
     need_by_service = {n.service_id: n for n in needs}; service_by_id = {s.service_id: s for s in services}
     st.write(f"**Periode:** {overview.period.start:%d-%m-%Y} t/m {overview.period.end:%d-%m-%Y}")
-    c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services)); c3.metric("DVK-planningsbezetting", sum(r.confirmed_occupancy for r in overview.services)); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services))
+    known = demo or source_matches
+    c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services) if known else "Onbekend"); c3.metric("DVK-planningsbezetting", sum(r.confirmed_occupancy for r in overview.services) if known else "Onbekend"); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services) if known else "Onbekend")
 
     st.markdown("### Diensten")
     selected_service_id = None
@@ -147,6 +161,10 @@ def _render_planning():
     else:
         previous_service = st.session_state.get("selected_service_id")
         rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Locatie": r.location, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": r.source_occupancy, "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
+        if not known:
+            for row in rows:
+                for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
+                    row[field] = "Onbekend"
         edited = st.data_editor(pd.DataFrame(rows), hide_index=True, use_container_width=True, height=210, disabled=["service_id", "Datum", "Tijd", "Dienst", "Locatie", "Min", "Max", "Sportlink", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"], column_config={"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", help="Selecteer één dienst")}, key="services_editor")
         picked = edited[edited["Kies"]]
         if len(picked) > 1: st.error("Selecteer maximaal één dienst.")
@@ -155,7 +173,8 @@ def _render_planning():
         else: st.session_state.pop("selected_service_id", None)
 
     st.markdown("### Kandidaten en voorstellen")
-    if selected_service_id is None: st.info("Selecteer eerst één dienst in de tabel hierboven.")
+    if not demo: st.info("Kandidaatselectie en goedkeuring zijn beschikbaar in de afzonderlijke demonstratie. Echte leden, wedstrijdcontext en Sportlink-persoonsconflicten volgen bij integrale planning.")
+    elif selected_service_id is None: st.info("Selecteer eerst één dienst in de tabel hierboven.")
     else:
         service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
         proposal_run_key = f"proposal-run-{selected_service_id}"
@@ -236,24 +255,21 @@ def _render_planning():
     st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
         members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
-        st.caption("Geef per getoonde dienst de Sportlink-vrijwilligerstaakcode op. Naamkoppelingen die ontbreken of niet uniek zijn worden gesignaleerd.")
-        task_codes = {s.service_id: st.text_input(f"{_datum_met_dag(s.starts_at)} {s.starts_at:%H:%M}–{s.ends_at:%H:%M} — {s.service_type}",
-                     key=f"sportlink-task-{s.service_id}") for s in services}
-        fetch_days = st.number_input("Aantal dagen voor Sportlink-uitvraag", min_value=1, value=60)
-        fetch_weekoffset = st.number_input("Weekoffset voor Sportlink-uitvraag", value=-1)
-        if st.button("Sportlink-inroosteringen synchroniseren"):
-            bindings = tuple(ServiceBinding(task_codes[s.service_id].strip(), s) for s in services)
+        st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Naamkoppelingen die ontbreken of niet uniek zijn blokkeren de verversing.")
+        if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo):
             try:
                 if members_file is None:
                     raise ValueError("Selecteer de Leden-CSV voor persoonskoppeling.")
                 persons = SportlinkRealDataAdapter.read_volunteer_persons(members_file.getvalue().decode("utf-8-sig"))
                 with database.unit_of_work() as uow:
-                    signals = NoShowApplicationService(uow, identity).synchronize(
+                    error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
+                        period=period,
                         client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
-                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""), bindings=bindings,
-                        persons=persons, imported_at=datetime.now().astimezone(), days=int(fetch_days), weekoffset=int(fetch_weekoffset))
-                st.session_state["sportlink-booking-signals"] = signals
-                if not signals:
+                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
+                        persons=persons, imported_at=datetime.now().astimezone())
+                if error:
+                    st.error(error)
+                else:
                     st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
                     st.rerun()
             except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
@@ -346,6 +362,20 @@ def _render_planning():
     if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
     else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     st.markdown("### Databronnen")
+    if not demo:
+        st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
+        if success:
+            st.caption(f"Laatste geslaagde bronperiode: {success['start']} t/m {success['end']}; opgehaald: {success['fetched_at']}")
+            st.dataframe([{"Sportlink-taakcode": row["task_code"], "Taakomschrijving": row["description"],
+                           "Aantal geplande diensten": row["services"], "Aantal Sportlink-inroosteringen": row["bookings"],
+                           "Uitvraagstatus": row["status"]} for row in success["tasks"]], hide_index=True, height=190)
+        else:
+            st.info("Nog geen geslaagde Sportlink-synchronisatie.")
+        if attempt and attempt["status"] == "Mislukt":
+            st.error(f"Verversen mislukt voor {attempt['start']} t/m {attempt['end']} ({attempt['at']}): {attempt['message']}. Vorige bron en tijdelijke planning behouden.")
+            st.write("Taakcodes en uitvraagstatus laatste poging: " + "; ".join(
+                f"{row['task_code']} — {row['description']}: {row['status']}"
+                for row in attempt["tasks"]))
     st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True, height=360)
     st.markdown("### Datakwaliteit")
     if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
@@ -372,7 +402,7 @@ def _render_planning_screen():
 
 # Only retain scalar input values. Uploads and action/selection widgets follow
 # Streamlit's normal cleanup when their screen is no longer rendered.
-for _key in ("planning-mode", "planning-from", "planning-until",
+for _key in ("planning-mode", "planning-from", "planning-until", "planning-source-mode",
              "duty-control-date", "duty-control-period", "duty-control-filter"):
     if _key in st.session_state:
         st.session_state[_key] = st.session_state[_key]

@@ -125,6 +125,7 @@ class SportlinkVrijwilligersAdapter:
         services: Iterable[ServiceBinding],
         imported_at: datetime,
         persons: Iterable[Person] | None = None,
+        period=None,
     ) -> VolunteerImportResult:
         bindings = tuple(binding for binding in services if binding.task_code == task_code)
         bookings: list[VolunteerBooking] = []
@@ -156,6 +157,9 @@ class SportlinkVrijwilligersAdapter:
                     "INVALID_VOLUNTEER_DATETIME", "ERROR", "sportlink_vrijwilligers", key,
                     "Begindatum/-tijd of einddatum/-tijd is niet herkenbaar",
                 ))
+                continue
+
+            if period is not None and not period.contains(starts_at.astimezone(TZ)):
                 continue
 
             matches = [binding.service for binding in bindings if self._same_service_time(binding.service, starts_at, ends_at)]

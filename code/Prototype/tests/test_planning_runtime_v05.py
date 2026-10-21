@@ -172,6 +172,7 @@ def ui(tmp_path):
         'value=date.today()', 'value=date(2026, 9, 14)'))
     app = AppTest.from_file(str(path), default_timeout=20).run()
     app.button(key='nav-planning').click().run()
+    app.radio(key='planning-source-mode').set_value('Demonstratie').run()
     assert not app.exception
     return app, SQLiteDatabase(tmp_path / 'dvk_v05.sqlite'), path
 
@@ -188,7 +189,8 @@ def test_reruns_navigation_and_new_browser_session_keep_work(tmp_path):
     before = work(db)
     app.run()
     assert work(db) == before
-    next(x for x in app.number_input if x.label == 'Aantal dagen voor Sportlink-uitvraag').set_value(7).run()
+    # Request coverage is now application-owned; an ordinary screen rerun keeps work.
+    app.run()
     app.radio(key='planning-mode').set_value('Aangepast').run()
     assert work(db) == before  # Same actual period, different selector mode.
     for nav in ('nav-home', 'nav-control', 'nav-planning'):

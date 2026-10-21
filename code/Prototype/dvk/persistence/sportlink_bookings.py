@@ -37,6 +37,19 @@ class SQLiteSportlinkBookingRepository:
         row = self._connection.execute("SELECT payload FROM sportlink_bookings WHERE assignment_id=?", (assignment_id,)).fetchone()
         return None if row is None else booking_from_dict(json.loads(row[0]))
 
+    def all(self):
+        rows = self._connection.execute("SELECT payload FROM sportlink_bookings ORDER BY assignment_id").fetchall()
+        return tuple(booking_from_dict(json.loads(row[0])) for row in rows)
+
+    def refresh_state(self, kind="success"):
+        row = self._connection.execute("SELECT payload FROM dvk_records WHERE record_id=?",
+                                       (f"vrijwilligers-refresh-{kind}",)).fetchone()
+        return None if row is None else json.loads(row[0])
+
+    def save_refresh_state(self, state, kind="success"):
+        self._connection.execute("INSERT OR REPLACE INTO dvk_records VALUES (?, ?)",
+                                 (f"vrijwilligers-refresh-{kind}", json.dumps(state)))
+
     def recent(self, limit=50):
         rows = self._connection.execute("SELECT payload FROM sportlink_bookings ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
         return tuple(booking_from_dict(json.loads(row[0])) for row in rows)

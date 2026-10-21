@@ -62,18 +62,22 @@ class NoShowApplicationService:
     def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> tuple[AssignmentContext, ...]:
         return tuple(AssignmentContext(a, a.service, a.person_name) for a in self.available_assignments(limit))
 
-    def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1):
+    def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1,
+                    task_codes=None, period=None, refresh_state=None):
         """Fetch through the accepted client/adapter; publish only a valid full refresh."""
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         bindings = tuple(bindings)
         persons = tuple(persons)
-        if not bindings or any(not b.task_code.strip() for b in bindings):
+        if (not bindings and task_codes is None) or any(not b.task_code.strip() for b in bindings):
             raise ValueError("Sportlink-synchronisatie vereist concrete diensten en taakcodes")
         bookings, signals = [], []
-        for task_code in sorted({b.task_code for b in bindings}):
+        codes = sorted({b.task_code for b in bindings}) if task_codes is None else tuple(task_codes)
+        if not codes or len(set(codes)) != len(codes) or any(not c.strip() for c in codes):
+            raise ValueError("Sportlink-synchronisatie vereist unieke taakcodes")
+        for task_code in codes:
             fetched = client.fetch_rows(client_id=client_id, task_code=task_code, days=days, weekoffset=weekoffset)
             result = SportlinkVrijwilligersAdapter().import_rows(task_code=task_code, rows=fetched.rows,
-                services=bindings, imported_at=imported_at, persons=persons)
+                services=bindings, imported_at=imported_at, persons=persons, period=period)
             bookings.extend(result.bookings)
             signals.extend(result.signals)
         if any(s.severity == "ERROR" for s in signals):
@@ -81,6 +85,11 @@ class NoShowApplicationService:
         self.uow.sportlink_bookings.replace_all(bookings)
         for entry in self.uow.temporary_planning.all():
             self.uow.temporary_planning.remove(entry.assignment.assignment_id)
+        if refresh_state is not None:
+            refresh_state = dict(refresh_state)
+            refresh_state["tasks"] = [dict(row, bookings=sum(b.task_code == row["task_code"] for b in bookings))
+                                      for row in refresh_state["tasks"]]
+            self.uow.sportlink_bookings.save_refresh_state(refresh_state)
         self.uow.commit()
         return tuple(signals)
 
