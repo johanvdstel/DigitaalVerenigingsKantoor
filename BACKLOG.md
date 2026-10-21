@@ -27,6 +27,15 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 | BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **v0.5, gedeeltelijk afgerond; integrale verificatie open.** PR #34 borgt afwijzing van ongeldige Vrijwilligers-responsen vóór publicatie en behoud van bestaande gegevens bij mislukte verversing. PR #35 borgt behoud tijdens navigatie/refresh, bevestigde periodewisseling en wissen bij procesherstart; vijf lokale acceptatiescenario's geslaagd. Nog te toetsen in de volledige API-/planningsketen: actuele bezetting en beschikbaarheid, undo, handmatige Sportlink-verwerking en succesvolle bronverversing als wisgrens. Alleen aantoonbare gaps herstellen. | API Vrijwilligers; FR-02–FR-08 |
 | BL-11 | No-shows en handmatige Sportlink-correctiewerkvoorraad | **v0.5, integrale verificatie.** Controleer koppeling aan feitelijke Sportlink-inroostering, duurzame no-show, intrekking, sanctieafleiding en status openstaand/afgehandeld van handmatige correctie. Hergebruik geaccepteerde functionaliteit. | API Vrijwilligers; FR-09–FR-12 |
 
+## Nieuwe beheerwensen (21 oktober 2026)
+
+Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijwilligers API-integratie niet. Prioriteit voorlopig **normaal**; nadere uitwerking en acceptatie volgen afzonderlijk.
+
+| ID | Onderwerp | Afspraak en eerstvolgende stap | Afhankelijkheid |
+| --- | --- | --- | --- |
+| BL-14 | Beheer op te vragen Sportlink-taakcodes | **Nieuwe wens; na eerste Vrijwilligers API-integratie.** Onderhoudscherm voor bevoegde DVK-gebruiker om de vaste set uit te vragen Sportlink-taakcodes toe te voegen, te wijzigen en te deactiveren, zonder codewijziging. Synchronisatie vraagt altijd de volledige actieve set op; het dashboard toont per uitgevraagde taakcode de resultaten voor de gekozen periode, inclusief nul inroosteringen. Nieuwe Sportlink-taakcodes worden niet automatisch ontdekt; beheer vereist expliciete opname. | Werkende en geaccepteerde Vrijwilligers API-integratie; vast taakcodecontract |
+| BL-15 | Beheer DVK-dienstencatalogus | **Nieuwe wens; na eerste bronintegratie.** Onderhoudscherm voor bevoegde DVK-gebruiker als vervanging van het huidige Excel-onderhoud van de eigen dienstencatalogus. Onderhoud van bestaande catalogusgegevens (zoals diensttype, gekoppelde taakcode, weekpatroon en bezettingsnormen) conform te verifiëren broncontract. Catalogus bepaalt alle concrete diensten per week, ook volledig onbezet; Vrijwilligers API levert uitsluitend feitelijke inroosteringen. Migratie en beheeropslag pas bij uitwerking bepalen; geen nieuwe catalogusarchitectuur veronderstellen. | Bestaande Excel-catalogus en cataloguscontract verifiëren; integratie met concrete dienstmomenten |
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
