@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from .application_services import NoShowApplicationService
 from .planning import PlanningSourceStatus
+from .planning_session import active_source
 from .security import Authorizer, Permission
 from .staffing import calculate_staffing_need
 from .vrijwilligers_client import VrijwilligersFetchError
@@ -41,7 +42,7 @@ class VolunteerPlanningApplicationService:
         Authorizer().require(self.identity, Permission.VIEW_PLANNING)
         success = self.uow.sportlink_bookings.refresh_state()
         failure = self.uow.sportlink_bookings.refresh_state("attempt")
-        matching = success is not None and (success["start"], success["end"], tuple(success["codes"])) == (
+        matching = active_source(self.uow, period) is not None and success is not None and (success["start"], success["end"], tuple(success["codes"])) == (
             period.start.isoformat(), period.end.isoformat(), self.catalog.task_codes)
         return success, failure, matching
 
@@ -68,13 +69,14 @@ class VolunteerPlanningApplicationService:
         """Validated current-period source facts for the authorized local planner."""
         return self.uow.sportlink_bookings.all() if self.source(period)[2] else ()
 
-    def synchronize(self, *, period, client, client_id, persons, imported_at):
+    def synchronize(self, *, period, client, client_id, persons, imported_at, confirmed=False, source_revision=None):
         Authorizer().require(self.identity, Permission.MANAGE_NO_SHOWS)
         if imported_at.tzinfo is None:
             raise ValueError("Ophaaltijd vereist een tijdzone")
         window = request_window(period, imported_at.astimezone(TZ).date())
         bindings = self.catalog.bindings(period)
-        state = dict(start=period.start.isoformat(), end=period.end.isoformat(),
+        session = self.uow.planning_sessions.get()
+        state = dict(session_id=session.session_id if session else None, start=period.start.isoformat(), end=period.end.isoformat(),
                      fetched_at=imported_at.isoformat(), codes=list(self.catalog.task_codes),
                      days=window.days, weekoffset=window.weekoffset,
                      tasks=[dict(task_code=d.task_code, description=d.service_type,
@@ -92,7 +94,8 @@ class VolunteerPlanningApplicationService:
             signals = NoShowApplicationService(self.uow, self.identity).synchronize(
                 client=TrackingClient(), client_id=client_id, bindings=bindings, persons=persons,
                 imported_at=imported_at, days=window.days, weekoffset=window.weekoffset,
-                task_codes=self.catalog.task_codes, period=period, refresh_state=state, catalog_overlap=True)
+                task_codes=self.catalog.task_codes, period=period, refresh_state=state, catalog_overlap=True,
+                confirmed=confirmed, source_revision=source_revision)
         except VrijwilligersFetchError as exc:
             # Client messages are fixed categories: never persist exception URLs.
             category = str(exc)
@@ -108,12 +111,14 @@ class VolunteerPlanningApplicationService:
             message = "; ".join(sorted({s.message for s in signals}))
             self._attempt(state, "Mislukt", message, attempt_tasks)
             return message
-        status = "Geslaagd, met aandachtspunten" if signals else "Geslaagd"
-        self._attempt(state, status, "", attempt_tasks)
         return None
 
     def _attempt(self, state, status, message, tasks):
+        self.uow.begin_planning_write()
+        session = self.uow.planning_sessions.get()
+        if session is None or session.session_id != state["session_id"]:
+            return
         self.uow.sportlink_bookings.save_refresh_state(
             dict(start=state["start"], end=state["end"], at=state["fetched_at"],
-                 status=status, message=message, codes=state["codes"], tasks=tasks), "attempt")
+                 status=status, message=message, codes=state["codes"], tasks=tasks, session_id=state["session_id"]), "attempt")
         self.uow.commit()

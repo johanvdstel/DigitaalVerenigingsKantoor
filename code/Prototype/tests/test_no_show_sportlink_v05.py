@@ -16,7 +16,7 @@ from dvk.security import Identity, Permission
 from dvk.vrijwilligers_adapter import ServiceBinding, SportlinkVrijwilligersAdapter
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.workstream_model import DutyAssignment
-from sportlink_fixtures import booking, seed_bookings
+from sportlink_fixtures import source_revision, booking, seed_bookings
 
 IDENTITY = Identity("planner", "Planner", frozenset({Permission.MANAGE_NO_SHOWS}))
 SOURCE = booking("TEST001", name="Alex de Voorbeeld")
@@ -60,9 +60,9 @@ def test_actual_sportlink_date_and_separate_time_reach_durable_no_show(
     assert source.assignment_id == replace(SOURCE, starts_at=start, ends_at=end).assignment_id
     db = SQLiteDatabase(tmp_path / "actual-source.sqlite"); db.initialize()
     with db.unit_of_work() as uow:
-        uow.sportlink_bookings.replace_all([source]); uow.commit()
+        seed_bookings(uow, [source])
         service = NoShowApplicationService(uow, IDENTITY)
-        service.register(event(source))
+        service.register(event(source), source_revision=source_revision(uow))
         stored = uow.no_shows.get("N1")
         assert stored.occurred_at == start
         assert stored.booking.starts_at.isoformat() == start_value
@@ -163,8 +163,8 @@ def test_no_show_on_only_temporary_dvk_planning_is_rejected(tmp_path):
         uow.temporary_planning.add(TemporaryPlanning(assignment, SOURCE.service)); uow.commit()
         service = NoShowApplicationService(uow, IDENTITY)
         assert service.available_assignments() == ()
-        with pytest.raises(ValueError, match="existing inroostering"):
-            service.register(event())
+        with pytest.raises(ValueError, match="actieve gevalideerde bron"):
+            service.register(event(), source_revision=source_revision(uow))
         assert uow.no_shows.all() == ()
 
 
@@ -176,8 +176,8 @@ def test_legacy_dvk_assignment_and_snapshotless_durable_fact_are_rejected(tmp_pa
                           10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
         uow.assignments.add(DutyAssignment(SOURCE.assignment_id, "P1", SOURCE.service_id, SOURCE.person_id, "member", 4, "planner"))
         uow.commit()
-        with pytest.raises(ValueError, match="existing inroostering"):
-            NoShowApplicationService(uow, IDENTITY).register(event())
+        with pytest.raises(ValueError, match="actieve gevalideerde bron"):
+            NoShowApplicationService(uow, IDENTITY).register(event(), source_revision=source_revision(uow))
         with pytest.raises(ValueError, match="snapshot"):
             uow.no_shows.add(event())
 
@@ -207,7 +207,7 @@ def test_snapshot_revocation_and_sanction_survive_source_refresh_and_reopen(tmp_
     with db.unit_of_work() as uow:
         seed_bookings(uow, [SOURCE])
         service = NoShowApplicationService(uow, IDENTITY)
-        service.register(event())
+        service.register(event(), source_revision=source_revision(uow))
         original = uow.no_shows.get("N1")
         assert original.booking == SOURCE
         uow.sportlink_bookings.replace_all([]); uow.commit()
@@ -222,7 +222,7 @@ def test_snapshot_revocation_and_sanction_survive_source_refresh_and_reopen(tmp_
         assert uow.sanctions.get("N1") is None
         seed_bookings(uow, [replace(SOURCE, volunteer_name="gewijzigde presentatie")])
         with pytest.raises(ValueError, match="al een no-show"):
-            NoShowApplicationService(uow, IDENTITY).register(event(identifier="N2"))
+            NoShowApplicationService(uow, IDENTITY).register(event(identifier="N2"), source_revision=source_revision(uow))
 
 
 def client(payload):
@@ -243,7 +243,7 @@ def test_synchronization_uses_existing_client_and_is_atomic(tmp_path, mode):
             instance = SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=fail)
         app = NoShowApplicationService(uow, IDENTITY)
         kwargs = dict(client=instance, client_id="synthetic", bindings=[ServiceBinding("741", SOURCE.service)],
-                      persons=[Person("TEST001", "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)")], imported_at=SOURCE.ends_at)
+                      persons=[Person("TEST001", "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)")], imported_at=SOURCE.ends_at, confirmed=True, source_revision=source_revision(uow))
         if mode == "transport":
             with pytest.raises(VrijwilligersFetchError):
                 app.synchronize(**kwargs)
@@ -302,7 +302,7 @@ def test_vrij01_invalid_response_preserves_complete_persisted_state(
                 client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=opener),
                 client_id="synthetic", bindings=[ServiceBinding(s.task_code, s.service) for s in originals],
                 persons=[Person("TEST001", "Alex", sportlink_name=SOURCE.volunteer_name)],
-                imported_at=SOURCE.ends_at)
+                imported_at=SOURCE.ends_at, confirmed=True, source_revision=source_revision(uow))
         assert seen == (["741"] if failed_task == "741" else ["741", "761"])
         # Catching the error and committing must not expose staged partial changes.
         uow.commit()

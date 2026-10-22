@@ -13,7 +13,7 @@ from dvk.application_services import NoShowApplicationService, PlanningApplicati
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
-from dvk.planning_runtime import prepare_planning, choose_period
+from dvk.planning_session import PlanningSessionApplicationService
 from dvk.proposal_planning import plan_proposals
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
@@ -112,8 +112,41 @@ def _render_planning():
     st.subheader("Ledendienst Planning")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
     database.initialize()
-    active_period = prepare_planning(database)
-    # A new browser connection resumes the process's period, not today's default.
+    identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
+    with database.unit_of_work() as uow:
+        active_session = PlanningSessionApplicationService(uow, identity).current()
+    active_period = active_session.period if active_session else None
+    needs_resume = active_session and st.session_state.get("planning-resumed") != active_session.session_id
+    if needs_resume:
+        st.info(f"Bewaarde planning: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
+        if st.button("Bestaande planning hervatten", key="resume-planning"):
+            st.session_state["planning-resumed"] = active_session.session_id
+            st.session_state["planning-mode"] = "Aangepast"
+            st.session_state["planning-from"] = active_period.start
+            st.session_state["planning-until"] = active_period.end
+            _clear_period_widgets()
+            st.rerun()
+    if active_session and st.button("Nieuwe planning starten" if needs_resume else "Start nieuwe planning", key="start-new-planning"):
+        st.session_state["planning-close-request"] = active_session.session_id
+    if st.session_state.get("planning-close-request"):
+        st.warning("De tijdelijke DVK-indelingen komen te vervallen. Bevestig dat deze niet langer nodig zijn "
+                   "en dat je de noodzakelijke handmatige verwerking in Sportlink hebt afgehandeld. "
+                   "DVK controleert die verwerking niet.")
+        if st.button("Afsluiten en nieuwe planning starten", key="confirm-close-planning"):
+            with database.unit_of_work() as uow:
+                PlanningSessionApplicationService(uow, identity).close(confirmed=True,
+                    expected_session_id=st.session_state["planning-close-request"])
+            for key in ("planning-close-request", "planning-resumed", "planning-mode", "planning-from", "planning-until"):
+                st.session_state.pop(key, None)
+            _clear_period_widgets()
+            st.rerun()
+        if st.button("Annuleren", key="cancel-close-planning"):
+            st.session_state.pop("planning-close-request", None)
+            st.rerun()
+        return
+    if needs_resume:
+        return
+    # Widget state may disappear on navigation; restore the durable period.
     if active_period is not None and "planning-mode" not in st.session_state:
         st.session_state["planning-mode"] = "Aangepast"
         st.session_state["planning-from"] = active_period.start
@@ -129,12 +162,15 @@ def _render_planning():
         until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
     inputs = {key: st.session_state[key] for key in
               ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
-    if not choose_period(database, period):
+    if active_session is not None and active_period != period:
         st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
         st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
-                   "Deze actie kan niet ongedaan worden gemaakt. Wil je doorgaan?")
+                   "Bevestig dat deze niet langer nodig zijn en dat de noodzakelijke handmatige verwerking in Sportlink is afgehandeld. DVK controleert die verwerking niet.")
         if st.button("Periode wijzigen en tijdelijke indelingen verwijderen", key="confirm-period-change"):
-            choose_period(database, period, discard=True)
+            with database.unit_of_work() as uow:
+                session = PlanningSessionApplicationService(uow, identity).start(
+                    period, confirmed=True, expected_session_id=active_session.session_id)
+            st.session_state["planning-resumed"] = session.session_id
             st.session_state["planning-accepted-inputs"] = inputs
             _clear_period_widgets()
             st.rerun()
@@ -143,9 +179,17 @@ def _render_planning():
     if active_period is not None and active_period != period:
         _clear_period_widgets()
     st.session_state["planning-accepted-inputs"] = inputs
+    with database.unit_of_work() as uow:
+        active_session = PlanningSessionApplicationService(uow, identity).current()
+    if active_session:
+        st.session_state["planning-resumed"] = active_session.session_id
+    elif st.button("Start nieuwe planning", key="activate-planning"):
+        with database.unit_of_work() as uow:
+            session = PlanningSessionApplicationService(uow, identity).start(period)
+        st.session_state["planning-resumed"] = session.session_id
+        st.rerun()
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
-    identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
     demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
     catalog = load_shift_catalog()
     with database.unit_of_work() as uow:
@@ -277,7 +321,7 @@ def _render_planning():
     st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
     with database.unit_of_work() as uow:
         assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
-            services=services, persons=tuple(c.person for c in demo_candidate_cases()),
+            services=services, persons=tuple(c.person for c in demo_candidate_cases()), period=period,
         )
     if not assignment_rows:
         st.info("Geen betrouwbaar aan een persoon gekoppelde inroosteringen beschikbaar voor no-showregistratie.")
@@ -302,7 +346,8 @@ def _render_planning():
                     season_id(occurred_at.date()),
                 )
                 try:
-                    assessment = NoShowApplicationService(uow, identity).register(event)
+                    assessment = NoShowApplicationService(uow, identity).register(event, period=period,
+                        source_revision=st.session_state.get("no-show-selection-revision"))
                 except ValueError as exc:
                     st.error(str(exc))
                 else:
@@ -316,6 +361,8 @@ def _render_planning():
                 follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
                 st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
             st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
+
+    st.session_state["no-show-selection-revision"] = assignment_rows[0].source_revision if assignment_rows else None
 
     with database.unit_of_work() as uow:
         revocable_rows = NoShowApplicationService(uow, identity).revocable_no_shows(
@@ -362,17 +409,26 @@ def _render_planning():
         members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
         st.caption("Selecteer de Leden-CSV opnieuw na een schermwisseling of nieuwe sessie. Controleer vóór elke synchronisatie of het bestand geselecteerd is.")
         st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
-        if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo):
+        replace_confirmed = False
+        replacing = bool(active_session and (active_session.source_revision or temporary_rows))
+        if replacing:
+            replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{active_session.source_revision}")
+            st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
+        if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
             try:
                 if members_file is None:
                     raise ValueError("Selecteer de Leden-CSV voor persoonskoppeling.")
                 persons = SportlinkRealDataAdapter.read_volunteer_persons(members_file.getvalue().decode("utf-8-sig"))
                 with database.unit_of_work() as uow:
+                    if active_session is None:
+                        active_session = PlanningSessionApplicationService(uow, identity).start(period)
+                        st.session_state["planning-resumed"] = active_session.session_id
                     error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
                         period=period,
                         client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
                         client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
-                        persons=persons, imported_at=datetime.now().astimezone())
+                        persons=persons, imported_at=datetime.now().astimezone(),
+                        confirmed=replace_confirmed, source_revision=active_session.source_revision)
                 if error:
                     st.error(error)
                 else:

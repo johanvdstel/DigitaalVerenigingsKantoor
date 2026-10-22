@@ -22,6 +22,7 @@ def page(tmp_path):
     script.write_text(SOURCE.read_text().replace("value=date.today()", "value=date(2026, 10, 19)"))
     app = AppTest.from_file(str(script), default_timeout=20).run()
     app.button(key="nav-planning").click().run()
+    app.button(key="activate-planning").click().run()
     assert not app.exception
     return app, SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
 
@@ -96,6 +97,7 @@ def test_unknown_source_and_changed_period_never_claim_no_names(tmp_path):
     assert set(app.dataframe[0].value["Sportlink"]) == {"geen namen"}
     app.date_input[0].set_value(PERIOD.start + timedelta(days=7)).run()
     assert not app.exception
+    app.button(key="confirm-period-change").click().run()
     assert set(app.dataframe[0].value["Sportlink"]) == {"Onbekend"}
 
 
@@ -169,6 +171,8 @@ def test_moved_sync_uses_existing_service_with_same_arguments_and_messages(tmp_p
     assert sync(db, catalog, {binding.task_code: raw})[0] is None
     seed_work(db, binding.service)
     before = snapshot(db)
+    app.run()
+    next(c for c in app.checkbox if c.key.startswith("confirm-source-")).check().run()
     next(b for b in app.button if b.label == "Sportlink-inroosteringen synchroniseren").click().run()
     assert not app.exception
     if mode != "success":

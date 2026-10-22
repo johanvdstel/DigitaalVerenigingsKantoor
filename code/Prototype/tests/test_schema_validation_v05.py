@@ -1,4 +1,5 @@
 """Versioned schema contracts, atomic migrations and resource ownership. Synthetic only."""
+from sportlink_fixtures import source_revision
 from contextlib import closing
 from datetime import datetime, timezone
 import sqlite3
@@ -47,14 +48,15 @@ def populated(path):
     identity = Identity("synthetic", "Synthetic", frozenset(Permission))
     with db.unit_of_work() as u:
         seed_base(u._connection)
-        u.sportlink_bookings.replace_all((source,))
+        from sportlink_fixtures import seed_bookings
+        seed_bookings(u, (source,))
         u.temporary_planning.add(TemporaryPlanning(
             DutyAssignment("TEMP", "P", source.service_id, "OTHER", "member", 4, "synthetic"), source.service))
         u.commit()
         app = NoShowApplicationService(u, identity)
         app.register(NoShowEvent("N", source.assignment_id, source.person_id, source.starts_at,
                                  datetime(2026, 10, 22, tzinfo=timezone.utc), identity.subject_id,
-                                 season_id(source.starts_at.date())))
+                                 season_id(source.starts_at.date())), source_revision=source_revision(u))
         app.revoke("N", reason="Synthetic revocation", revoked_at=datetime(2026, 10, 22, tzinfo=timezone.utc))
     return db
 

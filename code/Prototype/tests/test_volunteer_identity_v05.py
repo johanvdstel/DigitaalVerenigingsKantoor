@@ -1,4 +1,5 @@
 """PR #38: occupancy is a source fact; an identity link is optional. Synthetic only."""
+from sportlink_fixtures import source_revision, seed_bookings
 from dataclasses import replace
 from datetime import timedelta
 import json
@@ -61,12 +62,12 @@ def test_identity_never_blocks_valid_occupancy(db, catalog, mode, linked, issues
                             NOW, IDENTITY.subject_id, season_id(b.starts_at.date()))
         service = NoShowApplicationService(u, IDENTITY)
         if linked:
-            service.register(event)
+            service.register(event, source_revision=source_revision(u))
             assert u.no_shows.get("N").booking == b
         else:
             assert not service.available_assignments()
             with pytest.raises(ValueError, match="betrouwbare"):
-                service.register(event)
+                service.register(event, source_revision=source_revision(u))
             assert not u.no_shows.all()
             assert u._connection.execute('SELECT count(*) FROM sportlink_sanction_assessments').fetchone()[0] == 0
 
@@ -83,7 +84,9 @@ def test_distinct_shielded_bookings_same_service_and_reorder_are_preserved(db, c
         assert VolunteerPlanningApplicationService(u, IDENTITY, catalog).planning_data(PERIOD)[1][0].confirmed_occupancy == 3
         assert u.sportlink_bookings.refresh_state()["identity"]["shielded"] == 2
     assert sync(db, catalog, {"A": list(reversed(payloads["A"]))})[0] is None
-    assert snapshot(db) == before
+    after = snapshot(db)
+    assert after[:2] == before[:2]
+    assert {k:v for k,v in after[2].items() if k != "source_revision"} == {k:v for k,v in before[2].items() if k != "source_revision"}
 
 
 @pytest.mark.parametrize("name", ["Afgeschermd", "Unmatched synthetic name"])
@@ -143,7 +146,7 @@ def test_durable_facts_survive_warning_success_and_real_failure(db, catalog):
         b, = u.sportlink_bookings.all()
         app = NoShowApplicationService(u, IDENTITY)
         app.register(NoShowEvent("N", b.assignment_id, b.person_id, b.starts_at, NOW,
-                                 IDENTITY.subject_id, season_id(b.starts_at.date())))
+                                 IDENTITY.subject_id, season_id(b.starts_at.date())), source_revision=source_revision(u))
         app.revoke("N", reason="Synthetic correction", revoked_at=NOW)
         fact, revocation = u.no_shows.get("N"), u.no_show_revocations.for_no_show("N")
     assert sync(db, catalog, {"A": [dict(row(slot, people()[0]), naam="Afgeschermd")]})[0] is None
@@ -190,6 +193,7 @@ def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_p
     assert sync(database, c, {c.bindings(PERIOD)[0].task_code: [known, unknown, shielded]})[0] is None
     app = AppTest.from_file(str(script)).run()
     app.button(key="nav-planning").click().run()
+    app.button(key="resume-planning").click().run()
     assert not app.exception
     text = "\n".join(item.value for item in app.get("markdown"))
     assert "Opgehaalde Sportlink-inroosteringen: 3" in text
@@ -224,7 +228,7 @@ def test_unlinked_bookings_do_not_hide_eligible_no_show_with_recent_limit(db, ca
     unlinked = tuple(replace(linked, person_id=None, person_name=None, volunteer_name=f"Synthetic unknown {i}")
                      for i in range(55))
     with db.unit_of_work() as u:
-        u.sportlink_bookings.replace_all((linked, *unlinked))
+        seed_bookings(u, (linked, *unlinked))
         u.commit()
         assert NoShowApplicationService(u, IDENTITY).available_assignments(limit=1) == (linked,)
 

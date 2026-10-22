@@ -9,7 +9,7 @@ from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.security import AuthorizationError, Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
-from sportlink_fixtures import booking, seed_bookings
+from sportlink_fixtures import source_revision, booking, seed_bookings
 
 VC = Identity("vc1", "Vrijwilligerscommissie", frozenset({Permission.MANAGE_NO_SHOWS}))
 OTHER = Identity("other", "Onbevoegd", frozenset())
@@ -33,7 +33,7 @@ def database(tmp_path):
     _seed(db)
     with db.unit_of_work() as uow:
         for i in range(1, 6):
-            NoShowApplicationService(uow, VC).register(_event(i))
+            NoShowApplicationService(uow, VC).register(_event(i), source_revision=source_revision(uow))
     return db
 
 
@@ -84,14 +84,14 @@ def test_current_three_to_two_and_next_registration_uses_remaining_facts(tmp_pat
     with db.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
         for i in range(1, 4):
-            app.register(_event(i))
+            app.register(_event(i), source_revision=source_revision(uow))
         assert app.current_state("MEM1", "2026/2027").counter == 3
         app.revoke("N2", reason="besluit", revoked_at=datetime(2026, 9, 30))
         state = app.current_state("MEM1", "2026/2027")
         assert (state.counter, state.assessment.fine_eur, state.assessment.suspension_matches) == (2, 75, 1)
         # Historical assessment is retained, current state is derived separately.
         assert uow.sanctions.get("N3").counter == 3
-        assert app.register(_event(4)).counter == 3
+        assert app.register(_event(4), source_revision=source_revision(uow)).counter == 3
 
 
 def test_season_transition_preserves_both_facts_without_reset(tmp_path):
@@ -101,11 +101,11 @@ def test_season_transition_preserves_both_facts_without_reset(tmp_path):
     with db.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
         seed_bookings(uow, [old1.booking, old2.booking, _event(3, datetime(2026, 7, 1, 10)).booking])
-        app.register(old1); app.register(old2)
+        app.register(old1, source_revision=source_revision(uow)); app.register(old2, source_revision=source_revision(uow))
         revoked = app.revoke("N2", reason="besluit vorig seizoen", revoked_at=datetime(2026, 7, 2))
         assert app.current_state("MEM1", "2026/2027").counter == 0
         assert app.current_state("MEM1", "2025/2026").counter == 1
-        assert app.register(_event(3, datetime(2026, 7, 1, 10))).counter == 1
+        assert app.register(_event(3, datetime(2026, 7, 1, 10)), source_revision=source_revision(uow)).counter == 1
     with db.unit_of_work() as uow:
         assert uow.no_shows.for_person_season("MEM1", "2025/2026") == (old1, old2)
         assert uow.no_show_revocations.for_person_season("MEM1", "2025/2026") == (revoked,)
@@ -117,10 +117,10 @@ def test_other_assignments_and_no_shows_never_infer_revocation(tmp_path):
     db = SQLiteDatabase(tmp_path / "no-inference.sqlite"); db.initialize(); _seed(db)
     with db.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
-        app.register(_event(1))
+        app.register(_event(1), source_revision=source_revision(uow))
         assert len(app.available_assignments()) == 6
         assert app.current_state("MEM1", "2026/2027").counter == 1
-        app.register(_event(2))
+        app.register(_event(2), source_revision=source_revision(uow))
         app.revocable_no_shows()
         assert app.current_state("MEM1", "2026/2027").counter == 2
         assert uow.no_show_revocations.for_person_season("MEM1", "2026/2027") == ()

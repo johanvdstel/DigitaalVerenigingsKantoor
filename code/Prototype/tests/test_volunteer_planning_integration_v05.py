@@ -1,4 +1,5 @@
 """Synthetic source responses only. CKC catalog configuration contains no people."""
+from sportlink_fixtures import source_revision
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
@@ -68,11 +69,15 @@ def client(payloads, seen):
 
 
 def sync(db, catalog, payloads, persons=None, period=PERIOD):
+    from dvk.planning_runtime import choose_period
+    choose_period(db, period, discard=True)
     seen = []
     with db.unit_of_work() as uow:
+        session = uow.planning_sessions.get()
         error = VolunteerPlanningApplicationService(uow, IDENTITY, catalog).synchronize(
             period=period, client=client(payloads, seen), client_id="synthetic-secret",
-            persons=people() if persons is None else persons, imported_at=NOW)
+            persons=people() if persons is None else persons, imported_at=NOW,
+            confirmed=True, source_revision=session.source_revision)
     return error, seen
 
 
@@ -190,7 +195,7 @@ def test_no_show_and_revocation_survive_refresh_and_timezone_match(db,catalog):
     with db.unit_of_work() as uow:
         booking = uow.sportlink_bookings.all()[0]
         app = NoShowApplicationService(uow,IDENTITY)
-        app.register(NoShowEvent("N",booking.assignment_id,booking.person_id,booking.starts_at,NOW,IDENTITY.subject_id,"2026/2027"))
+        app.register(NoShowEvent("N",booking.assignment_id,booking.person_id,booking.starts_at,NOW,IDENTITY.subject_id,"2026/2027"), source_revision=source_revision(uow))
         app.revoke("N",reason="Synthetic reason",revoked_at=NOW)
     assert sync(db,catalog,{})[0] is None
     with db.unit_of_work() as uow:
@@ -213,6 +218,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     assert error is None
     assert [q["vrijwilligerstaakcode"][0] for q in seen] == list(load_shift_catalog().task_codes)
     app.run()
+    app.button(key="resume-planning").click().run()
     assert not app.exception
     assert app.dataframe[0].value["Sportlink"].tolist() == ["geen namen"]*29
     task_table = next(x.value for x in app.dataframe if "Sportlink-taakcode" in x.value.columns)
@@ -288,7 +294,7 @@ def test_wednesday_booking_spans_both_catalog_codes_without_splitting_source(db,
         assert uow.sportlink_bookings.all() == source
         app = NoShowApplicationService(uow,IDENTITY)
         app.register(NoShowEvent("N-OVERLAP",original.assignment_id,original.person_id,original.starts_at,
-                                 original.ends_at,IDENTITY.subject_id,"2026/2027"))
+                                 original.ends_at,IDENTITY.subject_id,"2026/2027"), source_revision=source_revision(uow))
     assert sync(db,catalog,{})[0] is None
     with db.unit_of_work() as uow:
         assert uow.no_shows.get("N-OVERLAP").booking == original

@@ -256,6 +256,10 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         # New session, empty session_state; only SQLite preserves the position.
         app = AppTest.from_file(str(script), default_timeout=15).run()
         app.button(key="nav-planning").click().run()
+        if any(b.key == "resume-planning" for b in app.button):
+            app.button(key="resume-planning").click().run()
+        else:
+            app.button(key="activate-planning").click().run()
         app.radio(key="planning-source-mode").set_value("Demonstratie").run()
         app.date_input[0].set_value(date(2026, 9, 14)).run()
         assert not app.exception

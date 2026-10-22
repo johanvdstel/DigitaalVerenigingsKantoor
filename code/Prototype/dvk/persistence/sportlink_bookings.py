@@ -51,6 +51,10 @@ class SQLiteSportlinkBookingRepository:
         self._connection.execute("INSERT OR REPLACE INTO dvk_records VALUES (?, ?)",
                                  (f"vrijwilligers-refresh-{kind}", json.dumps(state)))
 
+    def clear_refresh_state(self):
+        self._connection.execute("DELETE FROM dvk_records WHERE record_id IN (?, ?)",
+                                 ("vrijwilligers-refresh-success", "vrijwilligers-refresh-attempt"))
+
     def recent(self, limit=50):
         sql = "SELECT payload FROM sportlink_bookings ORDER BY rowid DESC"
         rows = (self._connection.execute(sql) if limit is None else

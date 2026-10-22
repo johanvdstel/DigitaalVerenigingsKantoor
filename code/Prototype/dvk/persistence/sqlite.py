@@ -11,6 +11,7 @@ from ..no_show import NoShowEvent, SanctionAssessment
 from ..run_context import EngineRun, EngineRunStatus, SourceFetch, SourceFetchStatus
 from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
 from .migrations import migrate
+from .planning_session import SQLitePlanningSessionRepository
 from .planning_records import SQLiteAssignmentProposalRepository, SQLiteDutyAssignmentRepository, SQLiteHumanDecisionRepository, SQLiteTemporaryPlanningRepository
 from .no_show_records import SQLiteNoShowRepository, SQLiteNoShowRevocationRepository, SQLiteSanctionAssessmentRepository
 from .sportlink_bookings import SQLiteSportlinkBookingRepository
@@ -98,6 +99,7 @@ class SQLiteUnitOfWork:
             migrate(self._connection)
             self._connection.commit()
             self.records = SQLiteRecordRepository(self._connection); self.import_batches = SQLiteImportBatchRepository(self._connection); self.snapshots = SQLiteSnapshotRepository(self._connection); self.source_fetches = SQLiteSourceFetchRepository(self._connection); self.engine_runs = SQLiteEngineRunRepository(self._connection)
+            self.planning_sessions = SQLitePlanningSessionRepository(self._connection)
             self.temporary_planning = SQLiteTemporaryPlanningRepository(self._connection)
             self.sportlink_bookings = SQLiteSportlinkBookingRepository(self._connection)
             self.proposals = SQLiteAssignmentProposalRepository(self._connection); self.decisions = SQLiteHumanDecisionRepository(self._connection); self.assignments = SQLiteDutyAssignmentRepository(self._connection); self.no_shows = SQLiteNoShowRepository(self._connection); self.sanctions = SQLiteSanctionAssessmentRepository(self._connection); self.no_show_revocations = SQLiteNoShowRevocationRepository(self._connection)
