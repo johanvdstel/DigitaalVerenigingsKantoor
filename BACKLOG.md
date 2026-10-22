@@ -95,7 +95,3 @@ Voormalig **BL-12 — Integrale acceptatie prototype v0.5** is een **implementat
 - [Functioneel contract v0.5 vervolg](code/Prototype/FUNCTIONEEL-CONTRACT-v0.5-vervolg.md)
 - [Technische impactanalyse v0.5 vervolg](code/Prototype/TECHNISCHE-IMPACTANALYSE-v0.5-vervolg.md)
 - [GitHub Issue #12](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/12) en [#14](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/14)
-
-### Technische uitvoering BL-16 in PR #38
-
-De werkbranch bevat de implementatie van het geaccepteerde sessieontwerp; zie [uitvoering, tests en lokaal acceptatieprotocol](code/Prototype/DVK-v0.5-planningssessies-implementatie.md). BL-16 blijft open tot lokale functionele acceptatie. De eerdere ontwerpstatus hierboven is de vastlegging uit PR #39; geen integrale v0.5-acceptatie of mergebesluit.

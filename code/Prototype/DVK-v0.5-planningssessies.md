@@ -1,6 +1,6 @@
 # DVK v0.5 — Functioneel ontwerp Planningssessies
 
-**Status:** Functioneel ontwerp geaccepteerd door CKC op 22 oktober 2026; implementatie en functionele acceptatie van de werking staan nog open.
+**Status:** Functioneel ontwerp geaccepteerd door CKC op 22 oktober 2026; implementatie en functionele acceptatie van de werking staan nog open.  
 **Scope:** Ledendienst Planning, Sportlink Vrijwilligers, tijdelijke DVK-indelingen en No-Shows.
 
 ## 1. Doel en uitgangspunt
@@ -80,7 +80,3 @@ Dit ontwerp **vervangt de functionele afspraak uit PR #35 dat tijdelijke plannin
 De huidige implementatie voldoet nog niet aan dit ontwerp; in het bijzonder kan de No-Show-keuzelijst eerdere opgeslagen Sportlink-boekingen aanbieden buiten de gevalideerde actieve periode. Dit is een te herstellen functionele fout, geen bewijs van een fout in databasemigraties.
 
 Dit document is uitsluitend een geaccepteerde **ontwerpbaseline**. Technische implementatie, regressietests en lokale functionele acceptatie volgen afzonderlijk. Geen bestaande SQLite-data wissen of migreren als onderdeel van deze documentatiestap.
-
-## 10. Technische uitvoering in PR #38
-
-De bovenstaande status beschrijft de ontwerpvastlegging van PR #39. De daaropvolgende BL-16-implementatie, synthetische bewijzen, beperkingen, eenmalige lokale reset en acceptatieprocedure staan in [het implementatierapport](DVK-v0.5-planningssessies-implementatie.md). Lokale functionele acceptatie en toestemming voor merge blijven afzonderlijk vereist.
