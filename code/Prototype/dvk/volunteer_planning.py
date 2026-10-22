@@ -55,14 +55,18 @@ class VolunteerPlanningApplicationService:
             # Derived view only: one person per slot, even with multiple source
             # bookings/codes. Stored source IDs, task codes and intervals stay intact.
             bookings=tuple(replace(x, service_id=b.service.service_id) for x in
-                           {x.person_id: x for x in bookings if x.person_id
-                            and same_task_group(x.task_code, b.task_code)
+                           {(('person', x.person_id) if x.person_id else ('booking', x.assignment_id)): x
+                            for x in bookings if same_task_group(x.task_code, b.task_code)
                             and overlaps_service_date(x.starts_at, x.ends_at, b.service)}.values()),
             condition="vrijdag" if b.service.starts_at.weekday() == 4 else None) for b in bindings)
         statuses = (PlanningSourceStatus("Sportlink Vrijwilligers", None if success is None else
                     datetime.fromisoformat(success["fetched_at"]), "Opgehaald" if matching else
                     "Geen gevalideerde bron voor de gekozen periode"),)
         return tuple(b.service for b in bindings), needs, (), statuses
+
+    def bookings(self, period):
+        """Validated current-period source facts for the authorized local planner."""
+        return self.uow.sportlink_bookings.all() if self.source(period)[2] else ()
 
     def synchronize(self, *, period, client, client_id, persons, imported_at):
         Authorizer().require(self.identity, Permission.MANAGE_NO_SHOWS)
@@ -100,11 +104,12 @@ class VolunteerPlanningApplicationService:
                 message = "Sportlink gaf geen geldige bronrespons; de verversing is niet gepubliceerd."
             self._attempt(state, "Mislukt", message, attempt_tasks)
             return message
-        if signals:
+        if any(s.severity == "ERROR" for s in signals):
             message = "; ".join(sorted({s.message for s in signals}))
             self._attempt(state, "Mislukt", message, attempt_tasks)
             return message
-        self._attempt(state, "Geslaagd", "", attempt_tasks)
+        status = "Geslaagd, met aandachtspunten" if signals else "Geslaagd"
+        self._attempt(state, status, "", attempt_tasks)
         return None
 
     def _attempt(self, state, status, message, tasks):

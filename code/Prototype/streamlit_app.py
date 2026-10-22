@@ -40,9 +40,10 @@ def _datum_met_dag(moment: datetime) -> str:
     return f"{DAGEN[moment.weekday()]} {moment:%d-%m}"
 
 
-def _assignment_label(context) -> str:
+def _assignment_label(context, *, source_name=False) -> str:
     service_info = context.service
-    person_name = context.person_name or "Persoon onbekend"
+    person_name = ((getattr(context.assignment, "volunteer_name", None) if source_name else None)
+                   or context.person_name or "Persoon onbekend")
     if service_info is None:
         return f"Datum/tijd en dienst onbekend — {person_name}"
     return f"{_datum_met_dag(service_info.starts_at)} {service_info.starts_at:%H:%M}–{service_info.ends_at:%H:%M} — {service_info.service_type or 'Dienst onbekend'} — {person_name}"
@@ -139,6 +140,7 @@ def _render_planning():
     with database.unit_of_work() as uow:
         source_app = VolunteerPlanningApplicationService(uow, identity, catalog)
         success, attempt, source_matches = source_app.source(period)
+        source_bookings = source_app.bookings(period) if not demo else ()
         services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
     if demo:
         st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
@@ -255,7 +257,7 @@ def _render_planning():
     st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
         members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
-        st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Naamkoppelingen die ontbreken of niet uniek zijn blokkeren de verversing.")
+        st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
         if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo):
             try:
                 if members_file is None:
@@ -284,10 +286,10 @@ def _render_planning():
             services=services, persons=tuple(c.person for c in demo_candidate_cases()),
         )
     if not assignment_rows:
-        st.info("Nog geen inroosteringen beschikbaar waarop een no-show kan worden geregistreerd.")
+        st.info("Geen betrouwbaar aan een persoon gekoppelde inroosteringen beschikbaar voor no-showregistratie.")
     else:
         assignment_by_id = {c.assignment.assignment_id: c for c in assignment_rows}
-        assignment_options = {key: _assignment_label(c) for key, c in assignment_by_id.items()}
+        assignment_options = {key: _assignment_label(c, source_name=True) for key, c in assignment_by_id.items()}
         with st.form("no-show-form"):
             assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
             submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
@@ -366,6 +368,27 @@ def _render_planning():
         st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
         if success:
             st.caption(f"Laatste geslaagde bronperiode: {success['start']} t/m {success['end']}; opgehaald: {success['fetched_at']}")
+            st.write(success.get("status", "Geslaagd"))
+            report = success.get("identity")
+            if report is not None:
+                st.write(f"Opgehaalde Sportlink-inroosteringen: {report['total']} · "
+                         f"Afgeschermd: {report['shielded']} · "
+                         f"Zonder betrouwbare unieke persoonskoppeling: {report['unlinked']}")
+                if report["details"]:
+                    st.warning(f"Administratieve aandachtspunten voor {report['problem_names']} verschillende probleemnamen. "
+                               "Aantallen boekingen per categorie kunnen overlappen.")
+                    for category in report["categories"]:
+                        st.write(f"{category['problem']}: {category['bookings']} boeking(en), {category['names']} verschillende naam/namen.")
+                    with st.expander("Lokale administratieve aandachtspunten"):
+                        st.table([{"Sportlink-naam": row["name"], "Probleem": row["problem"],
+                                   "Aantal boekingen": row["bookings"]} for row in report["details"]])
+            if source_bookings:
+                with st.expander("Sportlink-inroosteringen voor de gekozen periode"):
+                    st.table([{"Sportlink-naam": b.volunteer_name, "Datum": _datum_met_dag(b.starts_at),
+                               "Tijd": f"{b.starts_at:%H:%M}–{b.ends_at:%H:%M}",
+                               "Dienst": b.service.service_type if b.service else "Dienst onbekend",
+                               "No-showregistratie mogelijk": "Ja" if b.can_register_no_show else "Nee"}
+                              for b in source_bookings])
             st.dataframe([{"Sportlink-taakcode": row["task_code"], "Taakomschrijving": row["description"],
                            "Aantal geplande diensten": row["services"], "Aantal Sportlink-inroosteringen": row["bookings"],
                            "Uitvraagstatus": row["status"]} for row in success["tasks"]], hide_index=True, height=190)

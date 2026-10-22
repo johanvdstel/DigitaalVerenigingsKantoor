@@ -362,8 +362,14 @@ class SportlinkRealDataAdapter:
     @classmethod
     def read_volunteer_persons(cls, text: str) -> tuple[Person, ...]:
         rows = cls.read_rows_text(text.lstrip("\ufeff"), "leden")
+        variants = {}
+        for row in rows:
+            pid = cls.value(row, "Rel. code")
+            variants.setdefault(pid, set()).add(tuple(sorted(
+                (key, (value or "").strip()) for key, value in row.items() if key is not None)))
         return tuple(Person(cls.value(row, "Rel. code"), cls.value(row, "Naam"),
-                            sportlink_name=cls.sportlink_name(row))
+                            sportlink_name=cls.sportlink_name(row),
+                            volunteer_identity_conflicting=len(variants[cls.value(row, "Rel. code")]) > 1)
                      for row in rows if cls.value(row, "Rel. code"))
 
     @staticmethod

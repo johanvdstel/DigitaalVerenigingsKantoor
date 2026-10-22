@@ -20,7 +20,7 @@ from .run_context import EngineRun
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyAssignment, DutyService, Match
-from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapter
+from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapter, booking_identity_report
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,7 @@ class NoShowApplicationService:
 
     def available_assignments(self, limit: int = 50):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        return self.uow.sportlink_bookings.recent(limit)
+        return tuple(b for b in self.uow.sportlink_bookings.recent(None) if b.can_register_no_show)[:limit]
 
     def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> tuple[AssignmentContext, ...]:
         return tuple(AssignmentContext(a, a.service, a.person_name) for a in self.available_assignments(limit))
@@ -89,6 +89,8 @@ class NoShowApplicationService:
             refresh_state = dict(refresh_state)
             refresh_state["tasks"] = [dict(row, bookings=sum(b.task_code == row["task_code"] for b in bookings))
                                       for row in refresh_state["tasks"]]
+            refresh_state["identity"] = booking_identity_report(bookings)
+            refresh_state["status"] = "Geslaagd, met aandachtspunten" if any(s.severity == "WARNING" for s in signals) else "Geslaagd"
             self.uow.sportlink_bookings.save_refresh_state(refresh_state)
         self.uow.commit()
         return tuple(signals)
@@ -100,6 +102,8 @@ class NoShowApplicationService:
         assignment = self.uow.sportlink_bookings.get(event.assignment_id)
         if assignment is None:
             raise ValueError("no-show must reference an existing inroostering")
+        if not assignment.can_register_no_show:
+            raise ValueError("No-show vereist een betrouwbare, unieke persoonskoppeling")
         if assignment.person_id != event.person_id:
             raise ValueError("no-show person must match inroostering")
         if assignment.service is None or assignment.provenance is None or assignment.provenance.source_system != "Sportlink" or assignment.provenance.kind != "SOURCE_FACT":

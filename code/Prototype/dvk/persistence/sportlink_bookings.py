@@ -10,6 +10,7 @@ from .planning_records import _dump
 
 def booking_from_dict(data):
     data = dict(data)
+    data["identity_issues"] = tuple(data.get("identity_issues", ()))
     for key in ("starts_at", "ends_at"):
         data[key] = datetime.fromisoformat(data[key])
     if data.get("provenance"):
@@ -51,5 +52,7 @@ class SQLiteSportlinkBookingRepository:
                                  (f"vrijwilligers-refresh-{kind}", json.dumps(state)))
 
     def recent(self, limit=50):
-        rows = self._connection.execute("SELECT payload FROM sportlink_bookings ORDER BY rowid DESC LIMIT ?", (limit,)).fetchall()
+        sql = "SELECT payload FROM sportlink_bookings ORDER BY rowid DESC"
+        rows = (self._connection.execute(sql) if limit is None else
+                self._connection.execute(sql + " LIMIT ?", (limit,))).fetchall()
         return tuple(booking_from_dict(json.loads(row[0])) for row in rows)

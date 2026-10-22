@@ -101,7 +101,7 @@ def test_missing_name_part_is_not_formatted_by_an_unapproved_rule(missing, blank
     name = SportlinkRealDataAdapter.sportlink_name(NAME_PARTS | {missing: blank})
     assert name is None
     result = import_rows(rows(), [Person("TEST001", "Alex", sportlink_name=name)])
-    assert not result.bookings
+    assert len(result.bookings) == 1 and result.bookings[0].person_id is None
     assert result.signals[0].code == "VOLUNTEER_PERSON_NOT_FOUND"
 
 
@@ -119,7 +119,8 @@ def test_confirmed_optional_prefix_exact_csv_identity(prefix, expected):
     assert not result.signals and result.bookings[0].person_id == "TEST001"
     ambiguous = import_rows([rows()[0] | {"naam": expected}],
                             (*persons, replace(persons[0], person_id="OTHER")))
-    assert not ambiguous.bookings and ambiguous.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
+    assert len(ambiguous.bookings) == 1 and ambiguous.bookings[0].person_id is None
+    assert ambiguous.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
 
 
 def test_missing_prefix_column_is_not_an_empty_prefix_value():
@@ -128,7 +129,7 @@ def test_missing_prefix_column_is_not_an_empty_prefix_value():
 
 def test_ambiguous_name_never_selects_a_person():
     result = import_rows(rows(), [Person(pid, "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)") for pid in ("A", "B")])
-    assert not result.bookings
+    assert len(result.bookings) == 1 and result.bookings[0].person_id is None
     assert result.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
 
 
@@ -249,7 +250,7 @@ def test_synchronization_uses_existing_client_and_is_atomic(tmp_path, mode):
         else:
             signals = app.synchronize(**kwargs)
             assert bool(signals) is (mode == "unknown")
-        assert len(uow.temporary_planning.all()) == (0 if mode == "success" else 1)
+        assert len(uow.temporary_planning.all()) == (1 if mode == "transport" else 0)
         assert len(uow.sportlink_bookings.recent()) == 1
 
 

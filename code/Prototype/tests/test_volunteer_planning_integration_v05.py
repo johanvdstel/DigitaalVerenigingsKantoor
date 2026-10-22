@@ -165,7 +165,7 @@ def test_more_than_50_people_correct_week_and_zero_other_service(db,catalog):
         assert not app.source(PERIOD)[2]
 
 
-@pytest.mark.parametrize("mode", ["missing","ambiguous","service","interval"])
+@pytest.mark.parametrize("mode", ["service","interval"])
 def test_invalid_identity_or_service_never_publishes(db,catalog,mode):
     service = catalog.bindings(PERIOD)[0].service
     assert sync(db,catalog,{})[0] is None
@@ -173,8 +173,6 @@ def test_invalid_identity_or_service_never_publishes(db,catalog,mode):
     before = snapshot(db)
     ps = people()
     value = row(service,ps[0])
-    if mode == "missing": ps = (replace(ps[0],sportlink_name=None),)
-    if mode == "ambiguous": ps = (ps[0],replace(ps[0],person_id="P2"))
     if mode == "service":
         value["datumvanaf"] = service.ends_at.isoformat()  # Boundary contact has no positive overlap.
         value["datumtot"] = (service.ends_at + timedelta(hours=1)).isoformat()
