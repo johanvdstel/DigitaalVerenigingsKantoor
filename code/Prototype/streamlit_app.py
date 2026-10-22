@@ -51,24 +51,6 @@ def _sportlink_names(service, bindings, bookings):
                      if same_task_group(b.task_code, code) and overlaps_service_date(b.starts_at, b.ends_at, service)) or "geen namen"
 
 
-def _names_preview(names):
-    # Streamlit 1.64 clips canvas text without an ellipsis and has no per-column
-    # font-size API. Keep the native Kies editor, shorten only its display value,
-    # and expose the complete original text after selection below the table.
-    # Conservative display budget: wide/uppercase/non-ASCII characters count
-    # twice. No name is modified in the source or in the full-text detail.
-    widths = [2 if c.isupper() or ord(c) > 127 or c in "mw@%" else 1 for c in names]
-    if sum(widths) <= 36:
-        return names
-    end, used = 0, 0
-    for size in widths:
-        if used + size > 34:
-            break
-        used += size
-        end += 1
-    return names[:end] + "…"
-
-
 def _assignment_label(context, *, source_name=False) -> str:
     service_info = context.service
     person_name = ((getattr(context.assignment, "volunteer_name", None) if source_name else None)
@@ -194,7 +176,7 @@ def _render_planning():
         bindings = catalog.bindings(period)
         names_by_service = {s.service_id: _sportlink_names(s, bindings, source_bookings)
                             for s in services} if not demo else {s.service_id: "Onbekend" for s in services}
-        rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": _names_preview(names_by_service[r.service_id]), "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
+        rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
         if not known:
             for row in rows:
                 for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
@@ -204,16 +186,13 @@ def _render_planning():
         widths = {"Datum": 90, "Tijd": 110, "Dienst": 170, "Min": 55, "Max": 55,
                   "Tijdelijk DVK": 95, "DVK-bezetting": 110, "Open minimum": 100, "Vrije capaciteit": 110}
         columns = {name: st.column_config.Column(width=width) for name, width in widths.items()}
-        columns.update({"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", width=60, help="Selecteer één dienst"), "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Kies de dienst om de volledige namenlijst onder de tabel te lezen en te kopiëren.")})
+        columns.update({"service_id": None, "Kies": st.column_config.CheckboxColumn("Kies", width=60, help="Selecteer één dienst"), "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
         edited = st.data_editor(pd.DataFrame(rows), hide_index=True, width=1275, height=210, row_height=32, disabled=["service_id", "Datum", "Tijd", "Dienst", "Min", "Max", "Sportlink", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"], column_config=columns, key="services_editor")
         picked = edited[edited["Kies"]]
         if len(picked) > 1: st.error("Selecteer maximaal één dienst.")
         elif len(picked) == 1:
             selected_service_id = picked.iloc[0]["service_id"]; st.session_state["selected_service_id"] = selected_service_id
         else: st.session_state.pop("selected_service_id", None)
-        st.caption("Lange namenlijsten zijn afgekort met … . Kies een dienst voor de volledige Sportlink-namenlijst.")
-        if selected_service_id:
-            st.text("Sportlink — volledige namenlijst: " + (names_by_service[selected_service_id] if known else "Onbekend"))
 
     st.markdown("### Kandidaten en voorstellen")
     if not demo: st.info("Kandidaatselectie en goedkeuring zijn beschikbaar in de afzonderlijke demonstratie. Echte leden, wedstrijdcontext en Sportlink-persoonsconflicten volgen bij integrale planning.")

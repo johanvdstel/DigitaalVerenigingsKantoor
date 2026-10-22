@@ -29,7 +29,7 @@ def page(tmp_path):
 def helpers():
     tree = ast.parse(SOURCE.read_text())
     module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
-                             and n.name in {"_sportlink_names", "_names_preview"}], type_ignores=[])
+                             and n.name == "_sportlink_names"], type_ignores=[])
     ns = dict(same_task_group=same_task_group, overlaps_service_date=overlaps_service_date)
     exec(compile(module, str(SOURCE), "exec"), ns)
     return ns
@@ -57,7 +57,8 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     assert "Locatie" not in table.columns
     app.session_state["selected_service_id"] = binding.service.service_id
     app.run()
-    assert any(t.value == "Sportlink — volledige namenlijst: " + selected["Sportlink"] for t in app.text)
+    assert app.dataframe[0].value.query("Kies")["service_id"].tolist() == [binding.service.service_id]
+    assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
     assert snapshot(db) == before
 
 
@@ -74,10 +75,9 @@ def test_shielded_and_unlinked_original_names_keep_separate_overlapping_rows(tmp
     assert sync(db, catalog, {"741": [raw, second, unknown]}, persons=())[0] is None
     app.session_state["selected_service_id"] = slot.service_id
     app.run()
-    text = next(t.value for t in app.text if t.value.startswith("Sportlink — volledige namenlijst:"))
-    assert Counter(text.removeprefix("Sportlink — volledige namenlijst: ").split(", ")) == Counter(
-        ["Afgeschermd", "Afgeschermd", "Onbekende synthetische naam"])
     cells = app.dataframe[0].value
+    text = cells[cells.service_id == slot.service_id].iloc[0]["Sportlink"]
+    assert Counter(text.split(", ")) == Counter(["Afgeschermd", "Afgeschermd", "Onbekende synthetische naam"])
     assert cells[cells.service_id == slot.service_id].iloc[0]["DVK-bezetting"] == 3
     ns = helpers()
     source = SimpleNamespace(volunteer_name="Bronnaam", task_code="761", starts_at=slot.starts_at, ends_at=slot.ends_at)
@@ -99,7 +99,7 @@ def test_unknown_source_and_changed_period_never_claim_no_names(tmp_path):
     assert set(app.dataframe[0].value["Sportlink"]) == {"Onbekend"}
 
 
-def test_long_names_preview_fixed_height_and_full_original_detail(tmp_path):
+def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
     app, db = page(tmp_path)
     catalog = load_shift_catalog()
     binding = catalog.bindings(PERIOD)[0]
@@ -109,15 +109,20 @@ def test_long_names_preview_fixed_height_and_full_original_detail(tmp_path):
     app.run()
     table = app.dataframe[0]
     value = table.value[table.value.service_id == binding.service.service_id].iloc[0]["Sportlink"]
-    assert value.endswith("…")
     assert table.proto.row_height == 32
     config = json.loads(table.proto.columns)
     assert config["Sportlink"]["width"] == 320
     assert config["Sportlink"]["type_config"]["type"] == "text"
+    assert config["Sportlink"]["disabled"] is True
+    assert "Dubbelklik" in config["Sportlink"]["help"]
     with db.unit_of_work() as u:
         full = ", ".join(b.volunteer_name for b in u.sportlink_bookings.all())
-    assert any(t.value == "Sportlink — volledige namenlijst: " + full for t in app.text)
-    assert helpers()["_names_preview"]("A, B") == "A, B"
+    assert value == full
+    assert "…" not in value
+    assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
+    assert not any("Lange namenlijsten zijn afgekort" in c.value for c in app.caption)
+    tree = ast.parse(SOURCE.read_text())
+    assert not any(isinstance(n, ast.FunctionDef) and n.name == "_names_preview" for n in tree.body)
 
 
 def test_source_controls_under_databronnen_and_no_show_roundtrip(tmp_path, monkeypatch):
