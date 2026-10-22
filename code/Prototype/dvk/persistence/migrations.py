@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Callable
 
+from .schema_validation import VERSION_TABLE_SQL, registered_version, validate_schema
+
 Migration = Callable[[sqlite3.Connection], None]
 
 
@@ -183,15 +185,42 @@ def _migration_012(connection: sqlite3.Connection) -> None:
 
 MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011, _migration_012)
 
+# Freeze the schema contract separately from the executor. Fault-injection tests
+# must not accidentally redefine the reference they are meant to validate.
+_SCHEMA_MIGRATIONS = MIGRATIONS
+
 
 def migrate(connection: sqlite3.Connection) -> int:
-    """Bring a database to the latest known schema and return its version."""
-    connection.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)")
-    row = connection.execute("SELECT MAX(version) FROM schema_version").fetchone()
-    current = int(row[0] or 0)
-    for version, migration in enumerate(MIGRATIONS, start=1):
-        if version <= current:
-            continue
-        migration(connection)
-        connection.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+    """Validate first; migrate and register all required steps atomically.
+
+    An outer caller transaction stays owned by that caller. An outermost
+    savepoint commits only after both the old and resulting schemas validate.
+    """
+    owns_transaction = not connection.in_transaction
+    connection.execute("SAVEPOINT dvk_schema_migration")
+    try:
+        current = registered_version(connection, _SCHEMA_MIGRATIONS, len(MIGRATIONS))
+        if current:
+            validate_schema(connection, current, _SCHEMA_MIGRATIONS)
+        else:
+            if not connection.execute("SELECT 1 FROM main.sqlite_master WHERE name='schema_version'").fetchone():
+                connection.execute(VERSION_TABLE_SQL)
+        for version, migration in enumerate(MIGRATIONS, start=1):
+            if version <= current:
+                continue
+            migration(connection)
+            connection.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+            validate_schema(connection, version, _SCHEMA_MIGRATIONS)
+        connection.execute("RELEASE dvk_schema_migration")
+    except BaseException:
+        # SQLite can itself roll back a transaction on a storage failure.
+        if connection.in_transaction:
+            if owns_transaction:
+                # Releasing an outermost rolled-back savepoint would still commit
+                # a write transaction and can update the SQLite file header.
+                connection.rollback()
+            else:
+                connection.execute("ROLLBACK TO dvk_schema_migration")
+                connection.execute("RELEASE dvk_schema_migration")
+        raise
     return len(MIGRATIONS)
