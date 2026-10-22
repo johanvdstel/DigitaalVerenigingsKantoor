@@ -214,7 +214,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     assert [q["vrijwilligerstaakcode"][0] for q in seen] == list(load_shift_catalog().task_codes)
     app.run()
     assert not app.exception
-    assert app.dataframe[0].value["Sportlink"].tolist() == [0]*29
+    assert app.dataframe[0].value["Sportlink"].tolist() == ["geen namen"]*29
     task_table = next(x.value for x in app.dataframe if "Sportlink-taakcode" in x.value.columns)
     assert task_table["Aantal geplande diensten"].sum() == 29
     assert task_table["Aantal Sportlink-inroosteringen"].sum() == 0
@@ -226,7 +226,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     assert "synthetic-secret" not in " ".join(x.value for x in app.error)
     retained = next(x.value for x in app.dataframe if "Sportlink-taakcode" in x.value.columns)
     assert retained.equals(task_table)
-    assert app.dataframe[0].value["Sportlink"].tolist() == [0]*29
+    assert app.dataframe[0].value["Sportlink"].tolist() == ["geen namen"]*29
 
 
 def test_publication_and_planning_removal_rollback_together(db,catalog,monkeypatch):

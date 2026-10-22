@@ -265,7 +265,8 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         table = app.dataframe[0].value
         assert table.iloc[0]["Open minimum"] == 0
         assert table.iloc[0]["Vrije capaciteit"] == 1
-        assert table.iloc[0]["Sportlink"] == 1
+        assert table.iloc[0]["Sportlink"] == "Onbekend"  # Demo supplies counts, not validated source names.
+        assert table.iloc[0]["DVK-bezetting"] == 2
         assert table.iloc[0]["Tijdelijk DVK"] == 1
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
