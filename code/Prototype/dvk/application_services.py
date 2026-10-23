@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from uuid import uuid4
 
@@ -14,13 +14,14 @@ from .no_show import (
     CurrentSanctionState, NoShowEvent, NoShowRevocation, SanctionAssessment,
     assess_sanction, current_sanction_state, season_id,
 )
+from .planning_session import TZ, active_source, booking_in_period
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
 from .security import Authorizer, Identity, Permission
 from .staffing import StaffingNeed
 from .workstream_model import AssignmentProposal, DutyAssignment, DutyService, Match
-from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapter
+from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapter, booking_identity_report
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class AssignmentContext:
     assignment: DutyAssignment | VolunteerBooking
     service: DutyService | None
     person_name: str | None
+    source_revision: str | None = field(default=None, compare=False)
 
 
 def _assignment_context(assignment, services, persons) -> AssignmentContext:
@@ -55,42 +57,100 @@ class NoShowApplicationService:
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
 
-    def available_assignments(self, limit: int = 50):
+    def available_assignments(self, limit: int | None = None, *, period=None):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
-        return self.uow.sportlink_bookings.recent(limit)
+        session = active_source(self.uow, period)
+        if session is None:
+            return ()
+        bookings = (b for b in self.uow.sportlink_bookings.recent(None)
+                    if b.can_register_no_show and booking_in_period(b, session.period))
+        return tuple(sorted(bookings, key=lambda b: (
+            b.starts_at.astimezone(TZ).date(), b.starts_at.astimezone(TZ).time(),
+            b.service.service_type if b.service else "", b.volunteer_name, b.assignment_id,
+        )))[:limit]
 
-    def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50) -> tuple[AssignmentContext, ...]:
-        return tuple(AssignmentContext(a, a.service, a.person_name) for a in self.available_assignments(limit))
+    def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int | None = None, period=None) -> tuple[AssignmentContext, ...]:
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        session = active_source(self.uow, period)
+        if session is None:
+            return ()
+        assignments = self.available_assignments(limit, period=period)
+        if active_source(self.uow, period) != session:
+            return ()
+        return tuple(AssignmentContext(a, a.service, a.person_name, session.source_revision) for a in assignments)
 
-    def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1):
+    def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1,
+                    task_codes=None, period=None, refresh_state=None, catalog_overlap=False, confirmed=False, source_revision=None):
         """Fetch through the accepted client/adapter; publish only a valid full refresh."""
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        session = self.uow.planning_sessions.get()
+        if session is None or (period is not None and period != session.period):
+            raise ValueError("Kies eerst de actieve planningsperiode.")
+        if (session.source_revision or self.uow.temporary_planning.all()) and (not confirmed or source_revision != session.source_revision):
+            raise ValueError("Bevestig vervanging van de actieve Sportlink-bron en tijdelijke indelingen.")
         bindings = tuple(bindings)
         persons = tuple(persons)
-        if not bindings or any(not b.task_code.strip() for b in bindings):
+        if (not bindings and task_codes is None) or any(not b.task_code.strip() for b in bindings):
             raise ValueError("Sportlink-synchronisatie vereist concrete diensten en taakcodes")
         bookings, signals = [], []
-        for task_code in sorted({b.task_code for b in bindings}):
+        codes = sorted({b.task_code for b in bindings}) if task_codes is None else tuple(task_codes)
+        if not codes or len(set(codes)) != len(codes) or any(not c.strip() for c in codes):
+            raise ValueError("Sportlink-synchronisatie vereist unieke taakcodes")
+        for task_code in codes:
             fetched = client.fetch_rows(client_id=client_id, task_code=task_code, days=days, weekoffset=weekoffset)
             result = SportlinkVrijwilligersAdapter().import_rows(task_code=task_code, rows=fetched.rows,
-                services=bindings, imported_at=imported_at, persons=persons)
+                services=bindings, imported_at=imported_at, persons=persons, period=period, catalog_overlap=catalog_overlap)
             bookings.extend(result.bookings)
             signals.extend(result.signals)
         if any(s.severity == "ERROR" for s in signals):
             return tuple(signals)
-        self.uow.sportlink_bookings.replace_all(bookings)
-        for entry in self.uow.temporary_planning.all():
-            self.uow.temporary_planning.remove(entry.assignment.assignment_id)
-        self.uow.commit()
+        self.uow.begin_planning_write()
+        if self.uow.planning_sessions.get() != session:
+            raise ValueError("De planning of bron is gewijzigd; synchroniseer opnieuw na bevestiging.")
+        if self.uow.temporary_planning.all() and not confirmed:
+            raise ValueError("Bevestig het vervallen van tijdelijke indelingen.")
+        try:
+            revision = str(uuid4())
+            self.uow.sportlink_bookings.replace_all(bookings)
+            for entry in self.uow.temporary_planning.all():
+                self.uow.temporary_planning.remove(entry.assignment.assignment_id)
+            if refresh_state is None:
+                refresh_state = dict(start=session.period.start.isoformat(), end=session.period.end.isoformat(),
+                    fetched_at=imported_at.isoformat(), codes=list(codes),
+                    tasks=[dict(task_code=code) for code in codes])
+            if refresh_state is not None:
+                refresh_state = dict(refresh_state, session_id=session.session_id, source_revision=revision)
+                refresh_state["tasks"] = [dict(row, bookings=sum(b.task_code == row["task_code"] for b in bookings))
+                                          for row in refresh_state["tasks"]]
+                refresh_state["identity"] = booking_identity_report(bookings)
+                refresh_state["status"] = "Geslaagd, met aandachtspunten" if any(s.severity == "WARNING" for s in signals) else "Geslaagd"
+                self.uow.sportlink_bookings.save_refresh_state(refresh_state)
+                self.uow.sportlink_bookings.save_refresh_state(dict(
+                    start=refresh_state["start"], end=refresh_state["end"], at=refresh_state["fetched_at"],
+                    status=refresh_state["status"], message="", codes=refresh_state["codes"],
+                    tasks=refresh_state["tasks"], session_id=session.session_id), "attempt")
+            self.uow.planning_sessions.save(replace(session, source_revision=revision))
+            self.uow.commit()
+        except BaseException:
+            self.uow.rollback()
+            raise
         return tuple(signals)
 
-    def register(self, event: NoShowEvent) -> SanctionAssessment:
+    def register(self, event: NoShowEvent, *, source_revision=None, period=None) -> SanctionAssessment:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         if event.recorded_by != self.identity.subject_id:
             raise ValueError("no-show recorded_by must match authenticated identity")
+        self.uow.begin_planning_write()
+        session = active_source(self.uow, period)
+        if session is None or source_revision is None or session.source_revision != source_revision:
+            raise ValueError("De actieve gevalideerde bron is gewijzigd of ontbreekt; selecteer de inroostering opnieuw.")
         assignment = self.uow.sportlink_bookings.get(event.assignment_id)
         if assignment is None:
             raise ValueError("no-show must reference an existing inroostering")
+        if not booking_in_period(assignment, session.period):
+            raise ValueError("Inroostering valt buiten de actieve planningsperiode")
+        if not assignment.can_register_no_show:
+            raise ValueError("No-show vereist een betrouwbare, unieke persoonskoppeling")
         if assignment.person_id != event.person_id:
             raise ValueError("no-show person must match inroostering")
         if assignment.service is None or assignment.provenance is None or assignment.provenance.source_system != "Sportlink" or assignment.provenance.kind != "SOURCE_FACT":
@@ -98,7 +158,8 @@ class NoShowApplicationService:
         if event.occurred_at != assignment.starts_at:
             raise ValueError("no-show occurrence must match Sportlink service start")
         event = replace(event, booking=assignment)
-        if self.uow.no_shows.for_assignment(event.assignment_id) is not None:
+        if any(self.uow.no_show_revocations.for_no_show(prior.no_show_id) is None
+               for prior in self.uow.no_shows.history_for_assignment(event.assignment_id)):
             raise ValueError("voor deze inroostering is al een no-show geregistreerd")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
         revocations = self.uow.no_show_revocations.for_person_season(event.person_id, event.season)

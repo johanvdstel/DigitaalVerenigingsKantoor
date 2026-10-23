@@ -256,6 +256,11 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         # New session, empty session_state; only SQLite preserves the position.
         app = AppTest.from_file(str(script), default_timeout=15).run()
         app.button(key="nav-planning").click().run()
+        if any(b.key == "resume-planning" for b in app.button):
+            app.button(key="resume-planning").click().run()
+        else:
+            app.button(key="activate-planning").click().run()
+        app.radio(key="planning-source-mode").set_value("Demonstratie").run()
         app.date_input[0].set_value(date(2026, 9, 14)).run()
         assert not app.exception
         selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
@@ -264,7 +269,8 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         table = app.dataframe[0].value
         assert table.iloc[0]["Open minimum"] == 0
         assert table.iloc[0]["Vrije capaciteit"] == 1
-        assert table.iloc[0]["Sportlink"] == 1
+        assert table.iloc[0]["Sportlink"] == "Onbekend"  # Demo supplies counts, not validated source names.
+        assert table.iloc[0]["DVK-bezetting"] == 2
         assert table.iloc[0]["Tijdelijk DVK"] == 1
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
@@ -278,6 +284,7 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
     app = AppTest.from_file(str(script), default_timeout=15).run()
     app.button(key="nav-planning").click().run()
+    app.radio(key="planning-source-mode").set_value("Demonstratie").run()
     # A period change deliberately discards stale service/widget selections.
     app.date_input[0].set_value(date(2026, 9, 14)).run()
     app.session_state["selected_service_id"] = "BAR-WO-1"

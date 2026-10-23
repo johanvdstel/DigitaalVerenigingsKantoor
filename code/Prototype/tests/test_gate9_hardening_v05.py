@@ -7,7 +7,7 @@ from dvk.no_show import NoShowEvent
 from dvk.persistence import SQLiteDatabase
 from dvk.security import Identity, Permission
 from dvk.workstream_model import AssignmentProposal, DutyAssignment
-from sportlink_fixtures import booking, seed_bookings
+from sportlink_fixtures import source_revision, booking, seed_bookings
 
 
 IDENTITY = Identity("planner", "Planner", frozenset({Permission.MANAGE_NO_SHOWS}))
@@ -26,16 +26,16 @@ def _event(no_show_id="N-H"):
 def test_same_assignment_cannot_receive_second_no_show(tmp_path):
     db = SQLiteDatabase(tmp_path / "duplicate.sqlite"); db.initialize()
     with db.unit_of_work() as uow: _seed(uow)
-    with db.unit_of_work() as uow: NoShowApplicationService(uow, IDENTITY).register(_event())
+    with db.unit_of_work() as uow: NoShowApplicationService(uow, IDENTITY).register(_event(), source_revision=source_revision(uow))
     with db.unit_of_work() as uow:
         with pytest.raises(ValueError, match="al een no-show"):
-            NoShowApplicationService(uow, IDENTITY).register(_event("N-H-2"))
+            NoShowApplicationService(uow, IDENTITY).register(_event("N-H-2"), source_revision=source_revision(uow))
 
 
 def test_revoked_no_show_has_no_effective_sanction(tmp_path):
     db = SQLiteDatabase(tmp_path / "revoke-sanction.sqlite"); db.initialize()
     with db.unit_of_work() as uow: _seed(uow)
-    with db.unit_of_work() as uow: NoShowApplicationService(uow, IDENTITY).register(_event())
+    with db.unit_of_work() as uow: NoShowApplicationService(uow, IDENTITY).register(_event(), source_revision=source_revision(uow))
     with db.unit_of_work() as uow:
         NoShowApplicationService(uow, IDENTITY).revoke("N-H", reason="fout geregistreerd", revoked_at=datetime(2026, 9, 18, 12))
     with db.unit_of_work() as uow:

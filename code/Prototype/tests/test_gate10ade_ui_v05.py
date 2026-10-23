@@ -1,3 +1,4 @@
+from sportlink_fixtures import source_revision
 import ast
 from dataclasses import replace
 from datetime import datetime
@@ -86,10 +87,11 @@ def rendered_app(tmp_path):
             source = sources[i-1]
             when = source.starts_at
             NoShowApplicationService(uow, Identity("vc1", "VC", frozenset({Permission.MANAGE_NO_SHOWS}))).register(
-                NoShowEvent(f"technical-no-show-{i}", source.assignment_id, context.assignment.person_id, when, when, "vc1", "2026/2027"))
+                NoShowEvent(f"technical-no-show-{i}", source.assignment_id, context.assignment.person_id, when, when, "vc1", "2026/2027"), source_revision=source_revision(uow))
     app = AppTest.from_file(str(script), default_timeout=15)
     app.session_state["dvk-screen"] = "planning"
     app.run()
+    app.button(key="resume-planning").click().run()
     assert not app.exception
     return app, db
 
@@ -167,6 +169,7 @@ def test_duplicate_no_show_registration_shows_message_without_second_event(rende
         assignment_id = source.assignment_id
         seed_bookings(uow, [source])
     app.run()
+    app.button(key="resume-planning").click().run()
     next(widget for widget in app.selectbox if widget.label == "Inroostering").select(assignment_id)
     next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()
     assert not app.exception

@@ -3,6 +3,8 @@ from __future__ import annotations
 import sqlite3
 from collections.abc import Callable
 
+from .schema_validation import VERSION_TABLE_SQL, registered_version, validate_schema
+
 Migration = Callable[[sqlite3.Connection], None]
 
 
@@ -181,17 +183,81 @@ def _migration_012(connection: sqlite3.Connection) -> None:
                 SELECT RAISE(ABORT, 'no-show facts are immutable'); END""")
 
 
-MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011, _migration_012)
+def _migration_013(connection: sqlite3.Connection) -> None:
+    """Allow retained, revoked history for the same booking; preserve every row.
+
+    Rebuild the small FK-connected fact group with foreign_keys still enabled.
+    Children are staged and dropped before their parent, then restored together
+    with their original constraints, indexes and immutable triggers. The outer
+    migrate() savepoint owns validation, rollback and version registration.
+    """
+    if connection.execute("PRAGMA main.foreign_key_check").fetchone() is not None:
+        raise sqlite3.IntegrityError("No-show migration requires valid foreign-key references")
+    tables = ("sportlink_no_show_events", "sportlink_no_show_revocations", "sportlink_sanction_assessments")
+    definitions = {table: connection.execute(
+        "SELECT sql FROM main.sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()[0]
+        for table in tables}
+    objects = tuple(connection.execute(
+        "SELECT sql FROM main.sqlite_master WHERE type IN ('index', 'trigger') "
+        "AND tbl_name IN (?, ?, ?) AND sql IS NOT NULL ORDER BY type, name", tables))
+    for table in tables:
+        connection.execute(f'CREATE TEMP TABLE "dvk_m013_{table}" AS SELECT * FROM main."{table}"')
+    for table in reversed(tables):
+        connection.execute(f'DROP TABLE main."{table}"')
+    connection.execute("""CREATE TABLE sportlink_no_show_events (
+        no_show_id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL,
+        person_id TEXT NOT NULL, season TEXT NOT NULL, occurred_at TEXT NOT NULL,
+        payload TEXT NOT NULL)""")
+    for table in tables[1:]:
+        connection.execute(definitions[table])
+    for table in tables:
+        connection.execute(f'INSERT INTO main."{table}" SELECT * FROM temp."dvk_m013_{table}"')
+        connection.execute(f'DROP TABLE temp."dvk_m013_{table}"')
+    for (sql,) in objects:
+        connection.execute(sql)
+    connection.execute("CREATE INDEX idx_sportlink_no_show_assignment ON sportlink_no_show_events(assignment_id)")
+    if connection.execute("PRAGMA main.foreign_key_check").fetchone() is not None:
+        raise sqlite3.IntegrityError("No-show migration left invalid foreign-key references")
+
+
+MIGRATIONS: tuple[Migration, ...] = (_migration_001, _migration_002, _migration_003, _migration_004, _migration_005, _migration_006, _migration_007, _migration_008, _migration_009, _migration_010, _migration_011, _migration_012, _migration_013)
+
+# Freeze the schema contract separately from the executor. Fault-injection tests
+# must not accidentally redefine the reference they are meant to validate.
+_SCHEMA_MIGRATIONS = MIGRATIONS
 
 
 def migrate(connection: sqlite3.Connection) -> int:
-    """Bring a database to the latest known schema and return its version."""
-    connection.execute("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)")
-    row = connection.execute("SELECT MAX(version) FROM schema_version").fetchone()
-    current = int(row[0] or 0)
-    for version, migration in enumerate(MIGRATIONS, start=1):
-        if version <= current:
-            continue
-        migration(connection)
-        connection.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+    """Validate first; migrate and register all required steps atomically.
+
+    An outer caller transaction stays owned by that caller. An outermost
+    savepoint commits only after both the old and resulting schemas validate.
+    """
+    owns_transaction = not connection.in_transaction
+    connection.execute("SAVEPOINT dvk_schema_migration")
+    try:
+        current = registered_version(connection, _SCHEMA_MIGRATIONS, len(MIGRATIONS))
+        if current:
+            validate_schema(connection, current, _SCHEMA_MIGRATIONS)
+        else:
+            if not connection.execute("SELECT 1 FROM main.sqlite_master WHERE name='schema_version'").fetchone():
+                connection.execute(VERSION_TABLE_SQL)
+        for version, migration in enumerate(MIGRATIONS, start=1):
+            if version <= current:
+                continue
+            migration(connection)
+            connection.execute("INSERT INTO schema_version(version) VALUES (?)", (version,))
+            validate_schema(connection, version, _SCHEMA_MIGRATIONS)
+        connection.execute("RELEASE dvk_schema_migration")
+    except BaseException:
+        # SQLite can itself roll back a transaction on a storage failure.
+        if connection.in_transaction:
+            if owns_transaction:
+                # Releasing an outermost rolled-back savepoint would still commit
+                # a write transaction and can update the SQLite file header.
+                connection.rollback()
+            else:
+                connection.execute("ROLLBACK TO dvk_schema_migration")
+                connection.execute("RELEASE dvk_schema_migration")
+        raise
     return len(MIGRATIONS)

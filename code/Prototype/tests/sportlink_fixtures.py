@@ -27,5 +27,23 @@ def booking(person="MEM1", when=None, *, name="Synthetic member", task="741", se
 
 
 def seed_bookings(uow, bookings):
-    uow.sportlink_bookings.replace_all(tuple(bookings))
+    from uuid import uuid4
+    from dvk.planning import PlanningPeriod
+    from dvk.planning_session import PlanningSession
+    bookings = tuple(bookings)
+    if bookings:
+        period = PlanningPeriod(min(b.starts_at.date() for b in bookings), max(b.starts_at.date() for b in bookings))
+        session = PlanningSession(str(uuid4()), period, str(uuid4()))
+        uow.planning_sessions.save(session)
+        uow.sportlink_bookings.save_refresh_state(dict(session_id=session.session_id,
+            source_revision=session.source_revision, start=period.start.isoformat(), end=period.end.isoformat(),
+            codes=list(dict.fromkeys(b.task_code for b in bookings)), status="Geslaagd", fetched_at=bookings[0].starts_at.isoformat(),
+            tasks=[dict(task_code=code, description="Synthetic duty", services=1, bookings=sum(b.task_code==code for b in bookings), status="Geslaagd")
+                   for code in dict.fromkeys(b.task_code for b in bookings)]))
+    uow.sportlink_bookings.replace_all(bookings)
     uow.commit()
+
+
+def source_revision(uow):
+    session = uow.planning_sessions.get()
+    return session.source_revision if session else None

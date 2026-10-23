@@ -26,6 +26,7 @@ class Person:
     contact_via_parent: bool | None = None
     address_conflicting: bool = False
     parent_data_conflicting: bool = False
+    volunteer_identity_conflicting: bool = False
 
 
 @dataclass(frozen=True)

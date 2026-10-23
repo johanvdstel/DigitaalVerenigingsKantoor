@@ -44,9 +44,9 @@ class SportlinkVrijwilligersClient:
         except HTTPError as exc:
             raise VrijwilligersFetchError(f"Sportlink Vrijwilligers HTTP {exc.code}") from exc
         except (URLError, TimeoutError) as exc:
-            raise VrijwilligersFetchError(f"Sportlink Vrijwilligers connection failure: {exc}") from exc
+            raise VrijwilligersFetchError("Sportlink Vrijwilligers connection failure") from None
         except OSError as exc:
-            raise VrijwilligersFetchError(f"Sportlink Vrijwilligers transport failure: {exc}") from exc
+            raise VrijwilligersFetchError("Sportlink Vrijwilligers transport failure") from None
         if not payload:
             raise VrijwilligersFetchError("Sportlink Vrijwilligers returned an empty HTTP body")
         try:

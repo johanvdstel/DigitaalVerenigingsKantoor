@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
+import csv
+from pathlib import Path
+from zoneinfo import ZoneInfo
 from typing import Iterable
 
 from .real_data_import import DataQualitySignal, Provenance
@@ -105,3 +108,77 @@ class ShiftCatalogAdapter:
     @staticmethod
     def _value(row: dict[str, object], field: str) -> str:
         return str(row.get(field) or "").strip()
+
+
+@dataclass(frozen=True)
+class WeeklySlot:
+    weekday: int
+    starts_at: time
+    ends_at: time
+    task_code: str
+
+
+@dataclass(frozen=True)
+class ShiftCatalog:
+    definitions: tuple[ShiftDefinition, ...]
+    slots: tuple[WeeklySlot, ...]
+
+    def __post_init__(self):
+        codes = [d.task_code for d in self.definitions]
+        if not codes or len(set(codes)) != len(codes):
+            raise ValueError("Dienstencatalogus vereist unieke actieve taakcodes")
+        if len(set(self.slots)) != len(self.slots):
+            raise ValueError("Dubbel weekpatroon in dienstencatalogus")
+        for slot in self.slots:
+            definition = next((d for d in self.definitions if d.task_code == slot.task_code), None)
+            if definition is None or not 0 <= slot.weekday <= 6 or slot.ends_at <= slot.starts_at:
+                raise ValueError("Ongeldig weekpatroon in dienstencatalogus")
+            duration = (datetime.combine(datetime.min.date(), slot.ends_at) -
+                        datetime.combine(datetime.min.date(), slot.starts_at)).total_seconds() / 3600
+            if duration != definition.duration_hours:
+                raise ValueError("Weekpatroon wijkt af van de catalogusduur")
+
+    @property
+    def task_codes(self):
+        return tuple(d.task_code for d in self.definitions)
+
+    def bindings(self, period):
+        from .vrijwilligers_adapter import ServiceBinding
+        result = []
+        day = period.start
+        by_code = {d.task_code: d for d in self.definitions}
+        while day <= period.end:
+            for slot in self.slots:
+                if slot.weekday != day.weekday():
+                    continue
+                definition = by_code[slot.task_code]
+                start = datetime.combine(day, slot.starts_at, ZoneInfo("Europe/Amsterdam"))
+                service = ShiftCatalogAdapter.create_service(
+                    definition, service_id=f"CKC-{slot.task_code}-{day.isoformat()}-{slot.starts_at:%H%M}",
+                    starts_at=start, location="Kantine CKC",
+                    condition="vrijdag" if day.weekday() == 4 else None)
+                result.append(ServiceBinding(slot.task_code, service))
+            day += timedelta(days=1)
+        return tuple(result)
+
+
+def load_shift_catalog() -> ShiftCatalog:
+    """Configuration transcribed from CKC Shift Catalog.xlsx (Diensten/Rooster).
+
+    Code 721 is explicitly unused. Friday staffing is an existing catalog rule.
+    No personal data or runtime Excel dependency is involved.
+    """
+    folder = Path(__file__).with_name("configuration")
+    with (folder / "shift_definitions.csv").open() as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        if row["friday_minimum"]:
+            row["staffing_rules"] = [{"condition": "vrijdag", "minimum_staff": int(row["friday_minimum"]),
+                                      "maximum_staff": int(row["friday_maximum"])}]
+    imported = ShiftCatalogAdapter().import_rows(rows, imported_at=datetime(2026, 10, 21, tzinfo=ZoneInfo("Europe/Amsterdam")))
+    if imported.signals:
+        raise ValueError("Ongeldige CKC-dienstencatalogus")
+    with (folder / "shift_week_pattern.csv").open() as handle:
+        slots = tuple(WeeklySlot(int(r["weekday"]), time.fromisoformat(r["starts_at"]),
+                                 time.fromisoformat(r["ends_at"]), r["task_code"]) for r in csv.DictReader(handle))
+    return ShiftCatalog(imported.definitions, slots)
