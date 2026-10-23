@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** ontwikkelvolgorde bijgewerkt op 21 oktober 2026; BL-04 en voorbereidende verbeteringen PR #34/#35 afgerond.  
+**Status:** bijgewerkt op 23 oktober 2026; Vrijwilligers API-integratie en BL-16 lokaal geaccepteerd via PR #38; integrale v0.5-acceptatie blijft open.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -11,7 +11,7 @@
 | Afgerond | Stap 2 ronde 4 — taakplichtcontrole | Read-only afleiding, vergelijking met Sportlink A, bron- en controlediagnose; lokaal functioneel geaccepteerd en [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged. | **Afgerond** |
 | Afgerond | BL-04 — DVK-portaal | Startscherm en modulenavigatie; lokaal geaccepteerd en [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged. | **Afgerond (19 oktober 2026)** |
 | Voorbereiding afgerond | Vrijwilligers API-responsvalidatie (PR #34) en tijdelijke planning (PR #35) | Ongeldige bronresponsen worden vóór publicatie geweigerd; tijdelijke planning bleef volgens de toen geaccepteerde afspraak behouden bij navigatie en verviel bij procesherstart; deze laatste afspraak is vervangen door het op 22 oktober 2026 geaccepteerde [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). | **Afgerond en lokaal geaccepteerd waar van toepassing; geen volledige live API-integratie** |
-| 2 | Integratie Vrijwilligers API | Actuele diensten, Sportlink-inroosteringen en bezetting betrouwbaar ophalen/vertalen; bronstatus, fouten, peildatum en herhaalbaarheid controleren. | **Apart onderzoeken, implementeren en accepteren** |
+| Afgerond | Integratie Vrijwilligers API en BL-16 — duurzame planningssessies | Actuele Sportlink-inroosteringen en bezetting; bronrevisie, sessiehervatting, bevestigde vervanging, No-Show-selectie en registratie met historie. [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38). | **Lokaal functioneel geaccepteerd (23 oktober 2026); 917 regressietests, CI #332 groen** |
 | 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Apart onderzoeken, implementeren en accepteren** |
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
 | 5 | Stap 3 — Ledendienst Planning | Taakplicht + Vrijwilligers + Programma + achterstanden combineren voor zinvolle kandidaten, prioriteit, bezetting en tijdelijke planning. | **Na bronacceptaties** |
@@ -24,7 +24,7 @@ De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder be
 
 - **PR #34 — VRIJ-01:** ongeldige of lege Vrijwilligers API-responsen worden vóór publicatie geweigerd; bestaande bronfeiten en tijdelijke planning blijven behouden bij een mislukte verversing. Gemerged naar `prototype-v0.5` (merge-commit `8ccdb473`). Dit is bronveiligheid, **geen** bewijs dat de volledige live API-integratie is geaccepteerd.
 - **PR #35 — tijdelijke planning:** werkvoorraad blijft behouden tijdens schermwisselingen en browser-refresh binnen hetzelfde applicatieproces; een periodewisseling met tijdelijke indelingen vereist waarschuwing en expliciete bevestiging; volgens de destijds geaccepteerde implementatie werd de werkvoorraad na een echte applicatieherstart gewist; **dit is inmiddels een achterhaalde functionele regel**, vervangen door het [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). Lokaal vijf acceptatiescenario's geslaagd; 693 regressietests en CI groen. Gemerged naar `prototype-v0.5` (merge-commit `e7d173e7`). Duurzame no-showgegevens blijven buiten deze wisacties.
-- **Resterend:** feitelijke Vrijwilligers API-integratie, Programma API, achterstallige uren en de integrale planning/acceptatie blijven open volgens onderstaande volgorde.
+- **Resterend:** Programma API, achterstallige uren en de integrale planning/acceptatie blijven open. De Vrijwilligers API-integratie en duurzame sessies zijn via PR #38 lokaal geaccepteerd.
 
 ### Afronding BL-04
 
@@ -91,4 +91,4 @@ De gedetailleerde scope en acceptatiecriteria staan bij [BL-13](BACKLOG.md#bl-13
 
 ## Geaccepteerd ontwerp planningssessies (22 oktober 2026)
 
-Het [functioneel ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md) is door CKC geaccepteerd als nieuwe functionele baseline, **nog niet geïmplementeerd**. Een sessie blijft voortaan bij browser-/procesherstart bestaan, kan worden hervat en wordt alleen na expliciete bevestiging afgesloten of vervangen. Periodewisseling en succesvolle vervangende Sportlink-synchronisatie zijn eveneens gecontroleerde sessiegrenzen. No-Show-registratie gebruikt uitsluitend de actieve gevalideerde bron; historische No-Shows blijven duurzaam bewaard. Dit vervangt uitsluitend de tegenstrijdige eerdere herstartafspraak; PR #35 blijft historisch als afgeronde implementatiestap geregistreerd. Technische uitvoering en lokale acceptatie zijn open, zonder wijzigingen aan code of database in deze documentatiestap.
+Het [functioneel ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md) is door CKC geaccepteerd als functionele baseline en **via PR #38 geïmplementeerd en lokaal functioneel geaccepteerd op 23 oktober 2026**. Een sessie blijft voortaan bij browser-/procesherstart bestaan, kan worden hervat en wordt alleen na expliciete bevestiging afgesloten of vervangen. Periodewisseling en succesvolle vervangende Sportlink-synchronisatie zijn eveneens gecontroleerde sessiegrenzen. No-Show-registratie gebruikt uitsluitend de actieve gevalideerde bron; historische No-Shows blijven duurzaam bewaard. Dit vervangt uitsluitend de tegenstrijdige eerdere herstartafspraak; PR #35 blijft historisch als afgeronde implementatiestap geregistreerd. Technische uitvoering en lokale acceptatie zijn afgerond voor BL-16; integrale acceptatie van prototype v0.5 blijft open. Schema 13 ondersteunt historische No-Show-herregistraties na intrekking.
