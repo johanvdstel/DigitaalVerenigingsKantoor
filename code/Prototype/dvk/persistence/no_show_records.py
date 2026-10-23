@@ -32,10 +32,15 @@ class SQLiteNoShowRepository:
         return None if row is None else _event(json.loads(row[0]))
 
     def for_assignment(self, assignment_id: str) -> NoShowEvent | None:
-        row = self._connection.execute(
-            "SELECT payload FROM sportlink_no_show_events WHERE assignment_id=?", (assignment_id,)
-        ).fetchone()
-        return None if row is None else _event(json.loads(row[0]))
+        history = self.history_for_assignment(assignment_id)
+        return history[0] if history else None
+
+    def history_for_assignment(self, assignment_id: str) -> tuple[NoShowEvent, ...]:
+        rows = self._connection.execute(
+            "SELECT payload FROM sportlink_no_show_events WHERE assignment_id=? ORDER BY occurred_at, rowid",
+            (assignment_id,),
+        ).fetchall()
+        return tuple(_event(json.loads(row[0])) for row in rows)
 
     def for_person_season(self, person_id: str, season: str) -> tuple[NoShowEvent, ...]:
         rows = self._connection.execute(

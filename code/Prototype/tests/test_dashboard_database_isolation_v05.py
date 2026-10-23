@@ -32,7 +32,7 @@ def control_visible(app):
 
 
 @pytest.mark.parametrize('schema', ['missing_table', 'earlier_version_12'])
-def test_version_12_inconsistency_does_not_block_or_repair(tmp_path, monkeypatch, schema):
+def test_inconsistent_current_or_earlier_schema_does_not_block_or_repair(tmp_path, monkeypatch, schema):
     path = local_app(tmp_path)
     db_path = tmp_path / 'dvk_v05.sqlite'
     if schema == 'missing_table':
@@ -59,14 +59,14 @@ def test_version_12_inconsistency_does_not_block_or_repair(tmp_path, monkeypatch
     control_visible(app)
     assert not app.error
     with sqlite3.connect(db_path) as connection:
-        assert connection.execute('SELECT MAX(version) FROM schema_version').fetchone() == (12,)
+        assert connection.execute('SELECT MAX(version) FROM schema_version').fetchone() == ((13,) if schema == 'missing_table' else (12,))
         assert not connection.execute("SELECT 1 FROM sqlite_master WHERE name='sportlink_bookings'").fetchone()
 
 
 def test_valid_database_preserves_planning_and_no_show_screen(tmp_path):
     path = local_app(tmp_path)
     db_path = tmp_path / 'dvk_v05.sqlite'
-    assert SQLiteDatabase(db_path).initialize() == 12
+    assert SQLiteDatabase(db_path).initialize() == 13
     before = db_path.read_bytes()
     app = AppTest.from_file(str(path))
     app.session_state['dvk-screen'] = 'planning'

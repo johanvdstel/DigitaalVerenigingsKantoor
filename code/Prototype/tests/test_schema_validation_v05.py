@@ -63,9 +63,9 @@ def populated(path):
 
 def test_new_database_has_complete_current_schema_and_immutable_guards(tmp_path):
     db = SQLiteDatabase(tmp_path / "new.sqlite")
-    assert db.initialize() == 12
+    assert db.initialize() == 13
     with closing(sqlite3.connect(db.path)) as c:
-        assert c.execute("SELECT version FROM schema_version ORDER BY version").fetchall() == [(v,) for v in range(1, 13)]
+        assert c.execute("SELECT version FROM schema_version ORDER BY version").fetchall() == [(v,) for v in range(1, 14)]
         tables = {n for n, in c.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {"sportlink_bookings", "temporary_planning", "sportlink_no_show_events",
                 "sportlink_no_show_revocations", "sportlink_sanction_assessments"} <= tables
@@ -91,7 +91,7 @@ def test_current_reopen_preserves_every_table_and_file_bytes(tmp_path):
     assert before["sportlink_no_show_events"] and before["sportlink_no_show_revocations"]
     assert before["sportlink_sanction_assessments"] and before["snapshot_records"]
     for _ in range(2):
-        assert db.initialize() == 12
+        assert db.initialize() == 13
         with db.unit_of_work() as u:
             assert u.no_shows.get("N") is not None
             assert u.no_show_revocations.for_no_show("N") is not None
@@ -99,7 +99,7 @@ def test_current_reopen_preserves_every_table_and_file_bytes(tmp_path):
     assert db.path.read_bytes() == raw
 
 
-@pytest.mark.parametrize("version", range(1, 12))
+@pytest.mark.parametrize("version", range(1, 13))
 def test_every_valid_historical_version_migrates_without_rewriting_source_data(tmp_path, version):
     path = tmp_path / "old.sqlite"
     legacy(path, version)
@@ -108,7 +108,7 @@ def test_every_valid_historical_version_migrates_without_rewriting_source_data(t
         if version >= 2:
             c.execute("INSERT INTO import_batches VALUES ('B','Sportlink','leden',NULL,'2026-10-22','synthetic','confirmed',NULL,NULL,NULL)")
     before = contents(path)
-    assert SQLiteDatabase(path).initialize() == 12
+    assert SQLiteDatabase(path).initialize() == 13
     after = contents(path)
     assert after["dvk_records"] == before["dvk_records"]
     if version >= 2:
@@ -125,7 +125,7 @@ def test_upgrade_from_11_preserves_workqueue_imports_and_all_existing_tables(tmp
             DutyAssignment("TEMP", "P", source.service_id, "OTHER", "member", 4, "synthetic"), source.service))
     before = contents(path)
     assert before["temporary_planning"] and before["snapshot_records"]
-    assert SQLiteDatabase(path).initialize() == 12
+    assert SQLiteDatabase(path).initialize() == 13
     after = contents(path)
     assert all(after[name] == rows for name, rows in before.items() if name != "schema_version")
 
@@ -159,7 +159,7 @@ def test_historical_duplicate_no_shows_are_rejected_without_automatic_cleanup(tm
     ("DELETE FROM schema_version WHERE version<12", "ontbrekende stappen"),
     ("INSERT INTO schema_version VALUES (0)", "ongeldige"),
     ("INSERT INTO schema_version VALUES (-1)", "ongeldige"),
-    ("INSERT INTO schema_version VALUES (13)", "toekomstige"),
+    ("INSERT INTO schema_version VALUES (14)", "toekomstige"),
     ("DROP TABLE schema_version; CREATE TABLE schema_version (version TEXT); INSERT INTO schema_version VALUES ('invalid')", "kolom"),
     ("DROP TABLE schema_version; CREATE TABLE schema_version (version INTEGER); INSERT INTO schema_version VALUES (12),(12)", "kolom"),
 ])
@@ -233,7 +233,7 @@ def test_whole_upgrade_rolls_back_ddl_data_and_versions(tmp_path, monkeypatch, s
     if start:
         assert path.read_bytes() == raw
     monkeypatch.undo()
-    assert SQLiteDatabase(path).initialize() == 12  # Retry starts from the original valid schema.
+    assert SQLiteDatabase(path).initialize() == 13  # Retry starts from the original valid schema.
 
 
 def test_result_schema_validation_also_rolls_back_version_and_partial_ddl(tmp_path, monkeypatch):
@@ -266,7 +266,7 @@ def test_healthy_current_schema_can_be_validated_on_readonly_connection(tmp_path
     SQLiteDatabase(path).initialize()
     before = path.read_bytes()
     with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True)) as c:
-        assert migrations.migrate(c) == 12
+        assert migrations.migrate(c) == 13
     assert path.read_bytes() == before
 
 
@@ -281,7 +281,7 @@ def test_migrate_does_not_commit_or_discard_callers_outer_transaction(tmp_path, 
             with pytest.raises(RuntimeError):
                 migrations.migrate(c)
         else:
-            assert migrations.migrate(c) == 12
+            assert migrations.migrate(c) == 13
         assert c.in_transaction
         assert c.execute("SELECT payload FROM dvk_records WHERE record_id='caller'").fetchone() == ('uncommitted',)
         c.rollback()

@@ -158,7 +158,8 @@ class NoShowApplicationService:
         if event.occurred_at != assignment.starts_at:
             raise ValueError("no-show occurrence must match Sportlink service start")
         event = replace(event, booking=assignment)
-        if self.uow.no_shows.for_assignment(event.assignment_id) is not None:
+        if any(self.uow.no_show_revocations.for_no_show(prior.no_show_id) is None
+               for prior in self.uow.no_shows.history_for_assignment(event.assignment_id)):
             raise ValueError("voor deze inroostering is al een no-show geregistreerd")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
         revocations = self.uow.no_show_revocations.for_person_season(event.person_id, event.season)

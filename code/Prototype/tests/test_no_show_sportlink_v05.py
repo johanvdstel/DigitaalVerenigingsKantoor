@@ -221,8 +221,11 @@ def test_snapshot_revocation_and_sanction_survive_source_refresh_and_reopen(tmp_
         assert uow.no_show_revocations.for_no_show("N1").reason == "Expliciet besluit"
         assert uow.sanctions.get("N1") is None
         seed_bookings(uow, [replace(SOURCE, volunteer_name="gewijzigde presentatie")])
-        with pytest.raises(ValueError, match="al een no-show"):
-            NoShowApplicationService(uow, IDENTITY).register(event(identifier="N2"), source_revision=source_revision(uow))
+        assert NoShowApplicationService(uow, IDENTITY).register(
+            event(identifier="N2"), source_revision=source_revision(uow)).counter == 1
+        assert uow.no_shows.get("N1") == original
+        assert uow.no_show_revocations.for_no_show("N1").reason == "Expliciet besluit"
+        assert len(uow.no_shows.history_for_assignment(SOURCE.assignment_id)) == 2
 
 
 def client(payload):
