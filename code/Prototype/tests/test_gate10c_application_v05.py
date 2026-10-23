@@ -146,7 +146,7 @@ def test_public_revocation_query_is_read_only_and_excludes_revoked(database):
         assert [r.no_show.no_show_id for r in NoShowApplicationService(uow, VC).revocable_no_shows()] == ["N1", "N3", "N4", "N5"]
 
 
-def test_assignment_context_uses_source_snapshot_and_preserves_recent_limit(database):
+def test_assignment_context_uses_source_snapshot_and_limits_after_chronological_sort(database):
     with database.unit_of_work() as uow:
         app = NoShowApplicationService(uow, VC)
         contexts = app.assignment_contexts()
@@ -154,7 +154,7 @@ def test_assignment_context_uses_source_snapshot_and_preserves_recent_limit(data
         context = next(c for c in contexts if c.assignment.assignment_id == source.assignment_id)
         assert context.service == source.service
         assert context.person_name == source.person_name
-        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == [booking(when=datetime(2026, 9, 6, 10)).assignment_id]
+        assert [c.assignment.assignment_id for c in app.assignment_contexts(limit=1)] == [booking(when=datetime(2026, 9, 1, 10)).assignment_id]
         # Presentation remains based on the source snapshot, never new demo context.
         assert app.assignment_contexts(persons=(), services=()) == contexts
         rows = app.revocable_no_shows()

@@ -14,7 +14,7 @@ from .no_show import (
     CurrentSanctionState, NoShowEvent, NoShowRevocation, SanctionAssessment,
     assess_sanction, current_sanction_state, season_id,
 )
-from .planning_session import active_source, booking_in_period
+from .planning_session import TZ, active_source, booking_in_period
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
 from .real_data_import import DataQualitySignal
 from .run_context import EngineRun
@@ -57,15 +57,19 @@ class NoShowApplicationService:
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
 
-    def available_assignments(self, limit: int = 50, *, period=None):
+    def available_assignments(self, limit: int | None = None, *, period=None):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         session = active_source(self.uow, period)
         if session is None:
             return ()
-        return tuple(b for b in self.uow.sportlink_bookings.recent(None)
-                     if b.can_register_no_show and booking_in_period(b, session.period))[:limit]
+        bookings = (b for b in self.uow.sportlink_bookings.recent(None)
+                    if b.can_register_no_show and booking_in_period(b, session.period))
+        return tuple(sorted(bookings, key=lambda b: (
+            b.starts_at.astimezone(TZ).date(), b.starts_at.astimezone(TZ).time(),
+            b.service.service_type if b.service else "", b.volunteer_name, b.assignment_id,
+        )))[:limit]
 
-    def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int = 50, period=None) -> tuple[AssignmentContext, ...]:
+    def assignment_contexts(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = (), limit: int | None = None, period=None) -> tuple[AssignmentContext, ...]:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         session = active_source(self.uow, period)
         if session is None:
