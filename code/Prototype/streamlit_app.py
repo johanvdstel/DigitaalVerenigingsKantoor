@@ -352,7 +352,7 @@ def _render_planning():
                     st.error(str(exc))
                 else:
                     st.session_state["last-no-show"] = assessment
-        assessment = st.session_state.get("last-no-show")
+        assessment = st.session_state.pop("last-no-show", None)
         if assessment:
             if assessment.counter == 1:
                 st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
