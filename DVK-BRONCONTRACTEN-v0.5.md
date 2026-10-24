@@ -69,7 +69,8 @@
 | --- | --- | --- |
 | `Rel. code` | T | Koppeling naar lid |
 | `Naam` | F, nog niet T | Herkenbare weergave van het teamlid |
-| `Team` | T | Teamregistratie |
+| `Team` | T | Officiële teamnaam zonder clubvoorvoegsel |
+| `Speeldag` | F bij team `2` | Bewaard als broncontext; zaterdag/zondag uitsluitend bij naam `2` |
 | `Teamsoort` | **F, momenteel niet T** | Onderscheid `Bond` / `Vereniging` |
 | `Teamrol` | T/F | Vereist `Teamspeler` voor kwalificerende deelname |
 | `Spelend lid` | T/F | Vereist `Ja` voor kwalificerende deelname |
@@ -148,15 +149,17 @@ aanvangstijd,status,accommodatie,veld,locatie,plaats
 | `wedstrijddatum` | F | Wedstrijddatum/-tijd; adapter valideert |
 | `wedstrijdcode` of `wedstrijdnummer` | F/G | Wedstrijdidentificatie; adapter gebruikt fallback |
 | `thuisteamclubrelatiecode`, `uitteamclubrelatiecode` | F | Bepalen of CKC thuis of uit speelt; precies één CKC-zijde |
-| `thuisteamid`, `uitteamid` | F/G | Identificatie CKC-team; fallback naar teamnaam wordt gesignaleerd |
-| `thuisteam`, `uitteam` | F/G | Teamnaam en eventuele fallback |
+| `thuisteamid`, `uitteamid` | G | Competitiegebonden bron-ID; geen gedeelde v0.5-teamidentiteit en geen afwijzing op `-1` |
+| `thuisteam`, `uitteam` | F | Officiële naam van de via clubcode vastgestelde CKC-zijde |
 | `status` | F | Operationeel vs afgelast/uitgesteld e.d. |
 | `accommodatie` | G | Locatiecontext |
 | `teamnaam`, `teamvolgorde`, `competitiesoort`, `competitie`, `klasse`, `poule`, `aanvangstijd`, `veld`, `locatie`, `plaats` | G/V | Wel aangevraagd; per veld vaststellen of noodzakelijk voor planning of uitsluitend context |
 
 **Door opdrachtgever bevestigd uitgangspunt:** alle **21** door de bestaande adapter aangevraagde API-velden blijven in het broncontract. Tijdens API-acceptatie wordt per veld vastgesteld of het verplicht of optioneel is; de huidige tabel is nog geen definitieve validatiespecificatie.\n\n**Controles:** CKC-clubrelatiecode, HOME/AWAY, teamidentiteit, geldige wedstrijdtijd, unieke wedstrijd, niet-operationele status uitsluiten van normale kandidaatcontext, bronactualiteit en wedstrijdconflicten. Een aangevraagd API-veld is niet automatisch een functioneel verplicht veld; valideer met echte API-respons zonder persoonsgegevens te publiceren.
 
-**Basis:** `programma_adapter.py`, `programma_client.py`, v0.4-baseline.
+**v0.5-naamkoppeling (opdracht 24 oktober 2026):** `CkcProgrammaAdapter` koppelt exact aan bestaande Teams-waarden; alleen team `2` vereist Speeldag plus de competitieomschrijving (nooit de wedstrijddag). Alleen `Rijnmond Cup` en `Rijnmondcup` activeren de geaccepteerde cupnormalisatie. Ontbrekende/ambigue koppelingen blijven met broncontext en ERROR-signalen zichtbaar en kunnen niet als lege planningscontext worden gebruikt. Zie [implementatie en lokale acceptatie](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). De historische v0.4-adapter en regressies blijven ongewijzigd; deze aanvulling accepteert niet het overige conceptcontract.
+
+**Basis:** `programma_adapter.py`, `programma_client.py`, `programma_team_adapter.py`, `team_linking.py`, v0.4-baseline en naamkoppelopdracht 24 oktober 2026.
 
 ## 10. Overkoepelende import- en bronregels
 
