@@ -217,3 +217,92 @@ Vanaf 13 september 2026 geldt:
 ## v0.5 — Teamnaamkoppeling Programma
 
 De v0.5-ingang is `CkcProgrammaAdapter`, met teamlidmaatschappen uit de CKC Teams-export. De historische `SportlinkProgrammaAdapter` blijft de v0.4-interface. Gebruik voor kandidaatcontext de gecontroleerde `result.matches` en `result.team_memberships`, niet de interne auditweergave. Naamkoppeling, bronmeldingen, read-only lokale verificatie en acceptatiegrenzen staan in [DVK-v0.5-teamnaamkoppeling.md](DVK-v0.5-teamnaamkoppeling.md). De Ledendienst Planning gebruikt hiermee nog niet automatisch live Programma-data.
+
+## Lokale Sportlink CSV-exports
+
+Gebruik op macOS de map **Documenten/DVK-Sportlink-exports** in Finder.
+Het interne pad is `$HOME/Documents/DVK-Sportlink-exports/` (ook op Nederlandstalig macOS).
+Maak de map zelf aan en plaats daarin de handmatig geëxporteerde bestanden:
+
+| Sportlink-export | Exacte bestandsnaam |
+| --- | --- |
+| Leden | `Leden.csv` |
+| Functies | `Functies.csv` |
+| Commissies | `Commissies.csv` |
+| Teams | `Teams.csv` |
+| Overzicht per periode | `Overzicht per periode.csv` |
+
+DVK haalt deze CSV's niet automatisch op en vernieuwt of herschrijft ze niet.
+Vernieuw de exports handmatig in Sportlink; plaats ze daarna onder deze namen in
+de map. Alleen de vindplaats en bestandsnaam zijn gestandaardiseerd. Kolommen,
+scheidingstekens, UTF-8-verwerking en inhoudelijke controles blijven ongewijzigd.
+De enige definitie voor standaardmap en bestandsnamen staat in
+`dvk/sportlink_exports.py`; onderstaande ingangen gebruiken die definitie.
+
+### Inventarisatie en toepassing
+
+| Bestaande ingang | Gedrag na standaardisatie |
+| --- | --- |
+| `SportlinkRealDataAdapter.read_rows(path, dataset)` | Een expliciet pad blijft werken; `path=None` leest het bijbehorende standaardbestand. |
+| `SportlinkRealDataAdapter.load_exports(...)` | Weggelaten paden lezen de vijf standaardbestanden. Elk expliciet pad of bestaande tekststream heeft voorrang. **Expliciet `duty_path=None` blijft de urenimport overslaan**, zoals in de bestaande taakplichtafleiding. |
+| `run_programma_team_validation.py` | Zonder `--teams` wordt het standaard Teams-bestand gebruikt. `--teams` blijft een expliciet bestand van iedere locatie/naam accepteren; `--details` is ongewijzigd. |
+| Streamlit Taakplichtcontrole | De vijf bestaande uploads blijven handmatig; standaardmap en verwachte namen worden bij de bediening getoond. Geen automatische lokale import bij starten/navigeren. |
+| Streamlit Databronnen / persoonskoppeling | De bestaande Leden-upload blijft handmatig en toont de standaardlocatie als aanwijzing. Synchronisatie- en uploadlevensduur zijn ongewijzigd. |
+| Historische `SportlinkCsvImportAdapter.load_directory(...)` en `run_import_cases.py` | Ongewijzigd: v0.3 gebruikt geaccepteerde Engelstalige fixtures met **andere kolommen**, waaronder `members.csv`, `duty_hours.csv` en `teams.csv`. Dit zijn niet de vijf werkelijke Sportlink-exports. |
+| Configuratie-CSV's (functiemapping, dienstencatalogus) | Ongewijzigd: dit zijn versiebeheerde configuratiebestanden, geen lokale exports. |
+| Tests en voorbeelden | Historische geaccepteerde namen/fixtures blijven intact. Nieuwe padtests gebruiken uitsluitend synthetische exports in tijdelijke mappen. |
+
+Er waren geen vaste Downloads-paden of andere hardgecodeerde persoonlijke
+exportlocaties in de onderzochte repository. De bestaande presenter verwerkt
+uploads in geheugen; die route leest geen standaardbestanden als vervanging van
+ontbrekende uploads. Periode/seizoen blijft de bestaande expliciete invoer.
+
+### Lokale controle en foutmeldingen
+
+Gebruik vanaf `code/Prototype`, met de bestaande Pythonomgeving en reeds ingestelde
+`SPORTLINK_CLIENT_ID`, hetzelfde read-only controlescript:
+
+```bash
+python run_programma_team_validation.py
+python run_programma_team_validation.py --details
+```
+
+Een bestaand expliciet pad blijft toegestaan, bijvoorbeeld:
+
+```bash
+python run_programma_team_validation.py --teams "/lokaal/pad/eigen-export.csv" --details
+```
+
+De Python-import kan de standaardmap eveneens gebruiken:
+
+```python
+from dvk.real_data_import import SportlinkRealDataAdapter
+
+source = SportlinkRealDataAdapter().load_exports()
+# Of behoud expliciete argumenten/tekststreams; alleen weggelaten paden vallen terug.
+# source = SportlinkRealDataAdapter().load_exports(teams_path="/lokaal/andere-naam.csv")
+# source = SportlinkRealDataAdapter().load_exports(duty_path=None)  # bewust geen urenbron
+```
+
+Ontbrekende bestanden geven de ontbrekende naam, de verwachte locatie en de
+opdracht de betreffende Sportlink-export daar te plaatsen. Onleesbare bestanden
+geven een expliciete leesfout. Er worden geen mappen of lege vervangbestanden
+aangemaakt en er wordt niet stilzwijgend met lege gegevens doorgegaan. Het
+controlescript eindigt bij een bestandsfout met code 1 en doet dan geen API-aanroep;
+de bestaande configuratiecontrole blijft gelden. Andere CLI-opties en exitcodes
+zijn ongewijzigd.
+
+Voor lokale acceptatie: plaats de vijf bestanden in de Finder-map, voer de
+bovenstaande controle zonder `--teams` uit en vergelijk die met een run met een
+expliciet Teams-pad. Controleer team 2, Rijnmond Cup, datum/tijd en bronmeldingen
+zoals bij de geaccepteerde PR #41. Controleer in Streamlit dat uploads nog handmatig
+nodig zijn. Gebruik voor een ontbrekend-bestandproef uitsluitend een synthetisch
+of niet-bestaand expliciet pad; verwijder geen echte exports.
+
+De standaardmap ligt buiten de repository. Gerichte Git-ignorepatronen beschermen
+ook lokale kopieën met de standaardnamen, gedateerde/exportnamen en een map met
+de standaardmapnaam binnen een checkout. Geaccepteerde fixtures en configuratie-CSV's
+blijven zichtbaar en ongewijzigd. Plaats echte exports nooit in Git, tests of gedeelde logs.
+
+Root README, backlog en productieroadmap bevatten geen lokale bestandsnamen die
+moeten veranderen; er wordt geen productieopslag of nieuwe importworkflow vastgelegd.

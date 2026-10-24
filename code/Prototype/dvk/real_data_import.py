@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .sportlink_exports import export_path, read_export_text
 from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
 
 if TYPE_CHECKING:
@@ -108,6 +109,9 @@ class RealDataImportResult:
         return compare_required_hours(self, as_of, policy)
 
 
+_DEFAULT_DUTY_EXPORT = object()
+
+
 class SportlinkRealDataAdapter:
     """Read-only v0.4 adapter. Sportlink field names live only in this layer."""
 
@@ -119,11 +123,16 @@ class SportlinkRealDataAdapter:
         "teams": {"Rel. code", "Team", "Teamrol", "Spelend lid"},
     }
 
-    def load_exports(self, *, members_path, functions_path, committees_path, duty_path, teams_path,
+    def load_exports(self, *, members_path=None, functions_path=None, committees_path=None,
+                     duty_path=_DEFAULT_DUTY_EXPORT, teams_path=None,
                      imported_at=None, source_period=None,
                      source_dates: dict[str, date] | None = None, as_of: date | None = None,
                      previous_planning_date: date | None = None,
                      previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
+        """Read standard local exports unless an explicit path/stream is supplied.
+
+        Explicit duty_path=None retains the existing no-hours-import contract.
+        """
         imported_at = imported_at or datetime.now(timezone.utc)
         source_dates = source_dates or {}
         previous_source_dates = previous_source_dates or {}
@@ -141,7 +150,8 @@ class SportlinkRealDataAdapter:
         member_rows = self.read_rows(members_path, "leden")
         function_rows = self.read_rows(functions_path, "functies")
         committee_rows = self.read_rows(committees_path, "commissies")
-        duty_rows = self.read_rows(duty_path, "vrijwilligers_periode") if duty_path is not None else []
+        duty_rows = (self.read_rows(None if duty_path is _DEFAULT_DUTY_EXPORT else duty_path, "vrijwilligers_periode")
+                     if duty_path is not None else [])
         team_rows = self.read_rows(teams_path, "teams")
 
         grouped: dict[str, list[dict[str, str]]] = {}
@@ -341,12 +351,11 @@ class SportlinkRealDataAdapter:
                                     tuple(sorted(source_dates.items())), tuple(membership_as_of))
 
     @classmethod
-    def read_rows(cls, path: str | Path, dataset: str) -> list[dict[str, str]]:
+    def read_rows(cls, path: str | Path | None, dataset: str) -> list[dict[str, str]]:
         if hasattr(path, "read"):
             return cls.read_rows_text(path.read().lstrip("\ufeff"), dataset)
-        path = Path(path)
-        text = path.read_text(encoding="utf-8-sig")
-        return cls.read_rows_text(text, dataset, name=path.name)
+        text = read_export_text(dataset, path)
+        return cls.read_rows_text(text, dataset, name=export_path(dataset, path).name)
 
     @classmethod
     def read_rows_text(cls, text: str, dataset: str, *, name="CSV") -> list[dict[str, str]]:

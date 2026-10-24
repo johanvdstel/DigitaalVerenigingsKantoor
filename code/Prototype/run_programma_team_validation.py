@@ -8,11 +8,12 @@ import os
 from dvk.programma_client import ProgrammaFetchError, SportlinkProgrammaClient
 from dvk.programma_team_adapter import CkcProgrammaAdapter, UnresolvedProgramTeamsError
 from dvk.real_data_import import RealTeamMembership, SportlinkRealDataAdapter
+from dvk.sportlink_exports import ExportFileError, export_path
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--teams", required=True, help="Local CKC Teams CSV; not uploaded")
+    parser.add_argument("--teams", help=f"Lokale CKC Teams CSV; standaard: {export_path('teams')}")
     parser.add_argument("--details", action="store_true", help="Show team-only linking context locally")
     args = parser.parse_args(argv)
     client_id = os.environ.get("SPORTLINK_CLIENT_ID", "").strip()
@@ -28,6 +29,9 @@ def main(argv=None) -> int:
         adapter = CkcProgrammaAdapter(team_memberships=memberships)
         fetched = SportlinkProgrammaClient(adapter).fetch_rows(client_id=client_id)
         result = adapter.import_rows(fetched.rows)
+    except ExportFileError as exc:
+        print(str(exc))
+        return 1
     except (OSError, ValueError, ProgrammaFetchError):
         # Transport exceptions may contain a request URL; do not print credentials.
         print("Broncontrole mislukt; controleer lokaal CSV-structuur, configuratie en verbinding.")

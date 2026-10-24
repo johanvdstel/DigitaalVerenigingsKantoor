@@ -49,3 +49,7 @@ Geen Sportlink-mutaties, acceptatie-/correctie-/afhandel-/negeerknoppen, B-14-be
 Geen nieuw functioneel of architecturaal besluit nodig voor de geïmplementeerde scope. De werkelijke CKC-populatie en leesbaarheid moeten nog door Johan lokaal met de vijf echte exports worden beoordeeld. Automatische regressie bewijst geen functionele acceptatie. UTF-8 blijft het bestaande adaptercontract; andere encodings worden expliciet geweigerd. Geen bronactualiteit gegokt uit bestandsmetadata.
 
 Geen merge. Er is lokaal een oplevercommit; SHA in de eindrapportage. Geen PR geopend en geen CI-run voor deze branch beschikbaar. Lokale functionele acceptatie en review volgen afzonderlijk.
+
+## Lokale bestandslocaties
+
+De centrale map en exacte exportnamen staan in [Lokale Sportlink CSV-exports](README.md#lokale-sportlink-csv-exports). De vijf bestaande uploads blijven handmatig; de map wordt niet automatisch ingelezen en de bestandsinhoud wordt niet veranderd. Bestaande expliciete importpaden en tekststreams blijven ondersteund.

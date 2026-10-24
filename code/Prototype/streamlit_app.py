@@ -24,6 +24,7 @@ from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog
 from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding, same_task_group, overlaps_service_date
+from dvk.sportlink_exports import export_location_hint
 from dvk.real_data_import import SportlinkRealDataAdapter
 from dvk.shift_catalog import load_shift_catalog
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
@@ -406,6 +407,7 @@ def _render_planning():
     else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     st.markdown("### Databronnen")
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
+        st.caption(export_location_hint(("leden",)))
         members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
         st.caption("Selecteer de Leden-CSV opnieuw na een schermwisseling of nieuwe sessie. Controleer vóór elke synchronisatie of het bestand geselecteerd is.")
         st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
@@ -555,6 +557,7 @@ def _render_duty_control():
                                    help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
     st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
     st.caption("Bij het verlaten van dit scherm vervallen de uploads. Selecteer de vijf bestanden opnieuw wanneer je terugkomt.")
+    st.caption(export_location_hint(EXPORTS))
     control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
                      for dataset, (label, _) in EXPORTS.items()}
     control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")

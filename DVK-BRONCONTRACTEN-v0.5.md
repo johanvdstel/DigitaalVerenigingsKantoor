@@ -18,6 +18,15 @@
 
 **Niet veronderstellen** dat de vijf exports later automatisch door API's worden vervangen. API Vrijwilligers is iets anders dan de export Overzicht per periode. De CKC ShiftCatalog is een **aanvullende configuratiebron**, niet een achtste Sportlink-bron.
 
+## 1a. Lokale bestandslocatie van de vijf exports
+
+De standaardmap, exacte bestandsnamen en het gebruik van expliciete alternatieve
+paden staan centraal beschreven in [Lokale Sportlink CSV-exports](code/Prototype/README.md#lokale-sportlink-csv-exports).
+De exports worden handmatig vernieuwd; Streamlit behoudt de bestaande uploads en
+leest geen lokale bestanden automatisch bij het starten. Deze locatieafspraak
+wijzigt geen kolommen, encodering, scheidingstekens of inhoudelijk broncontract
+en accepteert niet het overige reconstructieconcept.
+
 ## 2. Leeswijzer en status van de reconstructie
 
 - **T — technisch verplicht:** importer weigert een CSV zonder deze kolom.

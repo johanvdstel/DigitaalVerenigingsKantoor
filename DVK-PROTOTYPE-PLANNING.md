@@ -48,7 +48,7 @@ Er bestaan reeds Sportlink Vrijwilligers-client-/adapterbouwstenen in het protot
 
 ### Programma API
 
-De gerichte teamnaamkoppeling van 24 oktober 2026 is technisch uitgewerkt voor review; functionele acceptatie en operationele schermintegratie blijven open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
+De gerichte teamnaamkoppeling van 24 oktober 2026 is via PR #41 gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking; operationele schermintegratie blijft open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
 Onderzoek bestaande client-/adapterbouwstenen en beschikbaarheid van wedstrijdgegevens. Leg teamkoppeling, tijdstippen, thuis/uit, actualiteit en eventuele onvolledigheid expliciet vast voordat kandidaatselectie met deze bron wordt geaccepteerd.
 
 ### Achterstallige uren (BL-03)
