@@ -213,3 +213,7 @@ v0.4 valideert de read-only real-data-integratie en de volledige functionele ket
 Vanaf 13 september 2026 geldt:
 
 > **Prototype v0.4 is functioneel geaccepteerd en vormt de actuele regressiebaseline voor de real-data-integratie van Ledendiensten. Nieuwe ontwikkeling moet R01–R18 én de onderliggende v0.3-baseline behouden, tenzij CKC expliciet een functionele wijziging besluit.**
+
+## v0.5 — Teamnaamkoppeling Programma
+
+De v0.5-ingang is `CkcProgrammaAdapter`, met teamlidmaatschappen uit de CKC Teams-export. De historische `SportlinkProgrammaAdapter` blijft de v0.4-interface. Gebruik voor kandidaatcontext de gecontroleerde `result.matches` en `result.team_memberships`, niet de interne auditweergave. Naamkoppeling, bronmeldingen, read-only lokale verificatie en acceptatiegrenzen staan in [DVK-v0.5-teamnaamkoppeling.md](DVK-v0.5-teamnaamkoppeling.md). De Ledendienst Planning gebruikt hiermee nog niet automatisch live Programma-data.

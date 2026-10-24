@@ -47,6 +47,8 @@ De read-only controle is functioneel geaccepteerd: 650 leden, 563 overeenkomsten
 Er bestaan reeds Sportlink Vrijwilligers-client-/adapterbouwstenen in het prototype. Bepaal vóór nieuwe code welke verbinding, broncontracten en actuele bezetting werkelijk werken. Bevestig authenticatie, leesrechten, peildatum, bronidentiteit, synchronisatiegrens en veilige foutafhandeling. Geen aannames dat live toegang al operationeel is.
 
 ### Programma API
+
+De gerichte teamnaamkoppeling van 24 oktober 2026 is technisch uitgewerkt voor review; functionele acceptatie en operationele schermintegratie blijven open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
 Onderzoek bestaande client-/adapterbouwstenen en beschikbaarheid van wedstrijdgegevens. Leg teamkoppeling, tijdstippen, thuis/uit, actualiteit en eventuele onvolledigheid expliciet vast voordat kandidaatselectie met deze bron wordt geaccepteerd.
 
 ### Achterstallige uren (BL-03)
