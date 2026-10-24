@@ -256,10 +256,12 @@ class PlanningApplicationService:
         by_id = {service.service_id: service for service in services}
         return tuple(planning_staffing(by_id[need.service_id], need, active) for need in source_needs)
 
-    def assess_candidates(self, *, cases, service, team_memberships, matches, today):
+    def assess_candidates(self, *, cases, service, team_memberships, matches, today, duty_qualifications=None):
         active = self.active_planning()
         return tuple(assess_candidate(case, service, team_memberships, matches, today,
-                                      active_planning=active) for case in cases)
+                                      active_planning=active,
+                                      qualification=(None if duty_qualifications is None else
+                                                     duty_qualifications[case.person.person_id])) for case in cases)
 
     def temporary_assignment_contexts(self, *, persons=()) -> tuple[AssignmentContext, ...]:
         return tuple(_assignment_context(entry.assignment, (entry.service,), persons)

@@ -306,3 +306,13 @@ blijven zichtbaar en ongewijzigd. Plaats echte exports nooit in Git, tests of ge
 
 Root README, backlog en productieroadmap bevatten geen lokale bestandsnamen die
 moeten veranderen; er wordt geen productieopslag of nieuwe importworkflow vastgelegd.
+
+
+## Operationele kandidaatcontext — ontwikkeling v0.5
+
+De werkbranch `codex/actuele-kandidaatcontext` sluit de vijf lokale exports en de
+Programma API aan op de bestaande kandidaten- en voorstelketen. De v0.5-taakplicht
+wordt op de dienstdatum afgeleid; BL-03 wordt niet toegepast. Technisch geldige
+Programma-lijsten, ook lege, worden vertrouwd volgens het CKC-besluit. Zie de
+[werking, beperkingen en lokale acceptatiestappen](DVK-v0.5-actuele-kandidaatcontext.md).
+De geaccepteerde v0.4-baseline en historische cases blijven ongewijzigd.

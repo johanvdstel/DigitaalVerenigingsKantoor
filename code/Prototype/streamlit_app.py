@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
+from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
@@ -104,7 +105,7 @@ def _cancel_period_change():
 
 def _clear_period_widgets():
     for key in list(st.session_state):
-        if key in {"services_editor", "selected_service_id"} or key.startswith(
+        if key in {"services_editor", "selected_service_id", "candidate-context"} or key.startswith(
                 ("proposal-run-", "confirmed-", "pick-")):
             del st.session_state[key]
 
@@ -192,6 +193,16 @@ def _render_planning():
     st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
     demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
+    if st.session_state.get("candidate-source-mode") != demo:
+        st.session_state.pop("candidate-context", None)
+        for key in list(st.session_state):
+            if key.startswith(("proposal-run-", "confirmed-", "pick-")):
+                del st.session_state[key]
+    st.session_state["candidate-source-mode"] = demo
+    candidate_context = st.session_state.get("candidate-context")
+    if candidate_context is not None and candidate_context.period != period:
+        st.session_state.pop("candidate-context", None)
+        candidate_context = None
     catalog = load_shift_catalog()
     with database.unit_of_work() as uow:
         source_app = VolunteerPlanningApplicationService(uow, identity, catalog)
@@ -201,9 +212,11 @@ def _render_planning():
     if demo:
         st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
     else:
-        st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Operationele kandidaatselectie en persoonsconflicten met Sportlink zijn nog niet aangesloten.")
+        st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Kandidaten gebruiken de vijf lokale CKC-exports en het Sportlink-wedstrijdprogramma. Persoonsconflicten met Sportlink-inroosteringen zijn nog niet aangesloten.")
         if not source_matches:
             st.warning("Geen gevalideerde Sportlink-bezetting voor deze periode. Bezetting en resterende behoefte zijn onbekend totdat de bron succesvol is opgehaald.")
+    if not demo and candidate_context is not None and candidate_context.error is None:
+        matches = candidate_context.program.matches
     with database.unit_of_work() as uow:
         planning_app = PlanningApplicationService(identity, uow=uow)
         overview = planning_app.build_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=statuses)
@@ -240,18 +253,77 @@ def _render_planning():
         else: st.session_state.pop("selected_service_id", None)
 
     st.markdown("### Kandidaten en voorstellen")
-    if not demo: st.info("Kandidaatselectie en goedkeuring zijn beschikbaar in de afzonderlijke demonstratie. Echte leden, wedstrijdcontext en Sportlink-persoonsconflicten volgen bij integrale planning.")
-    elif selected_service_id is None: st.info("Selecteer eerst één dienst in de tabel hierboven.")
+    candidate_result = None
+    if not demo:
+        st.caption("Prioritering op achterstanden uit vorig seizoen is pas beschikbaar na BL-03; er worden geen fictieve achterstanden gebruikt.")
+        st.caption(export_location_hint())
+        source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
+        st.caption("Controleer zelf of de vijf handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma; beoordeel de kandidaten altijd in die context.")
+        if candidate_context is not None and candidate_context.source_period != source_period.strip():
+            st.session_state.pop("candidate-context", None)
+            candidate_context = None
+        if st.button("Kandidaatbronnen laden / vernieuwen", key="load-candidate-sources"):
+            st.session_state.pop("candidate-context", None)
+            for key in list(st.session_state):
+                if key.startswith(("proposal-run-", "confirmed-", "pick-")):
+                    del st.session_state[key]
+            try:
+                with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
+                    candidate_context = CandidateContextApplicationService(identity).load(
+                        period=period, source_period=source_period,
+                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
+                st.session_state["candidate-context"] = candidate_context
+                st.rerun()
+            except CandidateSourceError as exc:
+                candidate_context = None
+                st.error(str(exc))
+        if candidate_context is not None:
+            stats = candidate_context.stats
+            st.caption(f"Kandidaatbronnen geladen: {candidate_context.fetched_at:%d-%m-%Y %H:%M}. Programma API: {stats.calls} aanvraag, {stats.retries} herhalingen, {stats.failures} definitieve fouten.")
+            if candidate_context.error:
+                st.error(candidate_context.error)
+            elif stats.retries:
+                st.warning("Programma API tijdelijk instabiel; een herhaalpoging is geslaagd. De wedstrijdcontext is beschikbaar.")
+            else:
+                st.caption("Programma API: technisch geslaagd, ook als Sportlink geen wedstrijden aanlevert.")
+            if candidate_context.signal_counts:
+                with st.expander("Bronmeldingen kandidaatcontext"):
+                    for code, count in candidate_context.signal_counts.items():
+                        st.caption(f"{code}: {count}")
+    ready = demo or (known and candidate_context is not None and candidate_context.error is None)
+    if not ready:
+        st.info("Kandidaten zijn beschikbaar na een geslaagde bronimport en gevalideerde Sportlink-bezetting voor deze periode.")
+    elif selected_service_id is None:
+        st.info("Selecteer eerst één dienst in de tabel hierboven.")
     else:
         service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
         proposal_run_key = f"proposal-run-{selected_service_id}"
         if proposal_run_key not in st.session_state:
             st.session_state[proposal_run_key] = str(uuid4())
         with database.unit_of_work() as uow:
-            cases, planned = _demo_proposals(service, need, matches, planning_app=PlanningApplicationService(identity, uow=uow), proposal_run_id=st.session_state[proposal_run_key])
+            planning_app = PlanningApplicationService(identity, uow=uow)
+            if demo:
+                cases, planned = _demo_proposals(service, need, matches, planning_app=planning_app, proposal_run_id=st.session_state[proposal_run_key])
+            else:
+                try:
+                    candidate_result = CandidateContextApplicationService(identity).propose(
+                        candidate_context, service=service, need=need, planning_app=planning_app,
+                        proposal_run_id=st.session_state[proposal_run_key])
+                    cases, planned = candidate_result.cases, candidate_result.planned
+                except CandidateSourceError as exc:
+                    st.error(str(exc))
+                    cases, planned = (), ()
+        if candidate_result is not None:
+            uncertain = sum(control.status == "niet betrouwbaar beoordeelbaar" for control in candidate_result.controls)
+            if uncertain:
+                st.warning(f"{uncertain} leden niet betrouwbaar beoordeelbaar; deze leveren geen kandidaatvoorstel op. Bekijk de Taakplichtcontrole voor toelichting.")
+            if any(control.status == "afwijking" for control in candidate_result.controls):
+                st.warning("Bij leden wijkt de Sportlink-urenverplichting af van de DVK-afleiding. De actuele Sportlink-urenpositie blijft leidend; bekijk de Taakplichtcontrole voor herbeoordeling.")
         case_by_person = {c.person.person_id: c for c in cases}
         if not planned:
-            if need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
+            if not demo and candidate_result is None:
+                pass  # The explicit source error above is not an empty candidate result.
+            elif need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
             else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
         else:
             st.caption(f"Er zijn nog {need.remaining_capacity} plaatsen beschikbaar. Niet geselecteerde kandidaten blijven beschikbaar voor een volgende planning.")
@@ -265,6 +337,10 @@ def _render_planning():
                     cols[1].write(p.priority_rank); cols[2].write(case_by_person[p.person_id].person.name); cols[3].write(p.team_id or "—"); cols[4].write(p.E)
                     cols[5].write("Min bezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot Max"); cols[6].write(_vriendelijke_wedstrijdcontext(p.match_relation)); cols[7].write(_vriendelijke_waarom(p))
                     with cols[8].popover("⋯"):
+                        if candidate_result is not None:
+                            detail = next(row for row in candidate_result.explanations if row.person_id == p.person_id)
+                            st.caption("Taakplicht: " + detail.why)
+                            st.caption("Prioriteit: " + "; ".join(p.applied_priority_rules))
                         st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
                         with st.form(f"exception-{p.proposal_id}"):
                             label = st.selectbox("Reden", tuple(REJECTION_LABELS), key=f"reasoncat-{p.proposal_id}"); reason = st.text_input("Toelichting", key=f"reason-{p.proposal_id}"); submitted = st.form_submit_button("Uitzondering vastleggen")
@@ -285,15 +361,16 @@ def _render_planning():
                     st.session_state[proposal_run_key] = str(uuid4())
                     st.rerun()
                 except ValueError as exc: st.error(str(exc))
-            confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
-            if confirmed:
-                names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
+        confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
+        if confirmed:
+            names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
 
     st.markdown("### Actieve tijdelijke DVK-inroosteringen")
     st.caption("Deze werkvoorraad telt mee in de planning; de Sportlink-bronbezetting blijft ongewijzigd.")
     with database.unit_of_work() as uow:
         temporary_rows = PlanningApplicationService(identity, uow=uow).temporary_assignment_contexts(
-            persons=tuple(c.person for c in demo_candidate_cases()),
+            persons=(tuple(c.person for c in demo_candidate_cases()) if demo else
+                     candidate_context.source.persons if candidate_context is not None else ()),
         )
     if temporary_rows:
         temporary_labels = {row.assignment.assignment_id: _assignment_label(row) for row in temporary_rows}
@@ -403,7 +480,9 @@ def _render_planning():
         st.success(revocation_result)
 
     st.markdown("### Wedstrijden")
-    if not overview.matches: st.info("Geen wedstrijden in de gekozen periode.")
+    if not demo and (candidate_context is None or candidate_context.error):
+        st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
+    elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
     else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     st.markdown("### Databronnen")
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
