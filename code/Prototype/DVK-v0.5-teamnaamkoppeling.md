@@ -66,10 +66,22 @@ worden gebruikt. `result.program` is alleen de onderliggende datum-/statusaudit 
 wel gekoppelde rijen; gebruik zijn gedeeltelijke matches niet voor planning.
 Afgelaste wedstrijden houden hun audit en blijven buiten operationele matches.
 
-De v0.4-interface `SportlinkProgrammaAdapter` en zijn tests zijn ongewijzigd.
+Het v0.4-contract van `SportlinkProgrammaAdapter` en zijn geaccepteerde tests blijven behouden.
 De nieuwe v0.5-ingang hergebruikt diens read-only aanvraag-, tijd- en statuscontract,
 maar past competitie-ID's alleen in interne kopieën aan naar de opgeloste identiteit.
 De oorspronkelijke invoerrijen blijven onaangetast en bron-ID's staan in `links`.
+
+## Datumcompatibiliteit (correctie lokale acceptatie)
+
+De lokale `python3` is Python 3.9.6; `datetime.fromisoformat` accepteert daar geen
+compacte offsets zoals `+0200`. De adapter normaliseert daarom uitsluitend de
+afsluitende offset naar `+02:00` (ook `+0100` → `+01:00`) vóór het bestaande parsen.
+Net als Rooster2 `normalize_program()` blijft het een tijdzonebewust tijdstip dat
+naar `Europe/Amsterdam` wordt omgerekend. DVK behoudt de tijdzone, inclusief beide
+02:30-tijdstippen tijdens de wintertijdwisseling. De lokale kalenderdatum en
+het UTC-tijdstip blijven behouden; geen extra tijdzonebeleid of pandas-afhankelijkheid.
+Het project declareert nog steeds Python >=3.11; dit is een gerichte
+invoercompatibiliteitscorrectie, geen algemene ondersteuningstoezegging voor 3.9.
 
 ## Regressie en grenzen
 
