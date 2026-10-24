@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** bijgewerkt op 23 oktober 2026; Vrijwilligers API-integratie en BL-16 lokaal geaccepteerd via PR #38; integrale v0.5-acceptatie blijft open.  
+**Status:** bijgewerkt op 24 oktober 2026; PR #41 (Programma-teamkoppeling) en PR #42 (CSV-standaardpaden) lokaal geaccepteerd en gemerged; volledige Programma-integratie en integrale v0.5-acceptatie blijven open.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -12,7 +12,7 @@
 | Afgerond | BL-04 — DVK-portaal | Startscherm en modulenavigatie; lokaal geaccepteerd en [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged. | **Afgerond (19 oktober 2026)** |
 | Voorbereiding afgerond | Vrijwilligers API-responsvalidatie (PR #34) en tijdelijke planning (PR #35) | Ongeldige bronresponsen worden vóór publicatie geweigerd; tijdelijke planning bleef volgens de toen geaccepteerde afspraak behouden bij navigatie en verviel bij procesherstart; deze laatste afspraak is vervangen door het op 22 oktober 2026 geaccepteerde [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). | **Afgerond en lokaal geaccepteerd waar van toepassing; geen volledige live API-integratie** |
 | Afgerond | Integratie Vrijwilligers API en BL-16 — duurzame planningssessies | Actuele Sportlink-inroosteringen en bezetting; bronrevisie, sessiehervatting, bevestigde vervanging, No-Show-selectie en registratie met historie. [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38). | **Lokaal functioneel geaccepteerd (23 oktober 2026); 917 regressietests, CI #332 groen** |
-| 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Apart onderzoeken, implementeren en accepteren** |
+| 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Deelacceptatie PR #41: 141/141 wedstrijden gekoppeld en operationeel; schermintegratie en volledige kandidaatcontext nog open** |
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
 | 5 | Stap 3 — Ledendienst Planning | Taakplicht + Vrijwilligers + Programma + achterstanden combineren voor zinvolle kandidaten, prioriteit, bezetting en tijdelijke planning. | **Na bronacceptaties** |
 | Vervolg | BL-05/06/07/08/09/10/11 | Openstaande besluiten, broncorrecties en integrale processen realiseren of verifiëren volgens backlog; exacte onderlinge volgorde nader bepalen. | **Open / afhankelijkheden** |
@@ -48,8 +48,12 @@ Er bestaan reeds Sportlink Vrijwilligers-client-/adapterbouwstenen in het protot
 
 ### Programma API
 
-De gerichte teamnaamkoppeling van 24 oktober 2026 is via PR #41 gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking; operationele schermintegratie blijft open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
+De gerichte teamnaamkoppeling van 24 oktober 2026 is via [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking. Lokale controle: 141 ontvangen, 141 gekoppeld, 0 bronmeldingen, 141 operationele wedstrijden. Operationele schermintegratie blijft open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
 Onderzoek bestaande client-/adapterbouwstenen en beschikbaarheid van wedstrijdgegevens. Leg teamkoppeling, tijdstippen, thuis/uit, actualiteit en eventuele onvolledigheid expliciet vast voordat kandidaatselectie met deze bron wordt geaccepteerd.
+
+### Lokale Sportlink CSV-exports
+
+[PR #42](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/42) is op 24 oktober 2026 lokaal functioneel geaccepteerd en gemerged. Standaardmap: `$HOME/Documents/DVK-Sportlink-exports/`; vaste bestanden: `Leden.csv`, `Functies.csv`, `Commissies.csv`, `Teams.csv` en `Overzicht per periode.csv`. Het Programma-controlescript vond `Teams.csv` zonder expliciet pad en verwerkte 141/141 wedstrijden; de overige vier bestanden zijn synthetisch getest, niet afzonderlijk met echte exports geaccepteerd. Expliciete paden en handmatige Streamlit-uploads blijven ondersteund. De exports blijven lokaal en worden handmatig ververst.
 
 ### Achterstallige uren (BL-03)
 De planner bevestigt een Excel-overzicht; levering/kolommen moeten nog worden geverifieerd. Koppel betrouwbaar op lidnummer en seizoen; behandel ontbrekende/dubbele regels expliciet. **Beleidswijziging B-13:** vóór implementatie formeel aanpassen van 1 december naar **31 december inclusief** en regressies toevoegen voor de jaargrens. Geen vermenging met verplichte uren A.

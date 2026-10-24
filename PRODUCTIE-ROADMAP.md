@@ -1,10 +1,10 @@
 # DVK — Productieroadmap
 
-**Status:** richtinggevend kader, bijgewerkt op 23 oktober 2026 na PR #38; nog geen goedgekeurd technisch ontwerp of aanbestedings-/hostingbesluit.  
+**Status:** richtinggevend kader, status bijgewerkt op 24 oktober 2026 na PR #41 en #42; nog geen goedgekeurd technisch ontwerp of aanbestedings-/hostingbesluit.  
 **Moment:** na functionele acceptatie van prototype v0.5, met architectuurvoorwaarden die nu al meewegen.  
 **Gerelateerd:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Functionele backlog](BACKLOG.md).
 
-De prototypebaseline omvat sinds [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38) een lokaal geaccepteerde Vrijwilligers API-integratie, duurzame planningssessies en No-Show-historie (SQLite-schema 13). Dit is **geen** productieacceptatie en wijzigt de nog openstaande integrale v0.5-acceptatie of de hieronder beschreven productievoorwaarden niet.
+De prototypebaseline omvat sinds [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38) een lokaal geaccepteerde Vrijwilligers API-integratie, duurzame planningssessies en No-Show-historie (SQLite-schema 13). [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) voegde de lokaal geaccepteerde Programma-teamkoppeling en datumverwerking toe; [PR #42](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/42) standaardiseerde de lokale CSV-exportpaden. De volledige Programma-integratie en integrale v0.5-acceptatie blijven open. Dit is **geen** productieacceptatie en wijzigt de nog openstaande integrale v0.5-acceptatie of de hieronder beschreven productievoorwaarden niet.
 
 ## Doel en afbakening
 
