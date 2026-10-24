@@ -1,6 +1,7 @@
 # DVK v0.5 — Teamnaamkoppeling Teams ↔ Programma
 
-**Technische implementatie ter review, 24 oktober 2026. Geen functionele acceptatie.**
+**PR #41 gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking.**
+De lokale CSV-padstandaardisatie wordt afzonderlijk beoordeeld.
 Baseline: `prototype-v0.5` commit `1a1cd6b`; inhoudelijke basis: lokale verificatie
 24 oktober en de daaropvolgende expliciete implementatieopdracht. v0.4 blijft de
 geaccepteerde releasebaseline; integrale v0.5- en Programma-schermacceptatie blijven open.
@@ -102,11 +103,13 @@ integratie-/acceptatiestap.
 
 ## Lokaal functioneel acceptatiescenario (macOS)
 
-1. Gebruik deze PR-branch in een aparte checkout en de bestaande Pythonomgeving.
+1. Gebruik de te toetsen checkout en de bestaande Pythonomgeving.
    Houd echte exports buiten de repository. Gebruik de bestaande runtime-instelling
    `SPORTLINK_CLIENT_ID`; zet de waarde niet in code, commandohistorie of gedeelde logs.
 2. Voer vanuit `code/Prototype` uitsluitend de read-only controle uit:
-   `python run_programma_team_validation.py --teams "/lokaal/pad/Teams.csv"`.
+   `python run_programma_team_validation.py`.
+   De standaardlocatie en exacte namen staan in [Lokale Sportlink CSV-exports](README.md#lokale-sportlink-csv-exports).
+   Een expliciet bestand blijft toegestaan met `--teams "/lokaal/pad/eigen-export.csv"`.
    De Teams-export blijft lokaal; de Programma-aanroep is een GET en opent geen database.
 3. Controleer de aantallen matched/ambiguous/unmatched en de bronmeldingen. Opnieuw
    ophalen kan andere aantallen geven dan de 148 van de verificatie op 24 oktober.
@@ -119,5 +122,5 @@ integratie-/acceptatiestap.
    kandidaatselectie. Transport/CSV-fout eindigt met code 1; geen bronvervanging.
 6. Controleer de gerichte tests met
    `python -m pytest -q tests/test_programma_team_linking_v05.py`.
-   Functionele beoordeling en acceptatie door CKC volgen afzonderlijk; geen merge
-   of zelfstandig geaccepteerd verklaren op basis van groene tests.
+   De teamnaamkoppeling is via PR #41 geaccepteerd. Vervolgwijzigingen vragen
+   afzonderlijke beoordeling; geen zelfstandige acceptatie op basis van groene tests.
