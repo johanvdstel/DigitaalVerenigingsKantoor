@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime
 from itertools import permutations
+from importlib.util import module_from_spec, spec_from_file_location
+from pathlib import Path
 
 import pytest
 
@@ -216,6 +218,16 @@ def test_resolved_identity_reaches_existing_candidate_selection_without_rule_cha
     assert assessed.match_relation == "away_match_overlaps_service"
 
 
+def validation_command():
+    # CLI scripts are not installed package modules. Load the known repository
+    # file explicitly, independent of `pytest` versus `python -m pytest`.
+    path = Path(__file__).resolve().parents[1] / "run_programma_team_validation.py"
+    spec = spec_from_file_location("local_programma_team_validation", path)
+    command = module_from_spec(spec)
+    spec.loader.exec_module(command)
+    return command
+
+
 @pytest.mark.parametrize("name,matchday,competition,exit_code", [
     ("O17-1", "", "", 0),
     ("2", "Algemeen/Zaterdag", "Mannen zaterdag", 0),
@@ -226,7 +238,7 @@ def test_local_validation_command_is_read_only_and_prints_no_personal_values(
     tmp_path, monkeypatch, capsys, name, matchday, competition, exit_code,
 ):
     from types import SimpleNamespace
-    import run_programma_team_validation as command
+    command = validation_command()
     path = write_csv(tmp_path, "synthetic-teams.csv",
         ["Rel. code", "Team", "Speeldag", "Teamrol", "Spelend lid", "Naam"],
         [["PRIVATE-SYNTHETIC-ID", name, matchday, "Teamspeler", "Ja", "Fictieve Persoon"]])
@@ -243,7 +255,7 @@ def test_local_validation_command_is_read_only_and_prints_no_personal_values(
 
 
 def test_transport_error_does_not_print_credentials(tmp_path, monkeypatch, capsys):
-    import run_programma_team_validation as command
+    command = validation_command()
     from dvk.programma_client import ProgrammaFetchError
     path = write_csv(tmp_path, "synthetic-teams.csv", ["Rel. code", "Team", "Teamrol", "Spelend lid"],
                      [["SYNTHETIC-P1", "O17-1", "Teamspeler", "Ja"]])
