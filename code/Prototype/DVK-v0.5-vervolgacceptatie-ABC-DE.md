@@ -321,3 +321,196 @@ Technische eindverificatie bij deze vervolgstap: **93 gerichte tests geslaagd**,
 `git diff --check` geslaagd. CI wordt na push op dezelfde PR gecontroleerd en
 in de oplevering gemeld. Geen bestaande failures overgebleven; tijdens aanpassing
 gevonden testadapterproblemen zijn opgelost en alle tests opnieuw uitgevoerd.
+
+
+## Praktijkvervolg: selectie, scrollpositie en vertraging (25 oktober 2026)
+
+Vertrekpunt `62da673`, bestaande branch `codex/actuele-kandidaatcontext`,
+PR #44 naar `prototype-v0.5` / `5958b982`. Geen nieuwe PR of merge. De opdrachtgever
+accepteert tabelopmaak, volledig kandidatenaanbod en goedkeuren/undo inhoudelijk;
+de snelheid en het aanvankelijk als dubbele klik gemelde gedrag waren niet geaccepteerd.
+
+### A — Vaststelling en gerichte correctie
+
+**Lokale verduidelijking door opdrachtgever tijdens deze iteratie:** tweemaal
+selecteren reproduceert niet meer. De feitelijke selectie lukt, maar de tabel
+springt omhoog zodat de geselecteerde dienst uit beeld verdwijnt. Een afzonderlijke
+fout die de eerste keuze inhoudelijk negeert is niet bewezen en wordt niet als
+opgeloste oorzaak gepresenteerd.
+
+**Vastgesteld in code:** `_select_service` verhoogde bij iedere keuze
+`services-table-revision`; de editor kreeg steeds een nieuwe key en werd vervangen.
+Daarmee verdween ook de eigen scrollpositie. De oude benchmark injecteerde een
+sessiekeuze rechtstreeks en doorliep deze callback niet; hij kon dat niet bewijzen.
+
+**Correctie op de geteste runtime 1.64.0:** dezelfde `st.data_editor` houdt nu een
+stabiele key zolang dezelfde geordende diensten worden getoond. Alleen Kies
+gebruikt een ondersteunde native `ButtonColumn`: een leeg/aangevinkt vakje is een
+rijactie, geen op te stapelen celbewerking. De callback kiest één dienst of heft
+een klik op de reeds gekozen dienst op. Er is geen tabelreset nodig. Kies blijft
+55 px en vastgezet; alle overige kolommen, breedtes, uitlijning, tooltips,
+volledige Sportlink-namen en 32 px rijhoogte blijven behouden. Geen externe grid,
+JavaScript, nieuwe selectie buiten de tabel of functionele beslislogica toegevoegd.
+De gewijzigde klikweergave moet lokaal nog worden beoordeeld.
+
+Oudere runtimes zonder ButtonColumn behouden de bestaande checkboxfallback;
+behoud van scrollpositie is daarvoor niet geclaimd. De eerder vastgestelde
+onvolledige 1.40-compatibiliteit wordt niet uitgebreid tot een dependencyproject.
+Gebruik Streamlit 1.64.0 voor de heracceptatie.
+
+**Browserverificatie:** met een echte lokale Streamlit-server en de Codex-browser
+naar de diensten onderaan gescrold, gekozen en gewisseld: de betreffende rijen
+bleven zichtbaar. Kandidaatselectie, bevestigen en een browserreload zijn eveneens
+uitgevoerd; na reload werkt een nieuwe keuze direct. De testserver gebruikt alleen
+synthetische CSV-bytes, een gesimuleerd programma en tijdelijke SQLite. De echte
+CKC-exportmap en database zijn door dit onderzoek niet geopend.
+
+### B/C — Aangetoonde schaalbaarheidsoorzaak en herstel
+
+De kleine eerdere benchmark bevatte uitsluitend 250 volwassenen zonder functies.
+Die blijft een vergelijkingspunt, geen verklaring voor de CKC-praktijk. Aanvullend
+zijn 1500 synthetische leden gebruikt, een derde minderjarig en een zesde met een
+functie. Geen werkelijke CKC-populatie of persoonsgegevens gereconstrueerd.
+
+**Vastgesteld:** `compare_required_hours` scande per persoon opnieuw uren,
+meldingen en alle provenance. De taakplichtafleiding herberekende miljoenen keren
+hetzelfde genormaliseerde adres en zocht minderjarigen ook tussen personen van
+andere bekende huishoudens. Bronbewijs werd per persoon weer uit de volledige
+bronverzameling gefilterd. Dit werk herhaalde bij iedere selectie.
+
+**Herstel:** uitsluitend per-aanroep-lookup-tabellen voor bestaande adressen,
+uren, meldingen, teams en provenance; onbekende adressen blijven expliciet in de
+bestaande mogelijke-gezinsvergelijking. Dezelfde gronden, onzekerheden, supporting
+personen en bronvolgorde blijven behouden. Er is geen cache tussen schermacties,
+nieuwe vrijstellingsregel of wijziging van kandidaatselectie/prioritering. Voor
+12, 100 en 250 gemengde synthetische referentieleden zijn de volledige controles
+voor/na exact vergeleken, inclusief gronden, meldingen en bronfeiten. De bestaande
+beleids- en urenregressies blijven ongewijzigd.
+
+**Reruns:** dienstwisseling en kandidaatselectie ieder één scriptpoging.
+Bevestiging gebruikt twee: de bestaande berekening en atomische goedkeuring,
+gevolgd door de expliciete `st.rerun()` voor de bijgewerkte werkvoorraad. Dit is
+geen verborgen CSV/API-verversing. De oude profiler sloeg de vóór die rerun
+onderbroken scriptpoging niet op; het uitgebreide meetinstrument doet dat wel.
+De bevestigingsroute is inhoudelijk niet herschreven.
+
+### Meetresultaten en meetgrenzen
+
+Zelfde Mac, Python 3.11, Streamlit 1.64.0, drie herhalingen per actie, dezelfde
+synthetische populatie per vergelijking. Baselinecode is bevroren uit `62da673`,
+zonder database/exports te kopiëren. Vergelijkingsreeksen voor selectie zijn
+herhaald zonder parallelle tests; de resterende acties zijn eveneens zonder
+parallelle regressietests gemeten. De oude directe sessie-injectie blijft via
+`--legacy-selection` beschikbaar; standaard gebruikt de benchmark nu native events.
+
+| Populatie / handeling | Totale AppTest-tijd vóór → na | Kandidaatberekening vóór → na | Scriptpogingen |
+| --- | ---: | ---: | ---: |
+| 250 volwassenen / dienst | 312 → 144 ms | 182 → 15 ms | 1 |
+| 250 volwassenen / kandidaat | 309 → 143 ms | 182 → 15 ms | 1 |
+| 250 volwassenen / bevestigen | 588 → 252 ms | 366 → 31 ms | 2 |
+| 1500 gemengd / dienst | 14171 → 2548 ms | 14033 → 2411 ms | 1 |
+| 1500 gemengd / kandidaat | 14512 → 2637 ms | 14330 → 2494 ms | 1 |
+| 1500 gemengd / bevestigen | 28686 → 5204 ms | 28454 → 4983 ms | 2 |
+
+Bij 1500 gemengde leden komt dit neer op circa 82% minder totale profieltijd.
+Tijdens deze acties: **0 CSV-herlezingen, 0 Programma-aanvragen**; normalisatie
+wordt niet opnieuw gestart. SQLite execute-tijd circa 4–5 ms per selectie en
+9 ms per bevestiging; schema-validatie circa 3 ms per scriptpoging. De feitelijke
+`approve_many` duurt circa 3 ms. De twee editors samen kosten circa 6 ms per
+scriptpoging en de overige native datatables circa 3 ms. Deze cumulatieve
+functietijden kunnen genest zijn en worden niet als onafhankelijke posten opgeteld.
+De resterende grootste post is taakplicht-/urenafleiding en haar bronbewijs,
+vooral bij veel functies/ondersteunende personen; die wordt bewust vers beoordeeld.
+
+Dit zijn **Python/AppTest/cProfile-tijden inclusief profiler-overhead**, geen
+volledige browserresponstijden. In de aparte browserproef met 250 personen werd
+klik tot bijgewerkte eindmarker gemeten: dienst vóór circa 0,47–0,56 s en na
+circa 0,29–0,46 s; kandidaat circa 0,46 → 0,36 s; bevestiging circa 0,54 → 0,34 s.
+Dit zijn beperkte rookproeven inclusief browserbediening/meetoverhead, geen
+statistisch browserbenchmarkresultaat. Scrollgedrag is visueel gecontroleerd.
+De initiële browserverbinding/navigatie valt buiten deze actietijden.
+
+**Niet bewezen:** de precieze 20 seconden op de ongelezen echte CKC-bronnen.
+Wel bewezen: een omvang-/samenstellingsafhankelijk rekenprobleem en een grote
+verbetering bij dezelfde synthetische werkbelasting. Lokale heracceptatie blijft
+nodig; bronomvang, browser of lokale I/O worden niet zonder meting als schuldige aangewezen.
+
+### Reproduceren en lokale Mac-diagnose
+
+Vanuit de juiste PR-checkout, `code/Prototype`, met de bestaande omgeving:
+
+```bash
+python -B tests/measure_planning_actions.py --members 250
+python -B tests/measure_planning_actions.py --members 1500 --mixed
+python -B tests/serve_synthetic_planning.py --members 1500 --mixed --port 8531
+```
+
+De laatste opdracht start een lokale server op `127.0.0.1:8531`; bronnen/API en
+SQLite blijven synthetisch. De getoonde tijdelijke map bevat `browser-runs.jsonl`:
+één record per scriptpoging, ook voor de onderbroken bevestigingspoging. De caption
+geeft de afgeronde run. Stop met Ctrl-C; de tijdelijke proefmap wordt opgeruimd.
+De benchmark kan met `DVK_BENCHMARK_ROOT` en de browserproef met `--root` naar een
+aparte code-only baseline wijzen. De standaardroute leest nooit de echte exports.
+
+Alleen als een vertraging in de normale lokale app nader moet worden onderzocht:
+
+```bash
+DVK_PLANNING_PROFILE=1 python -m streamlit run streamlit_app.py
+python -c 'from dvk.planning_diagnostics import output_path; print(output_path())'
+```
+
+De tweede opdracht toont de lokale tijdelijke locatie van
+`dvk-planning-profile.jsonl`. De profiler staat zonder de vlag volledig uit.
+Hij schrijft alleen tijden, aantallen, anonieme proces-runvolgorde, UTC-starttijd,
+herkenbare fasecodes en voltooid/rerun/fout; geen argumenten, namen, relatienummers,
+bronwaarden, credentials, volledige bestandspaden of exceptioninhoud. Nieuwe logs
+krijgen lokale bestandsrechten 0600. Niets wordt geüpload. cProfile voegt overhead
+toe; meet de ervaren respons daarnaast met de profiler uit.
+
+Voer één actie tegelijk uit en noteer het tijdstip: dienst kiezen, kandidaat
+selecteren/deselecteren en bevestigen. Fasen onderscheiden CSV lezen/normaliseren,
+broncontext, kandidaat-/urenberekening, database, tabelopbouw en state-operaties;
+`self_ms` groepeert niet-overlappende eigen functietijd. Cumulatieve fasetijden zijn
+genest en mogen niet bij elkaar worden opgeteld. Twee opeenvolgende records rond
+een bevestiging zijn verwacht. Stop de app na de diagnose en start opnieuw zonder
+vlag. De profiler wijzigt geen gegevens; normale expliciete bevestiging/undo houden
+hun bestaande gevolgen. Deel uitsluitend de timingrecords als nadere diagnose nodig is.
+
+### Tests, gewijzigde onderdelen en heracceptatie
+
+- `streamlit_app.py`: stabiele Kies-rijactie en optionele meetgrens, overige layout
+  en publieke applicatieservices behouden.
+- `dvk/member_duty.py`, `dvk/hours_control.py`: dezelfde afleiding met tijdelijke
+  lookup-tabellen, originele bronvolgorde en eigen uren-/meldingsscope.
+- `dvk/planning_diagnostics.py`: standaard uitgeschakelde lokale profiler.
+- `tests/measure_planning_actions.py`, `tests/serve_synthetic_planning.py`:
+  reproduceerbare drie-actieroute, alle scriptpogingen en echte browserproef.
+- `tests/test_planning_selection_events_v05.py`, `test_planning_lookup_regression_v05.py`,
+  `test_planning_diagnostics_v05.py`, `test_planning_browser_harness_v05.py`:
+  9 nieuwe regressiegevallen; herhaald kiezen, na kandidaatkeuze/goedkeuring/undo,
+  bronbewijs/actualiteit, privacy/exceptiongedrag en veilige browserproef.
+- `tests/ui_table_events.py`, `test_planning_tables_performance_v05.py`,
+  `test_planning_ui_names_v05.py`: native rijactieprotocol en bijpassende verwachtingen.
+- Dit verslag en Prototype-README: actuele bediening, meetgrenzen en instructies.
+
+**209 gerichte tests geslaagd; 1133 volledige regressietests geslaagd.**
+Geen bestaande failures overgebleven. Syntax- en diffcontrole volgen vóór commit;
+CI wordt op dezelfde PR gecontroleerd. No-Shows, synchronisatie, broninvoer,
+prioritering, capaciteit en atomische goedkeuring zijn functioneel ongewijzigd;
+geen migratie of werkelijke database-/exportwijziging. De twee bestaande lokale
+wijzigingen in de oorspronkelijke checkout blijven behouden.
+
+Lokale heracceptatie met Streamlit 1.64.0, eerst zonder profiler:
+
+1. Start de bijgewerkte bestaande PR-checkout en hervat de bedoelde planning.
+2. Scroll binnen Diensten omlaag; kies een dienst en daarna rechtstreeks een
+   andere. Alleen de laatste is aangevinkt; rij en kandidaatcontext blijven passend
+   zichtbaar. Controleer ook horizontaal scrollen en de vaste Kies-kolom.
+3. Selecteer/deselecteer kandidaten, selecteer meerdere binnen capaciteit,
+   bevestig en maak ongedaan. Controleer bezetting en bronmeldingen.
+4. Herlaad de pagina, hervat waar nodig en kies opnieuw. Bestaande duurzame
+   planning blijft volgens de bestaande regels behouden; een keuze is geen indeling.
+5. Beoordeel alle drie responstijden. Gebruik bij resterende hinder de optionele
+   timingdiagnose hierboven; een groene CI is geen lokale functionele acceptatie.
+
+PR #44 blijft open en ongemerged. De opdrachtgever accepteert deze correctie afzonderlijk.

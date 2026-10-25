@@ -58,7 +58,7 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     assert "Locatie" not in table.columns
     app.session_state["selected_service_id"] = binding.service.service_id
     app.run()
-    assert app.dataframe[0].value.query("Kies")["service_id"].tolist() == [binding.service.service_id]
+    assert app.dataframe[0].value.query("Kies == '☑'")["service_id"].tolist() == [binding.service.service_id]
     assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
     assert snapshot(db) == before
 

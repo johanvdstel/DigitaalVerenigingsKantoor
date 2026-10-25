@@ -50,3 +50,14 @@ def preserving_editors(original):
     def get_state(node):
         return editor_widget_state(node) or original(node)
     return get_state
+
+
+def choose_service(app, index):
+    target = table(app, "services_editor-")
+    if not target.proto.button_click_widgets:
+        return edit(app, target, {index: {"Kies": True}})
+    states = app._tree.get_widget_states()
+    state = states.widgets.add()
+    state.id = target.proto.button_click_widgets["Kies"]
+    state.string_trigger_value.data = json.dumps({"row": index, "label": target.value.iloc[index]["Kies"]})
+    return app._run(states)

@@ -319,3 +319,10 @@ De geaccepteerde v0.4-baseline en historische cases blijven ongewijzigd.
 Zie voor de actuele PR #44-vervolgbediening, capaciteitsselectie, herleidbare
 bronmeldingen en de daaropvolgende native tabel-/prestatieverbeteringen het
 [vervolgacceptatieverslag](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
+
+
+Voor het praktijkvervolg vanaf `62da673` (stabiele scrollpositie bij dienstkeuze,
+gemeten lookup-optimalisatie en optionele privacyveilige tijdmeting) zie het
+[praktijkverslag en lokale heracceptatie](DVK-v0.5-vervolgacceptatie-ABC-DE.md#praktijkvervolg-selectie-scrollpositie-en-vertraging-25-oktober-2026).
+Alleen de synthetische browserproef starten: `python -B tests/serve_synthetic_planning.py`.
+Deze vervolgstap is technisch getest en wacht op lokale functionele heracceptatie.

@@ -16,6 +16,7 @@ from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
+from dvk.planning_diagnostics import trace_planning
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
 from dvk.planning_session import PlanningSessionApplicationService
 from dvk.proposal_planning import plan_proposals
@@ -109,7 +110,7 @@ def _cancel_period_change():
 def _clear_period_widgets():
     for key in list(st.session_state):
         if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-key", "candidate-load-error"} or key.startswith(
-                ("proposal-run-", "confirmed-", "pick-", "services_editor-", "candidate-table-", "candidate-detail-")):
+                ("proposal-run-", "confirmed-", "pick-", "services_editor-", "service-choice-", "candidate-table-", "candidate-detail-")):
             del st.session_state[key]
 
 
@@ -146,6 +147,18 @@ def _select_service(service_ids, editor_key):
     st.session_state["services-table-revision"] = st.session_state.get("services-table-revision", 0) + 1
 
 
+def _choose_service(service_ids, click_key):
+    """A row action changes only the active UI choice, never the planning."""
+    click = st.session_state[click_key]
+    if click is not None and 0 <= click["row"] < len(service_ids):
+        service_id = service_ids[click["row"]]
+        if st.session_state.get("selected_service_id") == service_id:
+            st.session_state.pop("selected_service_id", None)
+        else:
+            st.session_state["selected_service_id"] = service_id
+
+
+@trace_planning
 def _render_planning():
     st.subheader("Ledendienst Planning")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
@@ -268,10 +281,11 @@ def _render_planning():
     if not overview.services: st.info("Geen diensten in de gekozen periode.")
     else:
         previous_service = st.session_state.get("selected_service_id")
+        row_actions = hasattr(st.column_config, "ButtonColumn")
         bindings = catalog.bindings(period)
         names_by_service = {s.service_id: _sportlink_names(s, bindings, source_bookings)
                             for s in services} if not demo else {s.service_id: "Onbekend" for s in services}
-        rows = [{"Kies": r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
+        rows = [{"Kies": ("☑" if r.service_id == previous_service else "☐") if row_actions else r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
         if not known:
             for row in rows:
                 for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
@@ -287,11 +301,23 @@ def _render_planning():
                             help="Selecteer één dienst; een nieuwe keuze vervangt de vorige.",
                             **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
                         "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
-        editor_key = f"services_editor-{st.session_state.get('services-table-revision', 0)}"
+        service_ids = tuple(row["service_id"] for row in rows)
+        row_key = sha256("\0".join(service_ids).encode()).hexdigest()
+        if row_actions:
+            click_key = f"service-choice-{row_key}"
+            columns["Kies"] = st.column_config.ButtonColumn("Kies", width=55, pinned=True,
+                type="tertiary", help="Kies één dienst. Klik het aangevinkte vakje om de keuze op te heffen.",
+                on_click=_choose_service, args=(service_ids, click_key), key=click_key)
+            editor_key = f"services_editor-stable-{row_key}"
+        else:
+            # Older runtimes lack row actions. Preserve their previous fallback;
+            # stable scrolling is verified for the accepted runtime 1.64.0.
+            editor_key = f"services_editor-{st.session_state.get('services-table-revision', 0)}"
         st.data_editor(pd.DataFrame(rows), hide_index=True, **_table_width_options(), height=210, row_height=32,
                        disabled=[name for name in rows[0] if name != "Kies"], column_config=columns,
-                       key=editor_key, on_change=_select_service,
-                       args=(tuple(row["service_id"] for row in rows), editor_key))
+                       key=editor_key, on_change=None if row_actions else _select_service,
+                       args=None if row_actions else (service_ids, editor_key))
+
         selected_service_id = previous_service if previous_service in service_by_id else None
 
     st.markdown("### Kandidaten en voorstellen")

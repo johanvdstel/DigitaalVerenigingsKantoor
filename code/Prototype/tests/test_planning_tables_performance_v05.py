@@ -6,7 +6,7 @@ from pathlib import Path
 from test_candidate_context_ui_v05 import operational_page
 from test_candidate_context_v05 import IDENTITY
 from dvk.application_services import PlanningApplicationService
-from ui_table_events import table, edit, pick
+from ui_table_events import table, edit, pick, choose_service
 
 
 def active(db):
@@ -18,22 +18,22 @@ def test_service_checkbox_switches_directly_and_deselects_previous(operational_p
     app, db, observed = operational_page
     services = table(app, "services_editor-")
     ids = services.value.service_id.tolist()
-    edit(app, services, {0: {"Kies": False}})
+    choose_service(app, 0)
     assert "selected_service_id" not in app.session_state
-    edit(app, table(app, "services_editor-"), {0: {"Kies": True}})
+    choose_service(app, 0)
     assert app.session_state["selected_service_id"] == ids[0]
     first_proposals = table(app).value.proposal_id.tolist()
     pick(app)  # Choose a candidate, but do not confirm.
-    edit(app, table(app, "services_editor-"), {1: {"Kies": True}})
+    choose_service(app, 1)
     assert not app.exception
     assert app.session_state["selected_service_id"] == ids[1]
-    assert table(app, "services_editor-").value.Kies.tolist() == [False, True] + [False] * (len(ids)-2)
+    assert table(app, "services_editor-").value.Kies.tolist() == ["☐", "☑"] + ["☐"] * (len(ids)-2)
     assert table(app).value.proposal_id.tolist() != first_proposals
     assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     assert not active(db)
     assert len(observed) == 1  # No CSV/API reload on table interaction.
     app.run()
-    assert table(app, "services_editor-").value.Kies.sum() == 1
+    assert (table(app, "services_editor-").value.Kies == "☑").sum() == 1
 
 
 def test_service_table_native_options_and_compact_numbers(operational_page):
