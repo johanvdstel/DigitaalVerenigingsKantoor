@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt op 25 oktober 2026; BL-18 (herstructurering Ledendienst Planning) toegevoegd; BL-10/BL-11 kennen nog resterende integrale verificatie  
+**Status:** bijgewerkt op 25 oktober 2026; PR #44 functioneel geaccepteerd en gemerged; BL-18 (herstructurering Ledendienst Planning) toegevoegd; BL-10/BL-11 kennen nog resterende integrale verificatie  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -48,7 +48,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-18 — Herstructurering scherm Ledendienst Planning (nieuw; nog niet geïmplementeerd)
 
-**Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026. Afzonderlijke UI-iteratie **na functionele acceptatie van PR #44 en vóór integrale functionele acceptatie van prototype v0.5**. De lopende PR #44 blijft ongewijzigd. Nummer BL-17 wordt niet voor dit onderwerp gebruikt; eventuele eerdere reservering afzonderlijk verifiëren.
+**Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026. PR #44 is functioneel geaccepteerd en gemerged naar `prototype-v0.5`. Afzonderlijke UI-iteratie **na functionele acceptatie van PR #44 en vóór integrale functionele acceptatie van prototype v0.5**. De lopende PR #44 blijft ongewijzigd. Nummer BL-17 wordt niet voor dit onderwerp gebruikt; eventuele eerdere reservering afzonderlijk verifiëren.
 
 **Doel:** het scherm Ledendienst Planning onderverdelen in vijf duidelijk gescheiden en gemarkeerde secties:
 
