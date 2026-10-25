@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** bijgewerkt op 24 oktober 2026; PR #41 (Programma-teamkoppeling) en PR #42 (CSV-standaardpaden) lokaal geaccepteerd en gemerged; volledige Programma-integratie en integrale v0.5-acceptatie blijven open.  
+**Status:** bijgewerkt op 25 oktober 2026; BL-18 schermherstructurering ingepland na acceptatie PR #44 en vóór integrale v0.5-acceptatie; overige openstaande acceptaties blijven ongewijzigd.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -16,6 +16,7 @@
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
 | 5 | Stap 3 — Ledendienst Planning | Taakplicht + Vrijwilligers + Programma + achterstanden combineren voor zinvolle kandidaten, prioriteit, bezetting en tijdelijke planning. | **Na bronacceptaties** |
 | Vervolg | BL-05/06/07/08/09/10/11 | Openstaande besluiten, broncorrecties en integrale processen realiseren of verifiëren volgens backlog; exacte onderlinge volgorde nader bepalen. | **Open / afhankelijkheden** |
+| Na acceptatie PR #44, vóór integrale v0.5-acceptatie | BL-18 — Herstructurering Ledendienst Planning | Vijf gescheiden secties: Instellingen, Databronnen, Diensten, Kandidaten, Wedstrijden; behoud bestaande functionaliteit en afzonderlijke lokale UI-acceptatie. | **Afgesproken; nog niet geïmplementeerd** |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder beschikbaar komen en in parallel worden voorbereid. Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's. De API-integraties zijn **twee afzonderlijke ontwikkel- en acceptatiestappen**.
