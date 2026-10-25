@@ -79,6 +79,14 @@ class DutyImportRecord:
 
 
 @dataclass(frozen=True)
+class DiagnosticSourceRecord:
+    dataset: str
+    row_number: int
+    person_id: str
+    values: tuple[tuple[str, str], ...]
+
+
+@dataclass(frozen=True)
 class RealDataImportResult:
     persons: tuple[Person, ...]
     memberships: tuple[Membership, ...]
@@ -91,6 +99,7 @@ class RealDataImportResult:
     signals: tuple[DataQualitySignal, ...]
     source_dates: tuple[tuple[str, date], ...] = ()
     membership_as_of: tuple[tuple[str, bool | None], ...] = ()
+    diagnostic_records: tuple[DiagnosticSourceRecord, ...] = ()
 
     @property
     def function_classification(self) -> FunctionClassificationResult:
@@ -128,7 +137,8 @@ class SportlinkRealDataAdapter:
                      imported_at=None, source_period=None,
                      source_dates: dict[str, date] | None = None, as_of: date | None = None,
                      previous_planning_date: date | None = None,
-                     previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
+                     previous_source_dates: dict[str, date] | None = None,
+                     isolate_person_errors: bool = False) -> RealDataImportResult:
         """Read standard local exports unless an explicit path/stream is supplied.
 
         Explicit duty_path=None retains the existing no-hours-import contract.
@@ -154,6 +164,21 @@ class SportlinkRealDataAdapter:
                      if duty_path is not None else [])
         team_rows = self.read_rows(teams_path, "teams")
 
+        # Keep only fields needed for source diagnostics, including rejected rows.
+        fields = {
+            "leden": ("Rel. code", "Naam", "Lidstatus", "Afmelddatum", "Lidsoort", "Geb.dat.", "Geboortedatum"),
+            "functies": ("Rel. code", "Functie", "Begindatum", "Einddatum"),
+            "commissies": ("Rel. code", "Commissie", "Functie", "Begindatum", "Einddatum"),
+            "teams": ("Rel. code", "Team", "Teamsoort", "Teamrol", "Spelend lid", "Speeldag"),
+            "vrijwilligers_periode": tuple(sorted(self.REQUIRED_COLUMNS["vrijwilligers_periode"])),
+        }
+        diagnostic_records = tuple(DiagnosticSourceRecord(dataset, index, self.value(row,
+            "Relatiecode" if dataset == "vrijwilligers_periode" else "Rel. code"),
+            tuple((field, row[field]) for field in fields[dataset] if field in row))
+            for dataset, rows in (("leden", member_rows), ("functies", function_rows),
+                                  ("commissies", committee_rows), ("teams", team_rows),
+                                  ("vrijwilligers_periode", duty_rows))
+            for index, row in enumerate(rows, 1))
         grouped: dict[str, list[dict[str, str]]] = {}
         for row in member_rows:
             pid = self.value(row, "Rel. code")
@@ -189,7 +214,15 @@ class SportlinkRealDataAdapter:
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = False  # B-02: only a qualifying Teams row proves bond-team participation
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum")),
+            try:
+                birth_date = self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))
+            except ValueError:
+                if not isolate_person_errors:
+                    raise
+                signals.append(DataQualitySignal("INVALID_BIRTH_DATE", "ERROR", "leden", pid,
+                                                 "Ongeldige geboortedatum; persoon niet betrouwbaar te verwerken"))
+                continue
+            persons.append(Person(pid, self.value(row, "Naam"), birth_date,
                                   sportlink_name=self.sportlink_name(row),
                                   postal_code=self.value(row, "Postcode") or None,
                                   house_number=self.value(row, "Huisnummer") or None,
@@ -348,7 +381,7 @@ class SportlinkRealDataAdapter:
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
-                                    tuple(sorted(source_dates.items())), tuple(membership_as_of))
+                                    tuple(sorted(source_dates.items())), tuple(membership_as_of), diagnostic_records)
 
     @classmethod
     def read_rows(cls, path: str | Path | None, dataset: str) -> list[dict[str, str]]:

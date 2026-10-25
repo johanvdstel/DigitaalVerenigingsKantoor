@@ -175,7 +175,8 @@ def validate_season(value: str) -> str:
     return value
 
 
-def load_duty_dashboard(exports: dict[str, bytes], *, as_of: date, source_period: str):
+def load_duty_dashboard(exports: dict[str, bytes], *, as_of: date, source_period: str,
+                        isolate_person_errors: bool = False):
     """Use the existing adapter with in-memory text streams; never persist uploads."""
     if not source_period.strip():
         raise ValueError("Vul de periode of het seizoen van Overzicht per periode in.")
@@ -204,7 +205,8 @@ def load_duty_dashboard(exports: dict[str, bytes], *, as_of: date, source_period
         if dataset == "leden":
             member_rows = rows
     try:
-        source = SportlinkRealDataAdapter().load_exports(**streams, as_of=as_of, source_period=source_period.strip())
+        source = SportlinkRealDataAdapter().load_exports(**streams, as_of=as_of, source_period=source_period.strip(),
+                                                       isolate_person_errors=isolate_person_errors)
     except (ValueError, csv.Error, TypeError, AttributeError):
         raise ValueError("De CSV's bevatten een onleesbare regel of ongeldige bronwaarde. Controleer de exports, waaronder datums en kolomwaarden.") from None
     selection = select_population(member_rows, source, as_of)

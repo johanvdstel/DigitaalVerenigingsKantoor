@@ -216,7 +216,7 @@ Vanaf 13 september 2026 geldt:
 
 ## v0.5 — Teamnaamkoppeling Programma
 
-De v0.5-ingang is `CkcProgrammaAdapter`, met teamlidmaatschappen uit de CKC Teams-export. De historische `SportlinkProgrammaAdapter` blijft de v0.4-interface. Gebruik voor kandidaatcontext de gecontroleerde `result.matches` en `result.team_memberships`, niet de interne auditweergave. Naamkoppeling, bronmeldingen, read-only lokale verificatie en acceptatiegrenzen staan in [DVK-v0.5-teamnaamkoppeling.md](DVK-v0.5-teamnaamkoppeling.md). De Ledendienst Planning gebruikt hiermee nog niet automatisch live Programma-data.
+De v0.5-ingang is `CkcProgrammaAdapter`, met teamlidmaatschappen uit de CKC Teams-export. De historische `SportlinkProgrammaAdapter` blijft de v0.4-interface. Gebruik voor kandidaatcontext de gecontroleerde `result.matches` en `result.team_memberships`, niet de interne auditweergave. Naamkoppeling, bronmeldingen, read-only lokale verificatie en acceptatiegrenzen staan in [DVK-v0.5-teamnaamkoppeling.md](DVK-v0.5-teamnaamkoppeling.md). De operationele aansluiting in PR #44 is beschreven bij de actuele kandidaatcontext; integrale v0.5-acceptatie blijft open.
 
 ## Lokale Sportlink CSV-exports
 
@@ -246,16 +246,14 @@ De enige definitie voor standaardmap en bestandsnamen staat in
 | `SportlinkRealDataAdapter.read_rows(path, dataset)` | Een expliciet pad blijft werken; `path=None` leest het bijbehorende standaardbestand. |
 | `SportlinkRealDataAdapter.load_exports(...)` | Weggelaten paden lezen de vijf standaardbestanden. Elk expliciet pad of bestaande tekststream heeft voorrang. **Expliciet `duty_path=None` blijft de urenimport overslaan**, zoals in de bestaande taakplichtafleiding. |
 | `run_programma_team_validation.py` | Zonder `--teams` wordt het standaard Teams-bestand gebruikt. `--teams` blijft een expliciet bestand van iedere locatie/naam accepteren; `--details` is ongewijzigd. |
-| Streamlit Taakplichtcontrole | De vijf bestaande uploads blijven handmatig; standaardmap en verwachte namen worden bij de bediening getoond. Geen automatische lokale import bij starten/navigeren. |
-| Streamlit Databronnen / persoonskoppeling | De bestaande Leden-upload blijft handmatig en toont de standaardlocatie als aanwijzing. Synchronisatie- en uploadlevensduur zijn ongewijzigd. |
+| Streamlit Taakplichtcontrole | In PR #44: automatisch lezen bij functiegebruik; Brongegevens vernieuwen herleest de map. Bestanden en laadtijd zijn zichtbaar; geen vijf uploads meer. |
+| Streamlit Databronnen / persoonskoppeling | In PR #44: Leden.csv wordt opnieuw uit dezelfde map gelezen bij expliciete synchronisatie. Persoonskoppeling en synchronisatiegevolgen blijven behouden. |
 | Historische `SportlinkCsvImportAdapter.load_directory(...)` en `run_import_cases.py` | Ongewijzigd: v0.3 gebruikt geaccepteerde Engelstalige fixtures met **andere kolommen**, waaronder `members.csv`, `duty_hours.csv` en `teams.csv`. Dit zijn niet de vijf werkelijke Sportlink-exports. |
 | Configuratie-CSV's (functiemapping, dienstencatalogus) | Ongewijzigd: dit zijn versiebeheerde configuratiebestanden, geen lokale exports. |
 | Tests en voorbeelden | Historische geaccepteerde namen/fixtures blijven intact. Nieuwe padtests gebruiken uitsluitend synthetische exports in tijdelijke mappen. |
 
 Er waren geen vaste Downloads-paden of andere hardgecodeerde persoonlijke
-exportlocaties in de onderzochte repository. De bestaande presenter verwerkt
-uploads in geheugen; die route leest geen standaardbestanden als vervanging van
-ontbrekende uploads. Periode/seizoen blijft de bestaande expliciete invoer.
+exportlocaties in de onderzochte repository. De bestaande presenter verwerkt tekststreams in geheugen; in PR #44 levert de gedeelde lokale bronservice die streams. Expliciete Python-paden/streams blijven ondersteund. Periode/seizoen blijft de bestaande expliciete invoer.
 
 ### Lokale controle en foutmeldingen
 
@@ -295,8 +293,8 @@ zijn ongewijzigd.
 Voor lokale acceptatie: plaats de vijf bestanden in de Finder-map, voer de
 bovenstaande controle zonder `--teams` uit en vergelijk die met een run met een
 expliciet Teams-pad. Controleer team 2, Rijnmond Cup, datum/tijd en bronmeldingen
-zoals bij de geaccepteerde PR #41. Controleer in Streamlit dat uploads nog handmatig
-nodig zijn. Gebruik voor een ontbrekend-bestandproef uitsluitend een synthetisch
+zoals bij de geaccepteerde PR #41. Controleer in Streamlit dat de lokale bronnen bij functiegebruik worden ingelezen
+en dat Brongegevens vernieuwen ze opnieuw leest. Gebruik voor een ontbrekend-bestandproef uitsluitend een synthetisch
 of niet-bestaand expliciet pad; verwijder geen echte exports.
 
 De standaardmap ligt buiten de repository. Gerichte Git-ignorepatronen beschermen
@@ -306,3 +304,25 @@ blijven zichtbaar en ongewijzigd. Plaats echte exports nooit in Git, tests of ge
 
 Root README, backlog en productieroadmap bevatten geen lokale bestandsnamen die
 moeten veranderen; er wordt geen productieopslag of nieuwe importworkflow vastgelegd.
+
+
+## Operationele kandidaatcontext — ontwikkeling v0.5
+
+De werkbranch `codex/actuele-kandidaatcontext` sluit de vijf lokale exports en de
+Programma API aan op de bestaande kandidaten- en voorstelketen. De v0.5-taakplicht
+wordt op de dienstdatum afgeleid; BL-03 wordt niet toegepast. Technisch geldige
+Programma-lijsten, ook lege, worden vertrouwd volgens het CKC-besluit. Zie de
+[werking, beperkingen en lokale acceptatiestappen](DVK-v0.5-actuele-kandidaatcontext.md).
+De geaccepteerde v0.4-baseline en historische cases blijven ongewijzigd.
+
+
+Zie voor de actuele PR #44-vervolgbediening, capaciteitsselectie, herleidbare
+bronmeldingen en de daaropvolgende native tabel-/prestatieverbeteringen het
+[vervolgacceptatieverslag](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
+
+
+Voor het praktijkvervolg vanaf `62da673` (stabiele scrollpositie bij dienstkeuze,
+gemeten lookup-optimalisatie en optionele privacyveilige tijdmeting) zie het
+[praktijkverslag en lokale heracceptatie](DVK-v0.5-vervolgacceptatie-ABC-DE.md#praktijkvervolg-selectie-scrollpositie-en-vertraging-25-oktober-2026).
+Alleen de synthetische browserproef starten: `python -B tests/serve_synthetic_planning.py`.
+Deze vervolgstap is technisch getest en wacht op lokale functionele heracceptatie.

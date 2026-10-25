@@ -22,13 +22,29 @@ class RequiredHoursControl:
 
 def compare_required_hours(source: RealDataImportResult, as_of: date,
                            policy: DutyPolicy | None = None) -> tuple[RequiredHoursControl, ...]:
+    records_by_person, provenance_by_person = {}, {}
+    general_signals, member_signals, hours_signals = [], {}, {}
+    for record in source.duty_records:
+        records_by_person.setdefault(record.registration.person_id, []).append(record)
+    for fact in source.provenance:
+        if fact.source_dataset == "vrijwilligers_periode":
+            provenance_by_person.setdefault(fact.source_record_key.split(":", 1)[0], []).append(fact)
+    for index, signal in enumerate(source.signals):
+        if signal.record_key is None:
+            general_signals.append((index, signal))
+        else:
+            target = hours_signals if signal.dataset == "vrijwilligers_periode" else member_signals
+            target.setdefault(signal.record_key.split(":", 1)[0], []).append((index, signal))
     results = []
     for expectation in source.derive_member_duties(as_of, policy):
         pid = expectation.person_id
-        records = tuple(r for r in source.duty_records if r.registration.person_id == pid)
+        records = tuple(records_by_person.get(pid, ()))
         support_ids = {getattr(f, "person_id", pid) for f in expectation.source_facts}
-        signals = tuple(s for s in source.signals if s.record_key is None
-                        or s.record_key.split(":", 1)[0] in support_ids)
+        # Another household/function subject can supply exemption evidence,
+        # but that subject's hours never determine this person's A/B/C/D/E.
+        selected_signals = general_signals + hours_signals.get(pid, [])
+        selected_signals += [entry for sid in support_ids for entry in member_signals.get(sid, ())]
+        signals = tuple(signal for _, signal in sorted(selected_signals, key=lambda entry: entry[0]))
         additional = []
         if not records:
             additional.append(DataQualitySignal("MISSING_DUTY_POSITION", "ERROR", "vrijwilligers_periode", pid,
@@ -46,8 +62,7 @@ def compare_required_hours(source: RealDataImportResult, as_of: date,
             status = "afwijking"
             additional.append(DataQualitySignal("REQUIRED_HOURS_REASSESSMENT", "WARNING", "vrijwilligers_periode", pid,
                                                 "DVK verwachte A verschilt van menselijk vastgestelde Sportlink A; herbeoordeling nodig"))
-        provenance = tuple(p for p in source.provenance if p.source_dataset == "vrijwilligers_periode"
-                           and p.source_record_key.split(":", 1)[0] == pid)
+        provenance = tuple(provenance_by_person.get(pid, ()))
         results.append(RequiredHoursControl(pid, status, expectation.expected_required_hours, registered,
                                             expectation, records, signals + tuple(additional), provenance))
     return tuple(results)

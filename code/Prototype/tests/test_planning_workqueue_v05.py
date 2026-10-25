@@ -1,4 +1,5 @@
 """Issue #12: FR-02–05; temporary planning never fabricates Sportlink facts."""
+from ui_table_events import table, pick
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date, datetime, timedelta
@@ -290,26 +291,26 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     app.session_state["selected_service_id"] = "BAR-WO-1"
     app.run()
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
-    app.checkbox[0].check().run()
+    pick(app)
     assert state(db)[2] == ()  # Selecting alone is not human confirmation.
     next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
     assert not app.exception
     assert app.dataframe[0].value.iloc[0]["Open minimum"] == 0
     assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 1
     assert len(state(db)[2]) == 1
-    assert not any("W08P" in w.key for w in app.checkbox)
+    assert not any("W08P" in pid for pid in table(app).value.proposal_id)
     # Minimum reached: a second explicit confirmation can still fill maximum.
-    app.checkbox[0].check().run()
+    pick(app)
     next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
     assert not app.exception
     assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 0
     assert len(state(db)[2]) == 2
-    assert not app.checkbox
+    assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
     assert len(state(db)[2]) == 1
-    assert any("W08P" in w.key for w in app.checkbox)
-    app.checkbox[0].check().run()
+    assert any("W08P" in pid for pid in table(app).value.proposal_id)
+    pick(app)
     next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
     assert not app.exception
     assert len(state(db)[2]) == 2

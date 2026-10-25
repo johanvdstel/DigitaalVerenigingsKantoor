@@ -162,3 +162,47 @@ CKC heeft op **2 oktober 2026** de herijkte functionele baseline B-01–B-14 en 
 - `code/Prototype/FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` — bestaande afspraken na Gate 10.
 - `code/Prototype/dvk/real_data_import.py` en `code/Prototype/dvk/duty.py` op ontwikkelbranch `prototype-v0.5` — uitgangspunt voor de gecontroleerde implementatieafwijkingen.
 - De in de herijkingsgesprekken inhoudelijk geaccepteerde besluiten B-01–B-14 en V-01–V-05.
+
+
+## Aanvulling 25 oktober 2026 — operationele kandidaten bij bronafwijkingen
+
+Vastgesteld voor de kandidaatroute van PR #44 (lokale heracceptatie nog uit te
+voeren): `Lidstatus = Definitief` is noodzakelijk, maar niet voldoende. De
+bestaande afmeld-/peildatum-, deelname-, taakplicht-, vrijstellings- en
+kandidaatcriteria blijven gelden. Andere lidstatussen, waaronder `Afgemeld` en
+`Overschrijving spelactiviteit`, leveren geen operationeel kandidaatvoorstel op.
+Dit verandert de historische interpretatie van bronregistraties niet.
+
+Persoonsgebonden fouten blokkeren niet de gehele kandidaatselectie. Bij
+tegenstrijdige gegevens of onzekere koppeling wordt alleen de betreffende
+onbetrouwbare beoordeling uitgesloten; relevante diagnostiek blijft beschikbaar.
+Dubbele bronregels geven geen dubbele kandidaten of dubbele urentoekenning.
+Verschillende beëindigde registraties van dezelfde relatiecode hoeven niet eerst
+administratief gecorrigeerd te worden om andere personen te beoordelen.
+
+Uren blijven via relatiecode gekoppeld. Gelijke namen zijn alleen relevant voor
+onderdelen die daadwerkelijk op naam koppelen: daar is geen automatische keuze
+bij meerdere mogelijke personen. Een bestaande betrouwbare relatiecodekoppeling
+wordt niet door een nieuwe naamkoppeling vervangen. Technisch ontbrekende,
+onleesbare of structureel onbruikbare bronnen mogen de import blijven blokkeren.
+
+Zie [uitwerking en heracceptatie PR #44](DVK-v0.5-actuele-kandidaatcontext.md#vervolgbesluit-pr-44--persoonsgebonden-afwijkingen-25-oktober-2026).
+
+
+## Aanvulling PR #44 — kandidaatkeuze en lokale broninvoer (25 oktober 2026)
+
+Het kandidatenaanbod omvat alle geschikte kandidaten in de bestaande rangorde.
+Vrije capaciteit begrenst de te bevestigen selectie, niet de keuzelijst. De
+bestaande menselijke batchgoedkeuring en controles op conflicten/duplicaten
+blijven bepalend. Een lagere rang maakt een geschikte kandidaat niet ongeschikt.
+
+Bronmeldingen zijn lokaal tot relevante registraties en afwijkende waarden
+herleidbaar, met afzonderlijke regels bij duplicaten. Geen automatische correctie.
+De vijf vaste lokale CSV's worden bij functiegebruik automatisch gelezen;
+Brongegevens vernieuwen leest ze expliciet opnieuw. Bestanden en laadtijd worden
+getoond. Kandidaten en taakplichtcontrole delen de invoer, niet hun afzonderlijke
+beoordelingscontract. Technische fouten tonen geen oude uitslag als actueel;
+bronbestanden blijven ongewijzigd. Prototypevoorziening, geen productiearchitectuur.
+
+Zie [implementatie A/B/C en onderzoek D/E](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
+Lokale functionele acceptatie van deze implementatie volgt nog afzonderlijk.

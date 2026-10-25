@@ -256,10 +256,24 @@ class PlanningApplicationService:
         by_id = {service.service_id: service for service in services}
         return tuple(planning_staffing(by_id[need.service_id], need, active) for need in source_needs)
 
-    def assess_candidates(self, *, cases, service, team_memberships, matches, today):
+    def assess_candidates(self, *, cases, service, team_memberships, matches, today, duty_qualifications=None):
         active = self.active_planning()
         return tuple(assess_candidate(case, service, team_memberships, matches, today,
-                                      active_planning=active) for case in cases)
+                                      active_planning=active,
+                                      qualification=(None if duty_qualifications is None else
+                                                     duty_qualifications[case.person.person_id])) for case in cases)
+
+    def selection_problem(self, *, person_ids, service, staffing_need):
+        """Present the existing selection guard; approval rechecks atomically."""
+        try:
+            validate_planning_selection(tuple(person_ids), service, staffing_need, self.active_planning())
+        except ValueError as exc:
+            messages = {
+                "selection exceeds remaining service capacity": "U heeft meer kandidaten geselecteerd dan er plaatsen beschikbaar zijn.",
+                "a person can only be selected once for the same service": "Een kandidaat kan maar één keer voor dezelfde dienst worden geselecteerd.",
+            }
+            return messages.get(str(exc), str(exc))
+        return None
 
     def temporary_assignment_contexts(self, *, persons=()) -> tuple[AssignmentContext, ...]:
         return tuple(_assignment_context(entry.assignment, (entry.service,), persons)

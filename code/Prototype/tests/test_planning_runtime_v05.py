@@ -218,4 +218,5 @@ def test_failed_ui_period_delete_retains_old_session_and_navigation(tmp_path, mo
     assert not app.exception and app.error
     assert rows(db) == before
     app.button(key='nav-control').click().run()
-    assert not app.exception and len(app.get('file_uploader')) == 5
+    assert not app.exception and not app.get('file_uploader')
+    assert app.button(key='refresh-duty-sources')

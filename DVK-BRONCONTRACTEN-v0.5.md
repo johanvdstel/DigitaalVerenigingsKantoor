@@ -170,6 +170,17 @@ aanvangstijd,status,accommodatie,veld,locatie,plaats
 
 **Basis:** `programma_adapter.py`, `programma_client.py`, `programma_team_adapter.py`, `team_linking.py`, v0.4-baseline en naamkoppelopdracht 24 oktober 2026.
 
+### Operationeel besluit Programma — actuele kandidaatcontext (24 oktober 2026)
+
+CKC vertrouwt technisch geslaagde Programma-aanvragen met een geldige lijst,
+ook een lege lijst. DVK controleert geen volledigheid, periode-dekking,
+aantallen of mogelijke afkapping. De planner blijft verantwoordelijk voor de
+beoordeling in wedstrijdcontext. Technische fouten, lege HTTP-body's en
+API-foutobjecten zijn geen bewijs voor nul wedstrijden: zij worden zichtbaar
+gemeld en leveren geen kandidaatvoorstellen. Transportherhalingen volgen de
+bestaande Rooster2-aanpak. Zie [uitwerking en lokale acceptatie](code/Prototype/DVK-v0.5-actuele-kandidaatcontext.md).
+Dit besluit accepteert niet het overige conceptcontract of de volledige v0.5.
+
 ## 10. Overkoepelende import- en bronregels
 
 1. **Relatiesleutel:** `Rel. code` in vier exports, `Relatiecode` in Overzicht per periode; niet koppelen op alleen naam. API Vrijwilligers vereist aparte verificatie van betrouwbare persoonsmatching.

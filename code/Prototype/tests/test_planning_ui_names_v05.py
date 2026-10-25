@@ -58,7 +58,7 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     assert "Locatie" not in table.columns
     app.session_state["selected_service_id"] = binding.service.service_id
     app.run()
-    assert app.dataframe[0].value.query("Kies")["service_id"].tolist() == [binding.service.service_id]
+    assert app.dataframe[0].value.query("Kies == '☑'")["service_id"].tolist() == [binding.service.service_id]
     assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
     assert snapshot(db) == before
 
@@ -132,11 +132,13 @@ def test_source_controls_under_databronnen_and_no_show_roundtrip(tmp_path, monke
     # Rendered element order must put source controls after Databronnen, not under No-shows.
     nodes = list(app.main)
     headers = {n.value: i for i, n in enumerate(nodes) if n.type == "markdown" and n.value.startswith("### ")}
-    upload = next(i for i, n in enumerate(nodes) if n.type == "file_uploader")
+    upload = next(i for i, n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
     assert headers["### No-shows"] < headers["### Databronnen"] < upload
-    assert any("opnieuw na een schermwisseling" in c.value for c in app.caption)
+    assert any("Leden.csv wordt bij synchroniseren opnieuw" in c.value for c in app.caption)
+    from dvk.sportlink_exports import export_path
+    export_path("leden").unlink()
     app.button[ next(i for i,b in enumerate(app.button) if b.label == "Sportlink-inroosteringen synchroniseren") ].click().run()
-    assert any(e.value == "Selecteer de Leden-CSV voor persoonskoppeling." for e in app.error)
+    assert any("Leden.csv" in e.value and "ontbreekt" in e.value for e in app.error)
     catalog = load_shift_catalog()
     binding = catalog.bindings(PERIOD)[0]
     assert sync(db, catalog, {binding.task_code: [row(binding.service, people()[0])]})[0] is None
@@ -162,8 +164,11 @@ def test_moved_sync_uses_existing_service_with_same_arguments_and_messages(tmp_p
     raw = [row(binding.service, people()[0])]
     seen = []
     synthetic = client({binding.task_code: TimeoutError("synthetic-client") if mode == "transport" else raw}, seen)
-    monkeypatch.setattr(st, "file_uploader", lambda *a, **k: SimpleNamespace(
-        getvalue=lambda: b'\xff' if mode == "decode" else b'synthetic CSV'))
+    def read_local(dataset):
+        if mode == "decode":
+            raise ValueError("Leden.csv: synthetisch onleesbaar bestand")
+        return "synthetic CSV"
+    monkeypatch.setattr("dvk.local_csv_sources.read_export_text", read_local)
     monkeypatch.setattr(members.SportlinkRealDataAdapter, "read_volunteer_persons", lambda text: people())
     monkeypatch.setattr(transport, "SportlinkVrijwilligersClient", lambda *a, **k: synthetic)
     monkeypatch.setenv("SPORTLINK_CLIENT_ID", "synthetic-client")

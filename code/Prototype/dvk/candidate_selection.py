@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, time, timedelta
 
 from .duty import derive_duty_qualification, derive_executor_category
-from .model import PrototypeCase
+from .model import DutyQualification, PrototypeCase
 from .planning_workqueue import TemporaryPlanning, assess_planning_availability
 from .workstream_model import CandidateAssessment, DutyService, Match, TeamMembership
 
@@ -61,9 +61,12 @@ def _assess_candidate(
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
+    qualification: DutyQualification | None = None,
 ) -> CandidateAssessment:
     """Assess candidate eligibility using the Gate-8 youth/senior match decision tree."""
-    qualification = derive_duty_qualification(case, today)
+    qualification = qualification or derive_duty_qualification(case, today)
+    if qualification.person_id != case.person.person_id:
+        raise ValueError("qualification belongs to a different person")
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
 
@@ -136,9 +139,10 @@ def assess_candidate(
     matches: tuple[Match, ...],
     today: date,
     *, active_planning: tuple[TemporaryPlanning, ...] = (),
+    qualification: DutyQualification | None = None,
 ) -> CandidateAssessment:
     return assess_planning_availability(
-        _assess_candidate(case, service, team_memberships, matches, today),
+        _assess_candidate(case, service, team_memberships, matches, today, qualification),
         service, active_planning,
     )
 

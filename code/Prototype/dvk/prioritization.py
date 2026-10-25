@@ -25,6 +25,7 @@ def prioritize_candidates(
     cases: tuple[PrototypeCase, ...],
     on_date: date,
     previous_season_backlog: dict[str, int] | None = None,
+    *, apply_previous_season: bool = True,
 ) -> tuple[CandidatePriority, ...]:
     """Rank candidates transparently: E, previous backlog before Dec 1, context.
 
@@ -33,7 +34,7 @@ def prioritize_candidates(
     """
     cases_by_person = {case.person.person_id: case for case in cases}
     backlog = previous_season_backlog or {}
-    consider_previous = _previous_backlog_is_relevant(on_date)
+    consider_previous = apply_previous_season and _previous_backlog_is_relevant(on_date)
 
     rows = []
     for assessment in assessments:
@@ -55,8 +56,10 @@ def prioritize_candidates(
         explanation = [f"actuele E={remaining}"]
         if consider_previous:
             explanation.append(f"achterstand vorig seizoen={previous}")
-        else:
+        elif apply_previous_season:
             explanation.append("achterstand vorig seizoen niet meegewogen vanaf 1 december")
+        else:
+            explanation.append("achterstand vorig seizoen niet beschikbaar: BL-03")
         explanation.append(f"wedstrijdvoorkeur={assessment.preference}")
         result.append(
             CandidatePriority(

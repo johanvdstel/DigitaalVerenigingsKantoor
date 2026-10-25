@@ -27,8 +27,8 @@ def control_visible(app):
     assert any('Taakplichtcontrole — read-only' in item.value for item in app.markdown)
     assert app.radio(key='duty-control-filter').options == [
         'Alle', 'Alleen afwijkingen', 'Alleen niet betrouwbaar beoordeelbaar']
-    assert len([item for item in app.get('file_uploader')
-                if item.key and item.key.startswith('duty-control-')]) == 5
+    assert not app.get('file_uploader')
+    assert app.button(key='refresh-duty-sources').label == 'Brongegevens vernieuwen'
 
 
 @pytest.mark.parametrize('schema', ['missing_table', 'earlier_version_12'])
@@ -96,8 +96,7 @@ def test_five_uploads_render_without_sqlite_or_sportlink_access(tmp_path, monkey
     monkeypatch.setattr(SQLiteDatabase, 'initialize', unavailable)
     monkeypatch.setattr(sqlite3, 'connect', forbidden)
     monkeypatch.setattr(SportlinkVrijwilligersClient, 'fetch_rows', forbidden)
-    monkeypatch.setattr(st, 'file_uploader', lambda label, **kwargs:
-                        BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', lambda dataset: files[dataset].decode('utf-8-sig'))
     app = AppTest.from_file(str(path))
     app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-period'] = '2026-2027'

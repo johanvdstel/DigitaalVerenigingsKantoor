@@ -181,26 +181,19 @@ def test_cli_missing_standard_file_reports_location_before_network(local_home, m
     assert "SYNTHETIC-SECRET" not in output
 
 
-def test_ui_explains_standard_exports_but_preserves_manual_uploads(standard_exports, tmp_path, monkeypatch):
-    def forbidden(*args, **kwargs):
-        raise AssertionError("UI must not automatically read local exports")
-    monkeypatch.setattr(SportlinkRealDataAdapter, "read_rows", forbidden)
-    monkeypatch.setattr(SportlinkRealDataAdapter, "load_exports", forbidden)
+def test_ui_reads_standard_exports_without_manual_uploads(standard_exports, tmp_path, monkeypatch):
     path = tmp_path / "streamlit_app.py"
     path.write_text((ROOT / "streamlit_app.py").read_text())
     app = AppTest.from_file(str(path), default_timeout=20).run()
     assert not app.exception and not app.get("file_uploader")
     app.button(key="nav-control").click().run()
-    assert not app.exception
-    assert len(app.get("file_uploader")) == 5
-    assert all(app.session_state[widget.key] is None for widget in app.get("file_uploader"))
+    assert not app.exception and not app.get("file_uploader")
     captions = "\n".join(item.value for item in app.caption)
     assert str(default_export_directory()) in captions
     assert all(name in captions for name in EXPORT_FILENAMES.values())
+    assert app.button(key="refresh-duty-sources").label == "Brongegevens vernieuwen"
     app.button(key="nav-planning").click().run()
-    assert not app.exception
-    assert len(app.get("file_uploader")) == 1
-    assert any(item.value == export_location_hint(("leden",)) for item in app.caption)
+    assert not app.exception and not app.get("file_uploader")
 
 
 @pytest.mark.parametrize("ignorecase", ["true", "false"])
