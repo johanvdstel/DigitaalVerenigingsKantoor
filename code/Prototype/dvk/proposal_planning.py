@@ -17,8 +17,12 @@ class PlannedProposal:
 def plan_proposals(
     proposals: tuple[AssignmentProposal, ...],
     staffing_need: StaffingNeed,
+    *, offer_all: bool = False,
 ) -> tuple[PlannedProposal, ...]:
-    """Offer ranked proposals up to maximum capacity, distinguishing V06 purpose.
+    """Rank proposals with V06 purpose; offer_all preserves the planner's choice.
+
+    Default capacity truncation is retained for historical callers. Operation/UI
+    callers offer all suitable choices; existing approval guards limit selection.
 
     Candidate selection is independent of match availability. Matches may have
     influenced the already-derived ranking, but an empty match set is never a
@@ -28,7 +32,7 @@ def plan_proposals(
         raise ValueError("all proposals must belong to the StaffingNeed service")
 
     ranked = sorted(proposals, key=lambda proposal: (proposal.priority_rank, proposal.proposal_id))
-    selected = ranked[:staffing_need.candidate_slots]
+    selected = ranked if offer_all else ranked[:staffing_need.candidate_slots]
     return tuple(
         PlannedProposal(
             proposal=proposal,

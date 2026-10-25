@@ -203,3 +203,15 @@ geslaagd** (33 aanvullende gevallen boven de vorige 1071). Syntaxcontrole en
 ook het aparte dashboard behoudt zijn strikte invoercontrole. Uitsluitend
 synthetische bronnen en tijdelijke databases gebruikt. Lokale heracceptatie met
 dezelfde CKC-exports volgt afzonderlijk; PR #44 blijft open en ongemerged.
+
+
+## Vervolg A/B/C en onderzoek D/E — 25 oktober 2026
+
+De implementatie vanaf `6b63caa` vervangt het handmatig starten van de eerste
+lokale broninvoer door automatisch inlezen bij functiegebruik. Alle geschikte
+kandidaten blijven zichtbaar, onafhankelijk van capaciteit; selectie/goedkeuring
+blijven tot vrije capaciteit beperkt. Bronmeldingen tonen ook betrokken
+registraties. Dit vervangt uitsluitend de hierboven historisch beschreven
+UI-laadbediening en afkapping, niet de taakplicht- of prioriteringsregels.
+Zie [afzonderlijke implementatie, metingen en heracceptatie](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
+D (vastzetten kolom) en E (optimalisaties) zijn niet geïmplementeerd.

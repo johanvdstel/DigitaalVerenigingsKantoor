@@ -31,8 +31,8 @@ def export_path(dataset: str, explicit_path: str | Path | None = None) -> Path:
 def export_location_hint(datasets: Iterable[str] = EXPORT_FILENAMES) -> str:
     names = ", ".join(EXPORT_FILENAMES[dataset] for dataset in datasets)
     return (f"Standaardmap: {default_export_directory()}. Verwachte bestanden: {names}. "
-            "Plaats hier handmatig vernieuwde Sportlink-exports en selecteer ze via de bestaande upload; "
-            "DVK haalt deze CSV-bestanden niet automatisch op.")
+            "Plaats hier handmatig vernieuwde Sportlink-exports. DVK leest deze bij gebruik van de functie; "
+            "gebruik Brongegevens vernieuwen na het vervangen van exports.")
 
 
 def read_export_text(dataset: str, explicit_path: str | Path | None = None) -> str:

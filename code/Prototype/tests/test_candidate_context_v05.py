@@ -263,7 +263,7 @@ def test_default_paths_use_existing_import_boundary_without_real_files(monkeypat
     def read(dataset):
         observed.append(dataset)
         return data[dataset].decode('utf-8-sig')
-    monkeypatch.setattr('dvk.candidate_context.read_export_text', read)
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', read)
     ctx = CandidateContextApplicationService(IDENTITY).load(
         period=PERIOD, source_period='2026-2027', client_id='synthetic', client_factory=factory(b'[]'))
     assert set(observed) == set(data)

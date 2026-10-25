@@ -110,8 +110,10 @@ def test_input_errors_are_presentable(tmp_path, kind):
 
 def test_read_only_ui_boundary():
     text = (Path(__file__).parents[1] / 'streamlit_app.py').read_text().split('### Taakplichtcontrole')[1]
-    assert 'st.dataframe' in text and 'st.file_uploader' in text
-    assert 'database' not in text and 'st.button' not in text and 'st.data_editor' not in text
+    assert 'st.dataframe' in text and 'LocalCsvSourceApplicationService().duty_control' in text
+    assert 'st.file_uploader' not in text
+    assert 'database' not in text and 'st.data_editor' not in text
+    assert 'refresh-duty-sources' in text
 
 
 def test_streamlit_initial_render(tmp_path):

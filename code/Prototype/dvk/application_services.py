@@ -263,6 +263,18 @@ class PlanningApplicationService:
                                       qualification=(None if duty_qualifications is None else
                                                      duty_qualifications[case.person.person_id])) for case in cases)
 
+    def selection_problem(self, *, person_ids, service, staffing_need):
+        """Present the existing selection guard; approval rechecks atomically."""
+        try:
+            validate_planning_selection(tuple(person_ids), service, staffing_need, self.active_planning())
+        except ValueError as exc:
+            messages = {
+                "selection exceeds remaining service capacity": "U heeft meer kandidaten geselecteerd dan er plaatsen beschikbaar zijn.",
+                "a person can only be selected once for the same service": "Een kandidaat kan maar één keer voor dezelfde dienst worden geselecteerd.",
+            }
+            return messages.get(str(exc), str(exc))
+        return None
+
     def temporary_assignment_contexts(self, *, persons=()) -> tuple[AssignmentContext, ...]:
         return tuple(_assignment_context(entry.assignment, (entry.service,), persons)
                      for entry in self.active_planning())

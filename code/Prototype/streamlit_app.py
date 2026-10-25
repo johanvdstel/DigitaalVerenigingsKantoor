@@ -10,6 +10,7 @@ import pandas as pd
 import streamlit as st
 
 from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
+from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
@@ -92,7 +93,7 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     priorities = prioritize_candidates(eligible, cases, service.starts_at.date(), previous_season_backlog=demo_previous_season_backlog())
     by_person = {p.person_id: p for p in priorities}
     proposals = tuple(create_assignment_proposal(f"DEMO-{service.service_id}-{case.person.person_id}-{proposal_run_id or uuid4()}", service, case, next(a for a in eligible if a.person_id == case.person.person_id), by_person[case.person.person_id], matches) for case in cases if case.person.person_id in by_person)
-    return cases, plan_proposals(proposals, need)
+    return cases, plan_proposals(proposals, need, offer_all=True)
 
 st.set_page_config(page_title="DVK — Digitaal Verenigingskantoor", page_icon="📋", layout="wide")
 st.title("CKC Digitaal Verenigings Kantoor (DVK)")
@@ -105,7 +106,7 @@ def _cancel_period_change():
 
 def _clear_period_widgets():
     for key in list(st.session_state):
-        if key in {"services_editor", "selected_service_id", "candidate-context"} or key.startswith(
+        if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-key", "candidate-load-error"} or key.startswith(
                 ("proposal-run-", "confirmed-", "pick-")):
             del st.session_state[key]
 
@@ -195,6 +196,7 @@ def _render_planning():
     demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
     if st.session_state.get("candidate-source-mode") != demo:
         st.session_state.pop("candidate-context", None)
+        st.session_state.pop("candidate-load-key", None)
         for key in list(st.session_state):
             if key.startswith(("proposal-run-", "confirmed-", "pick-")):
                 del st.session_state[key]
@@ -262,7 +264,11 @@ def _render_planning():
         if candidate_context is not None and candidate_context.source_period != source_period.strip():
             st.session_state.pop("candidate-context", None)
             candidate_context = None
-        if st.button("Kandidaatbronnen laden / vernieuwen", key="load-candidate-sources"):
+        refresh_candidates = st.button("Brongegevens vernieuwen", key="load-candidate-sources")
+        candidate_load_key = (period, source_period)
+        if refresh_candidates or st.session_state.get("candidate-load-key") != candidate_load_key:
+            st.session_state["candidate-load-key"] = candidate_load_key
+            st.session_state.pop("candidate-load-error", None)
             st.session_state.pop("candidate-context", None)
             for key in list(st.session_state):
                 if key.startswith(("proposal-run-", "confirmed-", "pick-")):
@@ -276,8 +282,12 @@ def _render_planning():
                 st.rerun()
             except CandidateSourceError as exc:
                 candidate_context = None
-                st.error(str(exc))
+                st.session_state["candidate-load-error"] = str(exc)
+        if st.session_state.get("candidate-load-error"):
+            st.error(st.session_state["candidate-load-error"])
         if candidate_context is not None:
+            st.caption("Ingelezen bestanden: " + ", ".join(candidate_context.source_files))
+            st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen. DVK controleert de map niet op de achtergrond.")
             stats = candidate_context.stats
             st.caption(f"Kandidaatbronnen geladen: {candidate_context.fetched_at:%d-%m-%Y %H:%M}. Programma API: {stats.calls} aanvraag, {stats.retries} herhalingen, {stats.failures} definitieve fouten.")
             if candidate_context.error:
@@ -292,6 +302,11 @@ def _render_planning():
                 with st.expander("Bronmeldingen kandidaatcontext"):
                     for code, count in candidate_context.signal_counts.items():
                         st.caption(f"{code}: {count}")
+                    st.dataframe([{"Bronbestand": d.filename, "Omschrijving": d.description,
+                                   "Relatiecode": d.person_id, "Naam": d.name,
+                                   "Bronregel": d.row_number, "Bronwaarden": dict(d.values)}
+                                  for d in candidate_context.diagnostic_details],
+                                 hide_index=True, height=300)
     ready = demo or (known and candidate_context is not None and candidate_context.error is None)
     if not ready:
         st.info("Kandidaten zijn beschikbaar na een geslaagde bronimport en gevalideerde Sportlink-bezetting voor deze periode.")
@@ -354,7 +369,13 @@ def _render_planning():
                                     st.session_state[f"exception-result-{p.proposal_id}"] = result
                         if st.session_state.get(f"exception-result-{p.proposal_id}"): st.warning("Uitzondering vastgelegd. De urenpositie blijft ongewijzigd; deze persoon kan bij een volgende planning opnieuw worden voorgesteld.")
             st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
-            if st.button("Selectie bevestigen", type="primary", disabled=not selected_proposal_ids):
+            with database.unit_of_work() as uow:
+                selection_problem = PlanningApplicationService(identity, uow=uow).selection_problem(
+                    person_ids=tuple(next(i.proposal.person_id for i in planned if i.proposal.proposal_id == pid)
+                                     for pid in selected_proposal_ids), service=service, staffing_need=need)
+            if selection_problem and selected_proposal_ids:
+                st.warning(selection_problem)
+            if st.button("Selectie bevestigen", type="primary", disabled=bool(selection_problem) or not selected_proposal_ids):
                 selections = tuple((next(i.proposal for i in planned if i.proposal.proposal_id == pid), case_by_person[next(i.proposal for i in planned if i.proposal.proposal_id == pid).person_id], f"UI-{uuid4()}") for pid in selected_proposal_ids)
                 try:
                     with database.unit_of_work() as uow:
@@ -489,8 +510,7 @@ def _render_planning():
     st.markdown("### Databronnen")
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
         st.caption(export_location_hint(("leden",)))
-        members_file = st.file_uploader("Leden-CSV voor persoonskoppeling", type=("csv",))
-        st.caption("Selecteer de Leden-CSV opnieuw na een schermwisseling of nieuwe sessie. Controleer vóór elke synchronisatie of het bestand geselecteerd is.")
+        st.caption("Leden.csv wordt bij synchroniseren opnieuw uit de vaste lokale map gelezen voor persoonskoppeling.")
         st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
         replace_confirmed = False
         replacing = bool(active_session and (active_session.source_revision or temporary_rows))
@@ -499,9 +519,7 @@ def _render_planning():
             st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
         if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
             try:
-                if members_file is None:
-                    raise ValueError("Selecteer de Leden-CSV voor persoonskoppeling.")
-                persons = SportlinkRealDataAdapter.read_volunteer_persons(members_file.getvalue().decode("utf-8-sig"))
+                persons = LocalCsvSourceApplicationService().volunteer_persons()
                 with database.unit_of_work() as uow:
                     if active_session is None:
                         active_session = PlanningSessionApplicationService(uow, identity).start(period)
@@ -592,6 +610,9 @@ for _key in ("planning-mode", "planning-from", "planning-until", "planning-sourc
 
 
 def _navigate(screen):
+    if screen != st.session_state.get("dvk-screen"):
+        for key in ("candidate-load-key", "duty-load-key"):
+            st.session_state.pop(key, None)
     st.session_state["dvk-screen"] = screen
 
 
@@ -625,8 +646,7 @@ def _render_home():
     st.markdown("### DVK Beheer")
     st.write("**Toegangsbeheer** — toekomstig, niet beschikbaar.")
     st.write("**Tabelonderhoud** — toekomstig, niet beschikbaar.")
-    st.info("Bij het verlaten van Taakplichtcontrole worden de bestandsuploads niet bewaard. "
-            "Selecteer de vijf bestanden opnieuw wanneer je terugkomt. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
+    st.info("CSV-bronnen worden bij gebruik uit de vaste lokale map geladen. Gebruik Brongegevens vernieuwen nadat u exports heeft vervangen. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
 
 
 def _render_duty_control():
@@ -637,23 +657,34 @@ def _render_duty_control():
                                    placeholder="2026-2027",
                                    help="Gebruik JJJJ-JJJJ, bijvoorbeeld 2026-2027. Het seizoen loopt van 1 juli tot 30 juni. Controleer of dit overeenkomt met de geladen export; je kunt het voorstel aanpassen.")
     st.caption("Lokale Sportlink-exports voor menselijke controle. Een afwijking vraagt om herbeoordeling; het dashboard corrigeert niets. Bestanden worden alleen in geheugen verwerkt.")
-    st.caption("Bij het verlaten van dit scherm vervallen de uploads. Selecteer de vijf bestanden opnieuw wanneer je terugkomt.")
     st.caption(export_location_hint(EXPORTS))
-    control_files = {dataset: st.file_uploader(label, type=("csv",), key=f"duty-control-{dataset}")
-                     for dataset, (label, _) in EXPORTS.items()}
     control_filter = st.radio("Toon taakplichtcontrole", tuple(FILTERS), horizontal=True, key="duty-control-filter")
+    refresh = st.button("Brongegevens vernieuwen", key="refresh-duty-sources")
+    load_key = (control_as_of, control_period)
     try:
         validated_period = validate_season(control_period)
     except ValueError as exc:
         validated_period = None
+        st.session_state.pop("local-duty-control", None)
+        st.session_state.pop("duty-load-key", None)
         st.error(str(exc))
-    if all(file is not None for file in control_files.values()) and validated_period is not None:
-        try:
-            dashboard = load_duty_dashboard({key: file.getvalue() for key, file in control_files.items()},
-                                            as_of=control_as_of, source_period=validated_period)
-        except ValueError as exc:
-            st.error(str(exc))
-        else:
+    if validated_period is not None:
+        if refresh or st.session_state.get("duty-load-key") != load_key:
+            st.session_state["duty-load-key"] = load_key
+            st.session_state.pop("local-duty-control", None)
+            st.session_state.pop("duty-load-error", None)
+            try:
+                st.session_state["local-duty-control"] = LocalCsvSourceApplicationService().duty_control(
+                    as_of=control_as_of, source_period=validated_period)
+            except ValueError as exc:
+                st.session_state["duty-load-error"] = str(exc)
+        if st.session_state.get("duty-load-error"):
+            st.error(st.session_state["duty-load-error"])
+        loaded_control = st.session_state.get("local-duty-control")
+        if loaded_control is not None:
+            dashboard = loaded_control.dashboard
+            st.caption("Ingelezen bestanden: " + ", ".join(loaded_control.sources.filenames))
+            st.caption(f"Bronnen laatst geladen: {loaded_control.sources.loaded_at:%d-%m-%Y %H:%M:%S}. Na vervangen van exports: Brongegevens vernieuwen.")
             st.markdown("#### Selectieverantwoording")
             for column, (label, count) in zip(st.columns(4), dashboard.selection_counts.items()):
                 column.metric(label, count)
@@ -690,8 +721,7 @@ def _render_duty_control():
                 st.dataframe([{"Bron": s.dataset, "Ernst": s.severity, "Code": s.code,
                                "Bronreferentie": s.record_key, "Melding": s.message}
                               for s in dashboard.source.signals], hide_index=True, use_container_width=True, height=360)
-    else:
-        st.info("Selecteer alle vijf CSV-bestanden en vul hun periode / seizoen in om de controle te tonen.")
+
 
 
 _render_navigation()

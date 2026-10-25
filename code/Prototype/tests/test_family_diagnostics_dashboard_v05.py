@@ -117,7 +117,7 @@ def test_ui_details_are_read_only_and_follow_filter(tmp_path, monkeypatch):
     monkeypatch.setattr(SQLiteDatabase,'initialize',unavailable)
     monkeypatch.setattr(sqlite3,'connect',forbidden)
     monkeypatch.setattr(SportlinkVrijwilligersClient,'fetch_rows',forbidden)
-    monkeypatch.setattr(st,'file_uploader',lambda label, **kwargs: BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', lambda dataset: files[dataset].decode('utf-8-sig'))
     app = AppTest.from_file(str(path))
     app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-date'] = TODAY

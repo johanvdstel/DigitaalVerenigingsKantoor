@@ -52,8 +52,9 @@ def test_available_screens_and_roundtrip_leave_database_unchanged(tmp_path):
         assert not any(x.key and x.key.startswith('duty-control-') for x in app.get('file_uploader'))
         app.button(key='nav-control').click().run()
         assert not app.exception
-        assert len(app.get('file_uploader')) == 5
-        assert not app.metric
+        assert not app.get('file_uploader')
+        assert app.button(key='refresh-duty-sources')
+        assert any(x.label == 'Totaal' for x in app.metric)
         assert not any(x.value == '### No-shows' for x in app.markdown)
         app.button(key='nav-home').click().run()
         assert any('Welkom' in x.value for x in app.subheader)
@@ -87,32 +88,24 @@ def test_scalar_controls_survive_screen_cleanup(tmp_path):
     assert app.date_input(key='planning-from').value == date(2026, 9, 14)
 
 
-def test_uploaded_files_require_reselection_after_leaving_control(tmp_path):
-    import pytest
+def test_local_files_reload_after_leaving_control(tmp_path, monkeypatch):
     from test_duty_control_dashboard_v05 import uploads
-    from test_hours_control_v05 import TODAY
-
     files = uploads(tmp_path)
+    reads = []
+    def read(dataset):
+        reads.append(dataset)
+        return files[dataset].decode('utf-8-sig')
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', read)
     app = app_at(tmp_path)
     app.button(key='nav-control').click().run()
-    if not hasattr(app.get('file_uploader')[0], 'set_value'):
-        pytest.skip('Installed Streamlit AppTest does not support file uploads')
-    app.date_input(key='duty-control-date').set_value(TODAY).run()
-    app.text_input(key='duty-control-period').set_value('2026-2027').run()
-    for widget in app.get('file_uploader'):
-        dataset = widget.key.removeprefix('duty-control-')
-        widget.set_value((dataset + '.csv', files[dataset], 'text/csv'))
-    app.run()
-    assert not app.exception
-    assert any(x.label == 'Totaal' and x.value == '1' for x in app.metric)
+    assert not app.exception and not app.get('file_uploader')
+    first = len(reads)
     app.radio(key='duty-control-filter').set_value('Alleen afwijkingen').run()
-    assert all(app.session_state['duty-control-' + key] is not None for key in files)
+    assert len(reads) == first
     app.button(key='nav-home').click().run()
     app.button(key='nav-control').click().run()
+    assert len(reads) == first + 5
     assert not app.exception
-    assert not app.metric
-    assert all(app.session_state['duty-control-' + key] is None for key in files)
-    assert any('Selecteer alle vijf' in x.value for x in app.info)
 
 
 def test_home_uses_one_consistent_line_per_function(tmp_path):

@@ -187,3 +187,22 @@ wordt niet door een nieuwe naamkoppeling vervangen. Technisch ontbrekende,
 onleesbare of structureel onbruikbare bronnen mogen de import blijven blokkeren.
 
 Zie [uitwerking en heracceptatie PR #44](DVK-v0.5-actuele-kandidaatcontext.md#vervolgbesluit-pr-44--persoonsgebonden-afwijkingen-25-oktober-2026).
+
+
+## Aanvulling PR #44 — kandidaatkeuze en lokale broninvoer (25 oktober 2026)
+
+Het kandidatenaanbod omvat alle geschikte kandidaten in de bestaande rangorde.
+Vrije capaciteit begrenst de te bevestigen selectie, niet de keuzelijst. De
+bestaande menselijke batchgoedkeuring en controles op conflicten/duplicaten
+blijven bepalend. Een lagere rang maakt een geschikte kandidaat niet ongeschikt.
+
+Bronmeldingen zijn lokaal tot relevante registraties en afwijkende waarden
+herleidbaar, met afzonderlijke regels bij duplicaten. Geen automatische correctie.
+De vijf vaste lokale CSV's worden bij functiegebruik automatisch gelezen;
+Brongegevens vernieuwen leest ze expliciet opnieuw. Bestanden en laadtijd worden
+getoond. Kandidaten en taakplichtcontrole delen de invoer, niet hun afzonderlijke
+beoordelingscontract. Technische fouten tonen geen oude uitslag als actueel;
+bronbestanden blijven ongewijzigd. Prototypevoorziening, geen productiearchitectuur.
+
+Zie [implementatie A/B/C en onderzoek D/E](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
+Lokale functionele acceptatie van deze implementatie volgt nog afzonderlijk.

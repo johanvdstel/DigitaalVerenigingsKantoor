@@ -304,7 +304,7 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     assert not app.exception
     assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 0
     assert len(state(db)[2]) == 2
-    assert not app.checkbox
+    assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
     assert len(state(db)[2]) == 1

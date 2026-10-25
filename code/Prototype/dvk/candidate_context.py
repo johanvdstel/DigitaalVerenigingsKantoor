@@ -16,7 +16,9 @@ from .proposal_planning import plan_proposals
 from .proposals import create_assignment_proposal
 from .real_data_import import RealDataImportResult
 from .security import Authorizer, Permission
-from .sportlink_exports import read_export_text
+from .local_csv_sources import LocalCsvSourceApplicationService
+from .sportlink_exports import EXPORT_FILENAMES
+from .source_diagnostics import source_diagnostics
 
 
 class CandidateSourceError(ValueError):
@@ -32,6 +34,11 @@ class CandidateContext:
     fetched_at: datetime
     stats: ProgrammaFetchStats
     error: str | None = None
+    source_files: tuple[str, ...] = ()
+
+    @property
+    def diagnostic_details(self):
+        return source_diagnostics(self.source, self.program)
 
     @property
     def signal_counts(self):
@@ -65,14 +72,14 @@ class CandidateContextApplicationService:
             raise CandidateSourceError(str(exc)) from None
         try:
             if exports is None:
-                exports = {dataset: read_export_text(dataset).encode("utf-8") for dataset in EXPORTS}
+                exports = LocalCsvSourceApplicationService().load().exports
             # Reuse the existing strict CSV boundary and complete household context.
             source = load_duty_dashboard(exports, as_of=period.start,
                                          source_period=source_period, isolate_person_errors=True).source
-        except (ValueError, OSError):
+        except (ValueError, OSError) as exc:
             raise CandidateSourceError(
                 "Kandidaatbronnen niet geladen. Controleer de vijf lokale CSV-bestanden, "
-                "hun verplichte kolommen, leesbaarheid en geldige bronwaarden."
+                f"hun verplichte kolommen, leesbaarheid en geldige bronwaarden. {exc}"
             ) from None
         now = datetime.now().astimezone()
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
@@ -82,12 +89,14 @@ class CandidateContextApplicationService:
         except (ProgrammaFetchError, ValueError):
             return CandidateContext(period, source_period, source, None, now, client.stats,
                                     "Programma API niet beschikbaar: de aanvraag is mislukt of de respons is ongeldig. "
-                                    "Wedstrijdcontext is onbekend; laad de kandidaatbronnen opnieuw.")
+                                    "Wedstrijdcontext is onbekend; laad de kandidaatbronnen opnieuw.",
+                                    tuple(EXPORT_FILENAMES.values()))
         program = adapter.import_rows(fetched.rows, retrieved_at=now)
         error = None
         if any(signal.severity == "ERROR" for signal in program.signals):
             error = "Wedstrijdcontext niet bruikbaar: controleer de teamkoppeling en wedstrijdbronmeldingen."
-        return CandidateContext(period, source_period, source, program, now, client.stats, error)
+        return CandidateContext(period, source_period, source, program, now, client.stats, error,
+                                tuple(EXPORT_FILENAMES.values()))
 
     def propose(self, context, *, service, need, planning_app, proposal_run_id):
         self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
@@ -137,5 +146,5 @@ class CandidateContextApplicationService:
             f"CKC-{service.service_id}-{priority.person_id}-{proposal_run_id}", service,
             by_case[priority.person_id], by_assessment[priority.person_id], priority, matches,
         ) for priority in priorities)
-        return CandidateProposals(cases, plan_proposals(proposals, need), controls, assessments, priorities,
+        return CandidateProposals(cases, plan_proposals(proposals, need, offer_all=True), controls, assessments, priorities,
                                   present_controls(source, controls).rows)

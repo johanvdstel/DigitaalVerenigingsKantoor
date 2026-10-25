@@ -116,7 +116,7 @@ def test_all_table_views_have_bounded_height():
     tree = ast.parse((Path(__file__).parents[1] / 'streamlit_app.py').read_text())
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
              and isinstance(node.func, ast.Attribute) and node.func.attr in {'dataframe', 'data_editor'}]
-    assert len(calls) == 9  # Includes the required per-task Vrijwilligers source overview.
+    assert len(calls) == 10  # Includes the required per-task Vrijwilligers source overview.
     for call in calls:
         height = next(keyword.value for keyword in call.keywords if keyword.arg == 'height')
         assert isinstance(height, ast.Constant) and 0 < height.value <= 360
@@ -131,8 +131,7 @@ def test_scroll_views_keep_all_records_and_editable_season(tmp_path, monkeypatch
     def unavailable(self):
         raise sqlite3.OperationalError('no such table: sportlink_bookings')
     monkeypatch.setattr(SQLiteDatabase, 'initialize', unavailable)
-    monkeypatch.setattr(st, 'file_uploader', lambda label, **kwargs:
-                        BytesIO(files[kwargs['key'].removeprefix('duty-control-')]))
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', lambda dataset: files[dataset].decode('utf-8-sig'))
     heights = []
     original_dataframe = st.dataframe
     def bounded_dataframe(data, **kwargs):

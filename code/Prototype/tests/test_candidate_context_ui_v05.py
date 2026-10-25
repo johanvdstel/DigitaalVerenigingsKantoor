@@ -24,7 +24,7 @@ def operational_page(tmp_path, monkeypatch):
         return original(self, **kwargs)
     monkeypatch.setattr(CandidateContextApplicationService, 'load', load)
     app, db = page(tmp_path)
-    assert not observed  # Explicit button, no automatic local reads or fetch.
+    assert observed == [PERIOD]  # Automatic on first operational use, not every rerun.
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
     app.session_state['selected_service_id'] = app.dataframe[0].value.iloc[0].service_id
@@ -36,7 +36,7 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
     app, db, observed = operational_page
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
-    assert observed == [PERIOD]
+    assert observed == [PERIOD, PERIOD]
     assert any(t.value == 'Synthetisch lid M1' for t in app.markdown)
     assert any('BL-03' in t.value for t in app.caption)
     assert any('Taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
@@ -94,7 +94,7 @@ def test_period_change_and_demo_switch_do_not_reuse_operational_context(operatio
     app.date_input[0].set_value(PERIOD.start + timedelta(days=7)).run()
     app.button(key='confirm-period-change').click().run()
     assert not app.exception
-    assert 'candidate-context' not in app.session_state
+    assert app.session_state['candidate-context'].period != PERIOD
     app.radio(key='planning-source-mode').set_value('Demonstratie').run()
     assert not app.exception
     assert not any(b.key == 'load-candidate-sources' for b in app.button)
