@@ -19,7 +19,9 @@ def operational_page(tmp_path, monkeypatch):
     observed = []
     def load(self, **kwargs):
         observed.append(kwargs['period'])
-        return original(self, **kwargs, exports=exports(), client_factory=factory(b'[]'))
+        kwargs.setdefault('exports', exports())
+        kwargs.setdefault('client_factory', factory(b'[]'))
+        return original(self, **kwargs)
     monkeypatch.setattr(CandidateContextApplicationService, 'load', load)
     app, db = page(tmp_path)
     assert not observed  # Explicit button, no automatic local reads or fetch.
@@ -96,3 +98,22 @@ def test_period_change_and_demo_switch_do_not_reuse_operational_context(operatio
     app.radio(key='planning-source-mode').set_value('Demonstratie').run()
     assert not app.exception
     assert not any(b.key == 'load-candidate-sources' for b in app.button)
+
+
+def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, monkeypatch):
+    from test_candidate_person_issues_v05 import data_with_two, rows, write_rows
+    app, _, _ = operational_page
+    data = data_with_two()
+    members = rows(data, 'leden')
+    members[1]['Lidstatus'] = 'Overschrijving spelactiviteit'
+    write_rows(data, 'leden', members)
+    from test_candidate_context_v05 import context
+    ctx = replace(context(data), period=PERIOD)
+    monkeypatch.setattr(CandidateContextApplicationService, 'load', lambda *a, **k: ctx)
+    app.button(key='load-candidate-sources').click().run()
+    assert not app.exception
+    assert any(t.value == 'Synthetisch lid M1' for t in app.markdown)
+    assert not any(t.value == 'Synthetisch lid M2' for t in app.markdown)
+    assert any('de overige kandidaten worden normaal beoordeeld' in t.value for t in app.info)
+    assert any('UNKNOWN_MEMBERSHIP_STATUS: 1' in t.value for t in app.caption)
+    assert not any('vernieuw de exports' in t.value for t in app.error)

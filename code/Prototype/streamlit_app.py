@@ -287,6 +287,8 @@ def _render_planning():
             else:
                 st.caption("Programma API: technisch geslaagd, ook als Sportlink geen wedstrijden aanlevert.")
             if candidate_context.signal_counts:
+                if candidate_context.error is None and any(signal.severity in {"ERROR", "WARNING"} for signal in candidate_context.source.signals):
+                    st.info("Kandidaatbronnen geladen. Bij enkele personen zijn bronafwijkingen gemeld. Personen met onvoldoende betrouwbare gegevens worden niet voorgesteld; de overige kandidaten worden normaal beoordeeld. U hoeft deze administratieve bijzonderheden niet eerst in Sportlink te corrigeren.")
                 with st.expander("Bronmeldingen kandidaatcontext"):
                     for code, count in candidate_context.signal_counts.items():
                         st.caption(f"{code}: {count}")

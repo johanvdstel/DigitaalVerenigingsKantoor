@@ -27,8 +27,11 @@ def compare_required_hours(source: RealDataImportResult, as_of: date,
         pid = expectation.person_id
         records = tuple(r for r in source.duty_records if r.registration.person_id == pid)
         support_ids = {getattr(f, "person_id", pid) for f in expectation.source_facts}
+        # Another household/function subject can supply exemption evidence,
+        # but that subject's hours never determine this person's A/B/C/D/E.
         signals = tuple(s for s in source.signals if s.record_key is None
-                        or s.record_key.split(":", 1)[0] in support_ids)
+                        or s.record_key.split(":", 1)[0] in
+                        ({pid} if s.dataset == "vrijwilligers_periode" else support_ids))
         additional = []
         if not records:
             additional.append(DataQualitySignal("MISSING_DUTY_POSITION", "ERROR", "vrijwilligers_periode", pid,

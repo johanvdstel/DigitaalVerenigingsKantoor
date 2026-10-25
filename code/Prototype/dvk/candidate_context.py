@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from .duty_control_presenter import EXPORTS, load_duty_dashboard, present_controls, validate_season
@@ -68,16 +68,13 @@ class CandidateContextApplicationService:
                 exports = {dataset: read_export_text(dataset).encode("utf-8") for dataset in EXPORTS}
             # Reuse the existing strict CSV boundary and complete household context.
             source = load_duty_dashboard(exports, as_of=period.start,
-                                         source_period=source_period).source
+                                         source_period=source_period, isolate_person_errors=True).source
         except (ValueError, OSError):
             raise CandidateSourceError(
                 "Kandidaatbronnen niet geladen. Controleer de vijf lokale CSV-bestanden, "
                 "hun verplichte kolommen, leesbaarheid en geldige bronwaarden."
             ) from None
         now = datetime.now().astimezone()
-        if any(signal.severity == "ERROR" for signal in source.signals):
-            return CandidateContext(period, source_period, source, None, now, ProgrammaFetchStats(),
-                                    "CSV-bronproblemen: beoordeel de bronmeldingen en vernieuw de exports vóór kandidaatselectie.")
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
         client = client_factory(adapter)
         try:
@@ -101,13 +98,21 @@ class CandidateContextApplicationService:
         if context.source_period != season_id(service.starts_at.date()).replace("/", "-"):
             raise CandidateSourceError("Het opgegeven CSV-seizoen hoort niet bij deze dienst; controleer de urenexport.")
         source = context.source
-        controls = source.compare_required_hours(service.starts_at.date())
+        # Orphan rows have no matched person. Keep their diagnostics in the raw
+        # context, but do not interpret their CSV row number as a relation code
+        # (or a missing code as a fault of every imported person).
+        assessment_source = replace(source, signals=tuple(
+            signal for signal in source.signals
+            if signal.code not in {"MISSING_PERSON_ID", "UNMATCHED_PERSON_REFERENCE"}
+        ))
+        controls = assessment_source.compare_required_hours(service.starts_at.date())
         members = {member.person_id: member for member in source.memberships}
         persons = {person.person_id: person for person in source.persons}
         # Exclusions and uncertainty come from the accepted v0.5 source derivation.
         usable = tuple(control for control in controls
                        if control.status != "niet betrouwbaar beoordeelbaar"
-                       and control.expectation.status == "taakplichtig")
+                       and control.expectation.status == "taakplichtig"
+                       and members[control.person_id].status.strip().casefold() == "definitief")
         cases = tuple(PrototypeCase(
             f"CKC-{control.person_id}", "Actuele CKC-bronnen", persons[control.person_id],
             members[control.person_id], persons=source.persons, memberships=source.memberships,

@@ -240,11 +240,13 @@ def test_incomplete_csv_import_does_not_produce_a_context():
         context(data)
 
 
-def test_invalid_csv_hours_fail_explicitly_instead_of_partial_candidate_list():
+def test_invalid_csv_hours_exclude_the_person_and_keep_diagnostics():
+    # PR #44 follow-up: person issues no longer block the entire source.
     ctx = context(exports(hours=[('M1', 10, 0, 0, 0, 999)]))
-    assert ctx.error and ctx.signal_counts['DUTY_REMAINING_MISMATCH'] == 1
-    with pytest.raises(CandidateSourceError):
-        propose(ctx)
+    assert ctx.error is None and ctx.signal_counts['DUTY_REMAINING_MISMATCH'] == 1
+    result = propose(ctx)
+    assert not result.planned
+    assert result.controls[0].status == 'niet betrouwbaar beoordeelbaar'
 
 
 def test_different_period_or_hours_season_cannot_reuse_a_candidate_context():

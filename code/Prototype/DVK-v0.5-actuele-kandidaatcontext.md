@@ -30,8 +30,9 @@ brongebonden uitkomsten en onbetrouwbare/ambigue urenposities geven geen voorste
 Afwijking tussen verwachte A en geregistreerde A blijft een waarschuwing voor
 menselijke herbeoordeling; de actuele Sportlink A/B/C/D/E wordt niet overschreven.
 
-CSV-structuurfouten of ERROR-bronmeldingen blokkeren publicatie van de context;
-meldingscodes en aantallen zijn zichtbaar. Onopgeloste teams en ongeldige
+Technisch onbruikbare CSV-bestanden blokkeren publicatie van de context.
+Persoonsgebonden bronafwijkingen sluiten alleen onbetrouwbaar beoordeelbare
+personen uit; meldingscodes en aantallen blijven zichtbaar (vervolgbesluit 25 oktober). Onopgeloste teams en ongeldige
 wedstrijdgegevens blokkeren eveneens de context. Dit zijn bronfouten, geen
 controle op de volledigheid van een technisch geldige API-lijst.
 
@@ -128,3 +129,77 @@ Er zijn geen historische regressiecases aangepast. De eerste volledige run vond
 alleen een bestaande UI-controle op tabelbegrenzing: bronmeldingaantallen staan
 daarom als compacte tekst in een expander. De uiteindelijke volledige run is groen.
 CI en functionele acceptatie zijn afzonderlijke controles na oplevering van de PR.
+
+
+## Vervolgbesluit PR #44 — persoonsgebonden afwijkingen (25 oktober 2026)
+
+De oorspronkelijke algemene blokkade op iedere CSV-ERROR was te ruim: één
+`CONFLICTING_DUPLICATE_MEMBERSHIP` maakte ook betrouwbare andere personen
+onbeschikbaar. `DUPLICATE_PERSON_SOURCE_RECORD` en `UNKNOWN_MEMBERSHIP_STATUS`
+blijven diagnostiek, geen opdracht om eerst alle exports te vernieuwen.
+
+Voor de operationele kandidaatroute is `Lidstatus = Definitief` noodzakelijk,
+maar niet voldoende. De bestaande toets van afmelddatum op dienstdatum,
+bondsteamdeelname, taakplicht, vrijstellingen, urenpositie en geschiktheid blijft
+bepalend. `Afgemeld`, `Overschrijving spelactiviteit` en overige statussen geven
+geen kandidaat, ook niet met een toekomstige afmelddatum. De algemene historische
+peildatumafleiding en het taakplichtdashboard zijn niet herschreven.
+
+De bestaande import voegt identieke relatiecodes niet tot meerdere kandidaten
+samen. Tegenstrijdige identiteits-/lidmaatschapsregels worden niet willekeurig
+gekozen; betreffende persoon wordt overgeslagen en de meldingen blijven behouden.
+Dit geldt ook voor meerdere tegenstrijdige, uitsluitend beëindigde registraties.
+In de operationele kandidaatroute geeft een ongeldige geboortedatum een
+persoonsgebonden ERROR en sluit die persoon uit; de rest van het bestand blijft
+leesbaar. De bestaande strikte afhandeling in het afzonderlijke taakplichtdashboard
+blijft de standaard; de kandidaatroute kiest persoonsisolatie expliciet via de
+bestaande importketen. Er is geen tweede importmechanisme.
+
+De bestaande urencontrole beoordeelt fouten bij een persoon en diens relevante
+ondersteunende bronfeiten. Ontbrekende/ambigue of foutieve uren leveren geen
+voorstel op. Orphanregels zonder gekoppeld persoon blijven in de originele
+broncontext gemeld, maar hun rijnummer wordt niet als relatiecode behandeld en
+het ontbreken van hun code wordt niet als fout van ieder ander lid beschouwd.
+Bronregels worden niet gerepareerd, uren worden niet herverdeeld.
+
+`Overzicht per periode.csv` koppelt uitsluitend via `Relatiecode` aan `Rel. code`.
+Gelijke namen bij verschillende codes zijn daar geen ambiguïteit en mogen niet
+worden samengevoegd of op naam worden geblokkeerd. Bij de daadwerkelijke bestaande
+naamkoppeling van Vrijwilligers-boekingen blijft een niet-unieke naam ongekoppeld,
+met een begrijpelijke melding; andere unieke matches blijven bruikbaar. Daar is
+geen nieuwe matching- of herstelprocedure voor gebouwd. No-Shows, tijdelijke
+planning, Programma API/retries en prioriteringsregels blijven ongewijzigd.
+
+Lokale heracceptatie: gebruik dezelfde ongewijzigde exports, laad opnieuw de
+kandidaatbronnen en selecteer een dienst met vrije capaciteit. De drie gemelde
+bronafwijkingen mogen zichtbaar blijven, terwijl betrouwbare andere kandidaten
+met hun eigen urenpositie verschijnen. Er is geen databasewijziging of migratie.
+
+
+Aanvullende bronafbakening: de urenregistratie van een huishoud-/functiesubject
+bepaalt niet de A/B/C/D/E van een ander lid. Urenfouten blijven daarom bij de
+relatiecode van die urenregistratie. Functie-, lidmaatschaps- en gezinsfeiten
+blijven volgens de bestaande regels als ondersteunende context beschikbaar.
+
+
+### Wijzigingen en regressie bij deze correctie
+
+Vertrekpunt: PR #44-commit `0f0445e` op `codex/actuele-kandidaatcontext`,
+basis `prototype-v0.5` / `5958b982`. Geen nieuwe branch of PR.
+
+| Bestanden | Reden |
+| --- | --- |
+| `dvk/candidate_context.py` | Algemene CSV-ERROR-blokkade verwijderd; expliciet Definitief vereist; orphan-diagnostiek niet als persoonsfout van anderen gebruiken. |
+| `dvk/real_data_import.py`, `dvk/duty_control_presenter.py` | Bestaande importketen biedt expliciete persoonsisolatie voor de kandidaatroute; ongeldige geboortedatum blijft standaard een strikte dashboardinvoerfout. |
+| `dvk/hours_control.py` | Urenmeldingen horen alleen bij de eigenaar van die uren; geen doorslag naar andere huishoud-/functiesubjecten. |
+| `streamlit_app.py` | Begrijpelijke, niet-blokkerende uitleg bij persoonsafwijkingen; bronmeldingen blijven zichtbaar. |
+| `tests/test_candidate_person_issues_v05.py` | Synthetische status-, duplicaat-, uren-, naam- en technische bronfoutgevallen. |
+| `tests/test_candidate_context_v05.py`, `tests/test_candidate_context_ui_v05.py` | Nog niet geaccepteerde PR-regressie aangepast aan het nieuwe besluit en UI-doorgang getoetst. |
+| Dit verslag en `DVK-v0.5-herijkte-functionele-baseline-Ledendiensten.md` | Vastgesteld vervolgbesluit expliciet aangevuld, met behoud van historische afspraken. |
+
+Verificatie: **164 gerichte tests geslaagd**, **1104 volledige regressietests
+geslaagd** (33 aanvullende gevallen boven de vorige 1071). Syntaxcontrole en
+`git diff --check` geslaagd. Historische geaccepteerde tests zijn niet aangepast;
+ook het aparte dashboard behoudt zijn strikte invoercontrole. Uitsluitend
+synthetische bronnen en tijdelijke databases gebruikt. Lokale heracceptatie met
+dezelfde CKC-exports volgt afzonderlijk; PR #44 blijft open en ongemerged.

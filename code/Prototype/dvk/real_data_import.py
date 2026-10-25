@@ -128,7 +128,8 @@ class SportlinkRealDataAdapter:
                      imported_at=None, source_period=None,
                      source_dates: dict[str, date] | None = None, as_of: date | None = None,
                      previous_planning_date: date | None = None,
-                     previous_source_dates: dict[str, date] | None = None) -> RealDataImportResult:
+                     previous_source_dates: dict[str, date] | None = None,
+                     isolate_person_errors: bool = False) -> RealDataImportResult:
         """Read standard local exports unless an explicit path/stream is supplied.
 
         Explicit duty_path=None retains the existing no-hours-import contract.
@@ -189,7 +190,15 @@ class SportlinkRealDataAdapter:
             local_status = self.value(row, "Status lidmaatschap")
             activity = self.value(row, "Spelactiviteiten (bond)")
             plays = False  # B-02: only a qualifying Teams row proves bond-team participation
-            persons.append(Person(pid, self.value(row, "Naam"), self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum")),
+            try:
+                birth_date = self.parse_date(self.value(row, "Geb.dat.") or self.value(row, "Geboortedatum"))
+            except ValueError:
+                if not isolate_person_errors:
+                    raise
+                signals.append(DataQualitySignal("INVALID_BIRTH_DATE", "ERROR", "leden", pid,
+                                                 "Ongeldige geboortedatum; persoon niet betrouwbaar te verwerken"))
+                continue
+            persons.append(Person(pid, self.value(row, "Naam"), birth_date,
                                   sportlink_name=self.sportlink_name(row),
                                   postal_code=self.value(row, "Postcode") or None,
                                   house_number=self.value(row, "Huisnummer") or None,
