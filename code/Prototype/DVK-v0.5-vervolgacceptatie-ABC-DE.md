@@ -487,13 +487,16 @@ hun bestaande gevolgen. Deel uitsluitend de timingrecords als nadere diagnose no
   reproduceerbare drie-actieroute, alle scriptpogingen en echte browserproef.
 - `tests/test_planning_selection_events_v05.py`, `test_planning_lookup_regression_v05.py`,
   `test_planning_diagnostics_v05.py`, `test_planning_browser_harness_v05.py`:
-  9 nieuwe regressiegevallen; herhaald kiezen, na kandidaatkeuze/goedkeuring/undo,
+  10 nieuwe regressiegevallen; herhaald kiezen, na kandidaatkeuze/goedkeuring/undo,
   bronbewijs/actualiteit, privacy/exceptiongedrag en veilige browserproef.
 - `tests/ui_table_events.py`, `test_planning_tables_performance_v05.py`,
   `test_planning_ui_names_v05.py`: native rijactieprotocol en bijpassende verwachtingen.
 - Dit verslag en Prototype-README: actuele bediening, meetgrenzen en instructies.
 
-**209 gerichte tests geslaagd; 1133 volledige regressietests geslaagd.**
+**210 gerichte gevallen geslaagd (209 in de gerichte suite plus één aanvullende
+UI-case); 1134 volledige regressietests geslaagd.**
+De aanvullende UI-case selecteert twee kandidaten binnen capaciteit, bevestigt
+beide atomair en controleert dat undo daarna precies één indeling verwijdert.
 Geen bestaande failures overgebleven. Syntax- en diffcontrole volgen vóór commit;
 CI wordt op dezelfde PR gecontroleerd. No-Shows, synchronisatie, broninvoer,
 prioritering, capaciteit en atomische goedkeuring zijn functioneel ongewijzigd;
