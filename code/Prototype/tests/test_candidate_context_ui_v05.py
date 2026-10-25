@@ -1,5 +1,6 @@
 """Synthetic Streamlit integration; no local CSVs, HTTP or CKC database."""
 from dataclasses import replace
+from ui_table_events import table, pick
 
 import pytest
 
@@ -37,13 +38,12 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
     assert observed == [PERIOD, PERIOD]
-    assert any(t.value == 'Synthetisch lid M1' for t in app.markdown)
+    assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
     assert any('BL-03' in t.value for t in app.caption)
     assert any('Taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
     assert any('Prioriteit: actuele E=10' in t.value for t in app.caption)
     assert any('technisch geslaagd' in t.value for t in app.caption)
-    selection = next(c for c in app.checkbox if c.key.startswith('pick-'))
-    selection.check().run()
+    pick(app)
     with db.unit_of_work() as uow:
         assert not PlanningApplicationService(IDENTITY, uow=uow).active_planning()
     next(b for b in app.button if b.label == 'Selectie bevestigen').click().run()
@@ -57,7 +57,7 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
 def test_failed_refresh_replaces_candidates_with_explicit_program_error(operational_page, monkeypatch):
     app, db, _ = operational_page
     app.button(key='load-candidate-sources').click().run()
-    assert any(c.key.startswith('pick-') for c in app.checkbox)
+    assert any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     ctx = app.session_state['candidate-context']
     def failure(*a, **k):
         return replace(ctx, program=None, stats=ProgrammaFetchStats(1, 3, 1),
@@ -66,7 +66,7 @@ def test_failed_refresh_replaces_candidates_with_explicit_program_error(operatio
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
     assert any('Programma API niet beschikbaar' in e.value for e in app.error)
-    assert not any(c.key.startswith('pick-') for c in app.checkbox)
+    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     assert not any('Geen wedstrijd' == t.value for t in app.markdown)
     assert any('Wedstrijdcontext onbekend' in t.value for t in app.info)
     with db.unit_of_work() as uow:
@@ -76,14 +76,14 @@ def test_failed_refresh_replaces_candidates_with_explicit_program_error(operatio
 def test_failed_csv_refresh_cannot_retain_previous_proposals(operational_page, monkeypatch):
     app, _, _ = operational_page
     app.button(key='load-candidate-sources').click().run()
-    assert any(c.key.startswith('pick-') for c in app.checkbox)
+    assert any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     def failure(*a, **k):
         raise CandidateSourceError('Synthetische onleesbare CSV')
     monkeypatch.setattr(CandidateContextApplicationService, 'load', failure)
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
     assert any('onleesbare CSV' in e.value for e in app.error)
-    assert not any(c.key.startswith('pick-') for c in app.checkbox)
+    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     assert 'candidate-context' not in app.session_state
 
 
@@ -112,8 +112,8 @@ def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, 
     monkeypatch.setattr(CandidateContextApplicationService, 'load', lambda *a, **k: ctx)
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
-    assert any(t.value == 'Synthetisch lid M1' for t in app.markdown)
-    assert not any(t.value == 'Synthetisch lid M2' for t in app.markdown)
+    assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
+    assert not 'Synthetisch lid M2' in table(app).value.Kandidaat.tolist()
     assert any('de overige kandidaten worden normaal beoordeeld' in t.value for t in app.info)
     assert any('UNKNOWN_MEMBERSHIP_STATUS: 1' in t.value for t in app.caption)
     assert not any('vernieuw de exports' in t.value for t in app.error)

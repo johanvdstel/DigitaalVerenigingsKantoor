@@ -181,3 +181,143 @@ uitgesloten. Syntax en diffcontrole worden vóór commit uitgevoerd; CI volgt op
   meetinstrument: uitsluitend synthetische bron- en onderzoeksverificatie.
 - Prototype-README, herijkte baseline, actuele-kandidaatcontext en dit verslag:
   huidige werking/afbakening naast de historische besluiten beschreven.
+
+
+## Vervolg: dienstentabel en prestaties — 25 oktober 2026
+
+Vertrekpunt `a8e5a1f`, dezelfde werkbranch en PR #44, integratiebasis
+`prototype-v0.5` / `5958b982`. De opdrachtgever heeft A/B/C hierboven lokaal
+functioneel geaccepteerd. Deze vervolgstap behoudt die werking en vereist zelf
+nog lokale heracceptatie. `main` blijft de geaccepteerde v0.4-releasebaseline.
+De historische onderzoeksresultaten D/E hierboven zijn het vertrekpunt, niet
+meer de actuele implementatiestatus.
+
+### Dienstentabel A1–A5
+
+- **A1:** een native checkboxcallback verwerkt een nieuwe keuze vóór de volgende
+  schermopbouw. De volgende tabel toont alleen die dienst geselecteerd; ook
+  deselecteren blijft mogelijk. Een nieuwe widgetidentiteit wist eerdere edits.
+  De kandidaatketen ontvangt meteen de nieuwe dienst. Selecteren schrijft geen
+  tijdelijke planning.
+- **A2:** `Kies` krijgt `pinned=True` wanneer de publieke kolomconstructor dit
+  ondersteunt. Geïnstalleerd en getest: Streamlit **1.64.0**. De projectgrens
+  blijft `>=1.40,<2`; opties worden met de publieke functiesignatuur gecontroleerd.
+  Oudere runtimes zonder pinned/alignment behouden gewone native kolommen;
+  voor die opties worden geen onbewezen argumenten meegegeven en er wordt geen
+  dependencygrens verhoogd. Aanvullend is het officiële PyPI-wheel van 1.40.0
+  uitsluitend in een tijdelijke map geïnspecteerd: Column/CheckboxColumn missen
+  pinned/alignment; data_editor mist row_height en de kolombreedtes zijn daar
+  alleen small/medium/large. De reeds vóór deze stap gebruikte pixelbreedtes en
+  row_height bewijzen dus geen volledige 1.40-compatibiliteit. Deze iteratie
+  test de volledige app op 1.64.0; gebruik die versie voor lokale heracceptatie.
+  Geen volledige compatibiliteitsmatrix of dependency-upgrade uitgevoerd.
+- **A3:** de zes numerieke kolommen vragen uniform 65 px, rechts uitgelijnd waar
+  ondersteund. Dit beperkt witruimte zonder waarden af te kappen in de geteste
+  synthetische voorbeelden. `Onbekend` blijft ongewijzigd bronstatus.
+- **A4:** volledige kolomnamen blijven behouden en staan ook in de koptooltip.
+  De gecontroleerde publieke editor-/kolom-API heeft geen optie voor meerregelige
+  kolomkoppen. Langere koppen kunnen dus visueel afgekapt blijven in 65 px;
+  aanwijzen van de kop toont de volledige betekenis. Geen afkortingsbeleid,
+  CSS-ingreep of niet-bestaande wrap-optie toegevoegd.
+- **A5:** de tabel benut de containerbreedte (nieuwe runtime: `width="stretch"`,
+  oudere signature: `use_container_width=True`); native horizontaal scrollen
+  blijft bij onvoldoende ruimte beschikbaar. De aangevraagde kolombreedtes
+  tellen op tot circa 1135 px in plaats van 1275 px. Streamlit kan ruimte
+  verdelen; de browser bepaalt de uiteindelijke pixels. Sportlink houdt 320 px
+  als kolomconfiguratie, volledige originele namen en dubbelkliktoegang;
+  rijhoogte blijft 32 px.
+
+Visueel vastzetten, tooltips, browserrespons en gedrag op smalle schermen zijn
+niet met AppTest te bewijzen en horen bij de lokale acceptatie. Bij het vernieuwen
+van de dienstentabel kan de native scrollpositie teruggezet worden.
+
+### Gerichte prestatiecorrectie B
+
+**Vastgesteld:** de oude weergave bouwde voor elk van 250 kandidaten negen
+kolommen, tekstwidgets, een popover en een volledig uitzonderingsformulier,
+ook wanneer alle popovers gesloten waren. Elke checkboxactie herhaalde dit.
+Het aanbod afkappen zou de geaccepteerde vrije kandidaatkeuze aantasten.
+
+**Minimale presentatiecorrectie:** één native `data_editor` toont alle kandidaten
+in de door de bestaande applicatieservice geleverde volgorde, met meervoudige
+Kies-checkboxen. Eén expander met kandidaatkeuze biedt dezelfde taakplicht- en
+prioriteitstoelichting en het bestaande uitzonderingsformulier. Alleen deze
+presentatie is vervangen, geen kandidaat-/prioriteits-/goedkeuringslogica.
+Een gewijzigde geordende lijst voorstelidentiteiten krijgt een nieuwe editor-key,
+zodat oude rijposities geen andere kandidaat kunnen selecteren.
+
+Normale Streamlit-reruns en herbeoordeling tegen actuele tijdelijke planning
+blijven bestaan. Er zijn geen fragmenten, berekeningscache, achtergrondtaken,
+externe tabelbibliotheken of maatwerk-JavaScript toegevoegd. De gemeten
+UI-winst maakt extra invalidatie-/cachestrategieën hier niet nodig.
+
+De bestaande `tests/measure_planning_actions.py` is vóór en na gedraaid met
+250 dezelfde synthetische personen, drie dienstwisselingen en drie toggles van
+één kandidaat. Alleen het gebeurtenisprotocol is aangepast aan de native editor.
+Dienstwisselingen worden in beide meetreeksen via dezelfde sessieselectie
+geïnjecteerd; de echte editorcallback heeft afzonderlijke regressietests.
+Programma is gesimuleerd; exports en SQLite staan uitsluitend in tijdelijke
+mappen. AppTest/cProfile meten Python/server plus testdispatch, geen browserpaint,
+echt bronverkeer of netwerk. Medianen, Python 3.11 / Streamlit 1.64.0 op deze Mac:
+
+| Actie / fase | Totale AppTest-tijd | Daarin planningsscherm | Daarin kandidaatberekening |
+| --- | ---: | ---: | ---: |
+| Dienstkeuze vóór | 5340 ms | 5227 ms | 183 ms |
+| Dienstkeuze na | 297 ms | 246 ms | 181 ms |
+| Kandidaatkeuze vóór | 4168 ms | 4069 ms | 181 ms |
+| Kandidaatkeuze na | 289 ms | 244 ms | 180 ms |
+
+Dit is circa **94%** minder totale tijd voor dienstkeuze en **93%** voor
+kandidaatkeuze in deze testopzet. De resterende grootste gemeten post is de
+bestaande kandidaat-/taakplicht-/urenberekening (circa 180 ms), die voor iedere
+selectie opnieuw controleert. Per actie nog steeds 0 CSV-herlezingen, 0 Programma-
+aanvragen en één schema-initialisatie/validatie van circa 3 ms. Geen extra
+optimalisatie van beleid, urenberekening of database uitgevoerd.
+
+### Regressiebescherming en gewijzigde bestanden
+
+- `streamlit_app.py`: native dienstselectie, compacter formaat, ondersteunde
+  pin/alignment/breedte-opties en één kandidaat-editor/detailformulier.
+- `tests/test_planning_tables_performance_v05.py`: eerste keuze, directe wissel,
+  maximaal één, nieuwe kandidaatcontext, geen tijdelijke schrijfoperatie,
+  kolomconfiguratie, oudere signatures, 250 kandidaten, gewijzigde rijvolgorde
+  en juiste persoon in het gedeelde uitzonderingsformulier.
+- `tests/ui_table_events.py`, `tests/conftest.py`: synthetische editor-events en
+  het native JSON-stateprotocol. AppTest ondersteunt nog geen eigen editor-edit-
+  helper en stuurt editorstate anders niet mee bij een volgende knopactie;
+  tests modelleren hier de browser, zonder productiecode daarvoor te wijzigen.
+- Bestaande kandidaatcontext-, planningacceptatie-, werkvoorraad- en tabelhoogte-
+  tests gebruiken de nieuwe native tabel in plaats van individuele widgets.
+  Goedkeuring, capaciteit, undo en bronfouten blijven inhoudelijk getoetst.
+- Meetinstrument en documentatie: reproduceerbare vergelijking en actuele bediening.
+
+Historische C/W/I/R-cases, backend, CSV-broncontracten, Programma API, No-Shows en
+schema blijven ongewijzigd. De werkelijke CKC-exports/database zijn niet gelezen
+of veranderd. Bestaande wijzigingen in de oorspronkelijke checkout zijn behouden.
+
+### Lokale heracceptatie
+
+1. Start de bestaande PR-checkout met de gebruikelijke lokale omgeving en kies
+   Ledendienst Planning. Hervat de bedoelde sessie/periode en gevalideerde bron.
+2. Kies een dienst in de tabel en klik daarna direct een andere aan: alleen de
+   tweede blijft gekozen en de kandidaten horen direct bij die dienst.
+3. Controleer bij horizontaal scrollen dat Kies links blijft staan (runtime 1.64),
+   de numerieke waarden leesbaar zijn en volledige kolomkoppen via tooltip
+   bereikbaar blijven. Controleer brede én smalle vensters.
+4. Controleer volledige Sportlink-namen via dubbelklik, de 32 px rijen en de
+   ongewijzigde bezetting/bronstatussen.
+5. Selecteer meerdere kandidaten, ook een lage rang; controleer snellere respons.
+   Open Kandidaattoelichting en uitzondering en kies verschillende personen.
+   Een selectie alleen mag geen tijdelijke indeling maken. Boven capaciteit
+   blijft bevestigen geblokkeerd; goedkeuren en undo volgen de bestaande regels.
+6. Vernieuw bronnen/wissel periode en controleer dat oude kandidaatkeuzes niet
+   kunnen worden bevestigd. Beoordeel de lokale gebruikssnelheid afzonderlijk.
+
+PR #44 blijft open en ongemerged; technische tests zijn geen functionele acceptatie.
+
+
+Technische eindverificatie bij deze vervolgstap: **93 gerichte tests geslaagd**,
+**1124 volledige regressietests geslaagd** (7 nieuwe gevallen), syntax- en
+`git diff --check` geslaagd. CI wordt na push op dezelfde PR gecontroleerd en
+in de oplevering gemeld. Geen bestaande failures overgebleven; tijdens aanpassing
+gevonden testadapterproblemen zijn opgelost en alle tests opnieuw uitgevoerd.

@@ -215,3 +215,14 @@ registraties. Dit vervangt uitsluitend de hierboven historisch beschreven
 UI-laadbediening en afkapping, niet de taakplicht- of prioriteringsregels.
 Zie [afzonderlijke implementatie, metingen en heracceptatie](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
 D (vastzetten kolom) en E (optimalisaties) zijn niet geïmplementeerd.
+
+
+### Vervolg dienstentabel/prestaties (25 oktober 2026)
+
+A/B/C zijn door de opdrachtgever lokaal functioneel geaccepteerd. Vanaf
+`a8e5a1f` worden D/E gericht uitgevoerd: enkelvoudige dienstselectie in de tabel,
+ondersteunde vaste selectiekolom/compacte breedtes en een native kandidatentabel
+met één gedeeld toelichtings-/uitzonderingsformulier. Alle geschikte kandidaten,
+prioritering en bestaande bevestigingscontroles blijven behouden. Zie de
+[actuele uitvoering en metingen](DVK-v0.5-vervolgacceptatie-ABC-DE.md#vervolg-dienstentabel-en-prestaties--25-oktober-2026).
+Deze vervolgstap vereist nog lokale functionele heracceptatie; geen merge.

@@ -1,4 +1,4 @@
-"""Research E only: synthetic server-side AppTest timings, no optimization.
+"""Synthetic server-side before/after AppTest timings (no browser timing).
 Run from code/Prototype: python -B tests/measure_planning_actions.py --members 250
 """
 import argparse
@@ -14,6 +14,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from streamlit.testing.v1 import AppTest
+from ui_table_events import pick, preserving_editors
+from streamlit.testing.v1 import element_tree
 from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.persistence import SQLiteDatabase
@@ -43,7 +45,7 @@ def main(count):
         instrumented=original.replace('from __future__ import annotations',
             'from __future__ import annotations\nimport cProfile\n_profile=cProfile.Profile()\n_profile.enable()',1)
         target.write_text(instrumented+'\n_profile.disable()\n_profile.dump_stats('+repr(str(Path(directory)/'profile.stats'))+')\n')
-        with patch('dvk.local_csv_sources.read_export_text',read), patch.object(SportlinkProgrammaClient,'fetch_rows',fetch), patch.object(SQLiteDatabase,'initialize',init):
+        with patch.object(element_tree, 'get_widget_state', preserving_editors(element_tree.get_widget_state)), patch('dvk.local_csv_sources.read_export_text',read), patch.object(SportlinkProgrammaClient,'fetch_rows',fetch), patch.object(SQLiteDatabase,'initialize',init):
             app=AppTest.from_file(str(target),default_timeout=60).run()
             app.button(key='nav-planning').click().run()
             app.button(key='activate-planning').click().run()
@@ -73,8 +75,7 @@ def main(count):
                     app.run()
                 results.append(timed('service_selection',select))
             for index in range(3):
-                key=next(c.key for c in app.checkbox if c.key.startswith('pick-'))
-                results.append(timed('candidate_selection',lambda key=key,index=index:app.checkbox(key=key).set_value(index%2==0).run()))
+                results.append(timed('candidate_selection',lambda index=index:pick(app, value=index%2==0)))
             assert not app.exception
             print(json.dumps({'members':count,'results':results},indent=2))
 

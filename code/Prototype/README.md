@@ -317,5 +317,5 @@ De geaccepteerde v0.4-baseline en historische cases blijven ongewijzigd.
 
 
 Zie voor de actuele PR #44-vervolgbediening, capaciteitsselectie, herleidbare
-bronmeldingen en uitsluitend onderzochte D/E-punten het
+bronmeldingen en de daaropvolgende native tabel-/prestatieverbeteringen het
 [vervolgacceptatieverslag](DVK-v0.5-vervolgacceptatie-ABC-DE.md).
