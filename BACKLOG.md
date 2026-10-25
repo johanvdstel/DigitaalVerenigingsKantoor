@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt op 24 oktober 2026 na merges PR #41 en #42; BL-10/BL-11 kennen nog resterende integrale verificatie  
+**Status:** bijgewerkt op 25 oktober 2026; PR #44 functioneel geaccepteerd en gemerged; BL-18 (herstructurering Ledendienst Planning) toegevoegd; BL-10/BL-11 kennen nog resterende integrale verificatie  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -45,6 +45,22 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 | --- | --- | --- | --- |
 | BL-14 | Beheer op te vragen Sportlink-taakcodes | **Nieuwe wens; na eerste Vrijwilligers API-integratie.** Onderhoudscherm voor bevoegde DVK-gebruiker om de vaste set uit te vragen Sportlink-taakcodes toe te voegen, te wijzigen en te deactiveren, zonder codewijziging. Synchronisatie vraagt altijd de volledige actieve set op; het dashboard toont per uitgevraagde taakcode de resultaten voor de gekozen periode, inclusief nul inroosteringen. Nieuwe Sportlink-taakcodes worden niet automatisch ontdekt; beheer vereist expliciete opname. | Werkende en geaccepteerde Vrijwilligers API-integratie; vast taakcodecontract |
 | BL-15 | Beheer DVK-dienstencatalogus | **Nieuwe wens; na eerste bronintegratie.** Onderhoudscherm voor bevoegde DVK-gebruiker als vervanging van het huidige Excel-onderhoud van de eigen dienstencatalogus. Onderhoud van bestaande catalogusgegevens (zoals diensttype, gekoppelde taakcode, weekpatroon en bezettingsnormen) conform te verifiëren broncontract. Catalogus bepaalt alle concrete diensten per week, ook volledig onbezet; Vrijwilligers API levert uitsluitend feitelijke inroosteringen. Migratie en beheeropslag pas bij uitwerking bepalen; geen nieuwe catalogusarchitectuur veronderstellen. | Bestaande Excel-catalogus en cataloguscontract verifiëren; integratie met concrete dienstmomenten |
+
+## BL-18 — Herstructurering scherm Ledendienst Planning (nieuw; nog niet geïmplementeerd)
+
+**Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026. PR #44 is functioneel geaccepteerd en gemerged naar `prototype-v0.5`. Afzonderlijke UI-iteratie **na functionele acceptatie van PR #44 en vóór integrale functionele acceptatie van prototype v0.5**. De lopende PR #44 blijft ongewijzigd. Nummer BL-17 wordt niet voor dit onderwerp gebruikt; eventuele eerdere reservering afzonderlijk verifiëren.
+
+**Doel:** het scherm Ledendienst Planning onderverdelen in vijf duidelijk gescheiden en gemarkeerde secties:
+
+1. **Instellingen:** periode-instellingen en seizoen van `Overzicht per periode`, bovenaan en direct zichtbaar.
+2. **Databronnen:** databronnen, bronmeldingen kandidaatcontext, brongegevens vernieuwen en datakwaliteit. Detailinformatie waar mogelijk compact of inklapbaar, maar waarschuwingen die actie vereisen blijven zichtbaar.
+3. **Diensten:** Sportlink-inroosteringen voor de gekozen periode, feitelijke Sportlink-inroosteringen ophalen, opgehaalde Sportlink-inroosteringen, dienstenstatistieken en dienstentabel. Dienstselectie blijft binnen de tabel.
+4. **Kandidaten:** kandidaten en voorstellen, gevolgd door visueel onderscheiden actieve tijdelijke DVK-inroosteringen. Een dienstkeuze werkt direct door in de kandidaatcontext.
+5. **Wedstrijden:** wedstrijdoverzicht voor de gekozen periode als tabel, standaard ingeklapt en uitklapbaar.
+
+**Afbakening:** uitsluitend UI-indeling en presentatie; bestaande functionaliteit, applicatieservices, broncontracten, sessiegedrag, bevestiging/undo en CKC-beleid blijven behouden. Geen Sportlink-writeback, nieuwe beleidsregels of ongevraagde architectuurwijzigingen.
+
+**Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard ingeklapt; bestaande functionaliteit regressievrij. Lokale visuele/functionele acceptatie door CKC vereist.
 
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
