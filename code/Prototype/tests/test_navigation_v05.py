@@ -138,7 +138,11 @@ def test_function_settings_are_directly_under_main_screen_title(tmp_path):
     app.button(key='nav-planning').click().run()
     assert not app.exception
     children = list(app.main.children.values())
-    assert [x.type for x in children[:4]] == ['title', 'subheader', 'radio', 'date_input']
+    assert [x.type for x in children[:3]] == ['title', 'subheader', 'flex_container']
+    settings = children[2]
+    assert settings.markdown[0].value == '## 1 — Instellingen'
+    assert settings.radio(key='planning-mode').value == 'Week'
+    assert not settings.get('expander')
     assert app.main.radio(key='planning-mode').value == 'Week'
     assert app.main.date_input(key='planning-from').value == date.today()
     app.main.radio(key='planning-mode').set_value('Aangepast').run()

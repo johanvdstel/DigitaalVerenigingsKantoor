@@ -1,4 +1,5 @@
 """Issue #12: FR-02–05; temporary planning never fabricates Sportlink facts."""
+from ui_table_events import table as ui_table
 from ui_table_events import table, pick
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -267,7 +268,7 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
         assert "wo 16-09 19:00–22:00" in selector.options[0]
         assert "LOCAL" not in selector.options[0]
-        table = app.dataframe[0].value
+        table = ui_table(app, "services_editor-").value
         assert table.iloc[0]["Open minimum"] == 0
         assert table.iloc[0]["Vrije capaciteit"] == 1
         assert table.iloc[0]["Sportlink"] == "Onbekend"  # Demo supplies counts, not validated source names.
@@ -275,8 +276,8 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
         assert table.iloc[0]["Tijdelijk DVK"] == 1
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
     assert not app.exception
-    assert app.dataframe[0].value.iloc[0]["Open minimum"] == 1
-    assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 2
+    assert ui_table(app, "services_editor-").value.iloc[0]["Open minimum"] == 1
+    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 2
     assert state(db)[2] == ()
 
 
@@ -295,15 +296,15 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     assert state(db)[2] == ()  # Selecting alone is not human confirmation.
     next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
     assert not app.exception
-    assert app.dataframe[0].value.iloc[0]["Open minimum"] == 0
-    assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 1
+    assert ui_table(app, "services_editor-").value.iloc[0]["Open minimum"] == 0
+    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 1
     assert len(state(db)[2]) == 1
     assert not any("W08P" in pid for pid in table(app).value.proposal_id)
     # Minimum reached: a second explicit confirmation can still fill maximum.
     pick(app)
     next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
     assert not app.exception
-    assert app.dataframe[0].value.iloc[0]["Vrije capaciteit"] == 0
+    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 0
     assert len(state(db)[2]) == 2
     assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()

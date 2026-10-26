@@ -1,4 +1,5 @@
 """UI-only PR #38: source names and relocated source controls. Synthetic data only."""
+from ui_table_events import table as ui_table
 import ast
 from collections import Counter
 from datetime import timedelta
@@ -46,7 +47,7 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     seed_work(db, binding.service)
     before = snapshot(db)
     app.run()
-    table = app.dataframe[0].value
+    table = ui_table(app, "services_editor-").value
     selected = table[table.service_id == binding.service.service_id].iloc[0]
     if count:
         assert Counter(selected["Sportlink"].split(", ")) == Counter(chr(65 + i) for i in range(count))
@@ -58,7 +59,7 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     assert "Locatie" not in table.columns
     app.session_state["selected_service_id"] = binding.service.service_id
     app.run()
-    assert app.dataframe[0].value.query("Kies == '☑'")["service_id"].tolist() == [binding.service.service_id]
+    assert ui_table(app, "services_editor-").value.query("Kies == '☑'")["service_id"].tolist() == [binding.service.service_id]
     assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
     assert snapshot(db) == before
 
@@ -76,7 +77,7 @@ def test_shielded_and_unlinked_original_names_keep_separate_overlapping_rows(tmp
     assert sync(db, catalog, {"741": [raw, second, unknown]}, persons=())[0] is None
     app.session_state["selected_service_id"] = slot.service_id
     app.run()
-    cells = app.dataframe[0].value
+    cells = ui_table(app, "services_editor-").value
     text = cells[cells.service_id == slot.service_id].iloc[0]["Sportlink"]
     assert Counter(text.split(", ")) == Counter(["Afgeschermd", "Afgeschermd", "Onbekende synthetische naam"])
     assert cells[cells.service_id == slot.service_id].iloc[0]["DVK-bezetting"] == 3
@@ -91,14 +92,14 @@ def test_shielded_and_unlinked_original_names_keep_separate_overlapping_rows(tmp
 
 def test_unknown_source_and_changed_period_never_claim_no_names(tmp_path):
     app, db = page(tmp_path)
-    assert set(app.dataframe[0].value["Sportlink"]) == {"Onbekend"}
+    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"Onbekend"}
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
-    assert set(app.dataframe[0].value["Sportlink"]) == {"geen namen"}
+    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"geen namen"}
     app.date_input[0].set_value(PERIOD.start + timedelta(days=7)).run()
     assert not app.exception
     app.button(key="confirm-period-change").click().run()
-    assert set(app.dataframe[0].value["Sportlink"]) == {"Onbekend"}
+    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"Onbekend"}
 
 
 def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
@@ -109,7 +110,7 @@ def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
     assert sync(db, catalog, {binding.task_code: [dict(row(binding.service, people()[0]), naam=n) for n in names]}, persons=())[0] is None
     app.session_state["selected_service_id"] = binding.service.service_id
     app.run()
-    table = app.dataframe[0]
+    table = ui_table(app, "services_editor-")
     value = table.value[table.value.service_id == binding.service.service_id].iloc[0]["Sportlink"]
     assert table.proto.row_height == 32
     config = json.loads(table.proto.columns)
@@ -127,13 +128,14 @@ def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
     assert not any(isinstance(n, ast.FunctionDef) and n.name == "_names_preview" for n in tree.body)
 
 
-def test_source_controls_under_databronnen_and_no_show_roundtrip(tmp_path, monkeypatch):
+def test_source_controls_under_diensten_and_no_show_roundtrip(tmp_path, monkeypatch):
     app, db = page(tmp_path)
-    # Rendered element order must put source controls after Databronnen, not under No-shows.
+    # BL-18 moves Sportlink controls to Diensten, retaining the No-show roundtrip.
     nodes = list(app.main)
-    headers = {n.value: i for i, n in enumerate(nodes) if n.type == "markdown" and n.value.startswith("### ")}
-    upload = next(i for i, n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
-    assert headers["### No-shows"] < headers["### Databronnen"] < upload
+    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 3 — Diensten")
+    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Kandidaten")
+    sync_button = next(i for i,n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
+    assert duties < sync_button < candidates
     assert any("Leden.csv wordt bij synchroniseren opnieuw" in c.value for c in app.caption)
     from dvk.sportlink_exports import export_path
     export_path("leden").unlink()

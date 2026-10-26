@@ -1,6 +1,7 @@
 """Synthetic server-side before/after AppTest timings (no browser timing).
 Run from code/Prototype: python -B tests/measure_planning_actions.py --members 250
 """
+from ui_table_events import table as ui_table
 import argparse
 import os
 import textwrap
@@ -72,7 +73,7 @@ finally:
             db=SQLiteDatabase(Path(directory)/'dvk_v05.sqlite')
             assert sync(db,load_shift_catalog(),{})[0] is None
             app.run()
-            service_ids=app.dataframe[0].value.service_id.tolist()
+            service_ids=ui_table(app, "services_editor-").value.service_id.tolist()
             def timed(kind, action):
                 before=dict(counters); existing=set(Path(directory).glob('profile-*.stats')); start=time.perf_counter()
                 # Streamlit's script runs in another thread; profile is collected
