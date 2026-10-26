@@ -62,15 +62,17 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard ingeklapt; bestaande functionaliteit regressievrij. Lokale visuele/functionele acceptatie door CKC vereist.
 
-## Nieuwe wens — Historische Sportlink-inroosteringen voor No-showregistratie (26 oktober 2026)
+## Nieuwe wens — Zelfstandig No-showmanagement (26 oktober 2026)
 
-**Status:** nieuw backlogitem, nog niet ontworpen of geïmplementeerd; definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+**Status:** nieuw backlogitem, functionele richting aangevuld op 26 oktober 2026; nog niet ontworpen of geïmplementeerd. Definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
 
-**Doel:** No-shows worden achteraf vastgesteld. De planner moet een verstreken periode vóór vandaag kunnen kiezen, de daadwerkelijk in Sportlink ingeroosterde ledendiensten voor die periode via de Vrijwilligers API ophalen en daaruit een dienst/persoon kiezen voor de bestaande No-showregistratie.
+**Plaats in de navigatie:** afzonderlijke functie **No-showmanagement** onder **Ledendiensten & Vrijwilligersbeleid**, los van **Ledendienst Planning**. Verplaats de bestaande No-showbediening uit Ledendienst Planning/Kandidaten; hergebruik bestaande registratie-, intrekkings- en historiefuncties zonder verlies van gegevens.
 
-**Afbakening:** hergebruik bestaande registratie, intrekking, historie, geldigheidscontrole en bronherkomst. Een historische bronraadpleging mag niet stilzwijgend de actieve planningssessie, actuele broncontext of tijdelijke DVK-indelingen vervangen. Onderzoek in het functionele ontwerp hoe historische raadpleging zich verhoudt tot de bestaande actieve-bron-/periodebeperkingen. Geen Sportlink-writeback.
+**Functie 1 — No-show registreren:** de planner kiest een verstreken periode vóór vandaag, haalt de daadwerkelijk in Sportlink ingeroosterde ledendiensten via de Vrijwilligers API op en selecteert daaruit de betreffende persoon en dienst om een No-show vast te leggen. Niet-ingeroosterde personen mogen niet worden geregistreerd. Historische bronraadpleging mag de actieve planningssessie, actuele broncontext of tijdelijke DVK-indelingen niet vervangen of verstoren. Onderzoek in het functionele ontwerp hoe dit samengaat met de bestaande actieve-bron-/periodecontroles.
 
-**Acceptatie:** een geldige historische Sportlink-inroostering kan voor No-show worden gekozen en geregistreerd; niet-ingeroosterde personen niet; bestaande historie en huidige planning blijven behouden; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand.
+**Functie 2 — No-shows beheren en analyseren:** overzicht van registraties **over alle seizoenen**, met het huidige seizoen als standaardfilter en filters op seizoen, persoon en status. Toon ook ingetrokken registraties en behoud de volledige historie. Maak herhaald gedrag inzichtelijk door per lid het aantal **niet-ingetrokken** No-shows in het geselecteerde seizoen en over meerdere seizoenen te tonen. Ingetrokken No-shows blijven raadpleegbaar maar tellen niet mee als geldige No-show. Analyse is signalerend en leidt niet zelfstandig tot nieuwe sancties; bestaand CKC-beleid blijft leidend.
+
+**Acceptatie:** beide functies zijn afzonderlijk herkenbaar; een geldige historische Sportlink-inroostering kan worden geregistreerd; intrekking en historie blijven werken; overzichten over meerdere seizoenen onderscheiden actieve en ingetrokken registraties; bestaande planning blijft onaangetast; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand. Geen Sportlink-writeback.
 
 ## Nieuwe wens — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
 
