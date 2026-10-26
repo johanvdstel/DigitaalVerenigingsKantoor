@@ -1,6 +1,6 @@
 # DVK Prototype v0.5 — Herijkte functionele baseline Ledendiensten
 
-**Status:** definitief functioneel geaccepteerd op 2 oktober 2026  
+**Status:** functioneel geaccepteerd op 2 oktober 2026; B-08 en V-05 herijkt op 26 oktober 2026  
 **Datum:** 2 oktober 2026  
 **Werkstroom:** Ledendiensten & Vrijwilligersbeleid  
 **Reikwijdte:** herijking B-01–B-14, verificatie V-01–V-05 en aansluiting op de bestaande v0.4-baseline en het v0.5-vervolgcontract  
@@ -52,9 +52,9 @@ Ouders kunnen reclameren bij een afwijkende feitelijke gezinssituatie. De Vrijwi
 
 De planningsdatum is bepalend. Binnen het volgens B-06 vastgestelde huishouden blijft de bestaande oudste-kindregel gelden, inclusief de bestaande leeftijds-, lidmaatschaps- en vrijstellingsvoorwaarden en onzekerheid bij gelijke geboortedatums. Van de relevante minderjarige kinderen draagt in beginsel het oudste kwalificerende kind de gezinsgebonden verplichting. Wanneer dit kind 18 wordt of het lidmaatschap eindigt, verschuift de gezinsverplichting naar het volgende kwalificerende minderjarige kind. Een vrijstellende vrijwilligersfunctie van het oudste kind kan juist huishoudvrijstelling opleveren; de verplichting schuift dan niet enkel vanwege diens persoonlijke vrijstelling door. Historische posities worden niet met terugwerkende kracht herberekend.
 
-### B-08 — Meerderjarig worden en eventuele urenoverdracht
+### B-08 — Meerderjarig worden (herijkt op 26 oktober 2026)
 
-Bij het bereiken van 18 jaar ontstaat, indien aan de overige voorwaarden is voldaan, een zelfstandige verplichting voor het inmiddels meerderjarige lid; de gezinsverplichting kan tegelijk naar een jonger minderjarig kind verschuiven. Reeds gewerkte uren (`C`) blijven bij degene die ze heeft verricht. **Geen automatische overdracht.** Na expliciete menselijke goedkeuring kan geheel of gedeeltelijk worden overgedragen via **twee tegengestelde Sportlink-correcties op B**: een negatieve B bij het oudste kind en een even grote positieve B bij het jongere kind. De planner verwerkt beide handmatig; een nieuwe import verifieert beide samen. De urenpositie blijft `E = A − B − C − D`, waarbij een negatieve E geldig kan zijn. Zonder overdracht kan in hetzelfde seizoen bij het jongere kind een aanvullende volledige verplichting ontstaan; dat gevolg is bewust geaccepteerd.
+Bij het bereiken van 18 jaar ontstaat, indien aan de overige voorwaarden is voldaan, een zelfstandige verplichting voor het inmiddels meerderjarige lid; de gezinsgebonden verplichting kan tegelijk naar een jonger minderjarig kind verschuiven. Reeds gewerkte uren (`C`) blijven bij het lid dat de diensten heeft verricht. Het jongere kind kan daardoor in hetzelfde seizoen een eigen volledige verplichting krijgen, zonder overname van de gewerkte uren van het oudere kind; dit gevolg is bewust geaccepteerd. DVK berekent de verwachte taakplicht op de relevante peildatum opnieuw en signaleert eventuele verschillen met de in Sportlink geregistreerde taakplicht via de bestaande read-only taakplichtcontrole. **DVK signaleert, faciliteert, keurt goed noch verifieert urenoverdrachten tussen leden.** Handmatige urenoverdracht of -correctie in Sportlink blijft buiten DVK mogelijk en valt buiten de DVK-verantwoordelijkheid. De urenpositie blijft `E = A − B − C − D`, waarbij een negatieve E geldig kan zijn.
 
 ### B-09 — Afwijkingen tussen DVK en Sportlink
 
@@ -88,7 +88,7 @@ Een afgesproken maar nog niet uitgevoerde Sportlink-correctie blijft bij relevan
 | **V-02 Lidmaatschap** | `Afmelddatum` wordt genegeerd; dubbele regels worden gerangschikt op ogenschijnlijk actieve status. | B-03 toepassen op planningsdatum, conflicten signaleren en historie behouden; toekomstige afmelddatum, dag zelf, ontbrekende datum en dubbele regels testen. |
 | **V-03 Functievrijstelling** | Commissies worden niet volledig meegenomen; legacy-lijst is geen CKC-configuratie; functienormalisatie kan betaald/onbetaald verwarren. | Beide bronnen combineren, oorspronkelijke namen bewaren, afzonderlijke zelf-/huishoudvrijstelling configureren, actuele bronstructuur respecteren en onbekende functies signaleren. |
 | **V-04 Broederdienst** | De eerdere oudergebaseerde interpretatie is per 9 oktober 2026 vervallen. | Uitsluitend het volledige adres vergelijken; oudste-kindregel, toevoegingen, ontbrekende/conflicterende adressen en onafhankelijkheid van ouders/contactwaarde testen. |
-| **V-05 Plannerbeslissingen/urenoverdracht** | A-vergelijking en E-formule bestaan; duurzame beslisstatus en volledige correctiecontrole ontbreken. | B-08/B-09/B-14 implementeren; volledige/gedeeltelijke overdracht, slechts één B-correctie, nog niet uitgevoerde correctie, geaccepteerde afwijking en herbeoordeling testen. |
+| **V-05 Taakplichtafwijkingen bij meerderjarigheid** | A-vergelijking en E-formule bestaan; de oorspronkelijke eisen aan een DVK-beslisstatus en urenoverdracht zijn vervallen door de herijking van BL-05 en BL-06. | Controleer de overgang op de 18e verjaardag, verschuiving van de gezinsgebonden taakplicht, behoud van gewerkte uren bij het oorspronkelijke lid en signalering van afwijkende Sportlink-A via de bestaande taakplichtcontrole. Geen DVK-workflow of verificatie voor handmatige urenoverdracht in Sportlink. |
 
 Alle vijf punten zijn **inhoudelijk geaccepteerd**, niet technisch afgetest.
 
@@ -111,7 +111,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 4. **Portaal:** Ledendienst Planning is een module binnen DVK. De UI gebruikt begrijpelijke CKC-termen, toont ontwikkelstatus van andere modules en bevat geen beleidslogica in de Streamlit-presentatielaag.
 5. **Bestaande regressies:** de geaccepteerde C-, W-, I- en R-cases blijven verplicht; waar deze herijking bewust een oudere prototype-aanname wijzigt, wordt de test expliciet aangepast en de reden vastgelegd.
 
-**Belangrijk onderscheid:** duurzame taakplicht-/correctiebeslissingen uit B-14 zijn niet hetzelfde als tijdelijke planningshandelingen. De verplichting om B-14-besluiten te bewaren verandert FR-08 over tijdelijke planning niet.
+**Herijking 26 oktober 2026:** de eerder beschreven duurzame registratie van taakplicht-/correctiebeslissingen in DVK is vervallen als ontwikkelopdracht (BL-05). Tijdelijke planningshandelingen blijven onder FR-08 vallen. De historische tekst van B-09/B-14 wordt afzonderlijk geharmoniseerd; zij vormt geen opdracht om een nieuwe beslisadministratie te bouwen.
 
 ## 6. Implementatie- en verificatiecontract
 
@@ -128,17 +128,17 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 
 - Bereken per peildatum en seizoen de taakplicht en verwachte A; scheid die van geregistreerde Sportlink-A.
 - Maak de volledige CKC-functieclassificatie expliciete configuratie, inclusief het tijdelijke besluit over `Verzorger`.
-- Ondersteun menselijke beslisstatus, reden, actor, geldigheid, herbeoordeling en controle na nieuwe import.
-- Ondersteun uitsluitend na goedkeuring twee tegengestelde B-correcties voor urenoverdracht; controleer beide gezamenlijk na import. Wijzig C niet.
+- Behoud de bestaande read-only signalering van taakplichtafwijkingen; de planner beoordeelt en corrigeert zo nodig Sportlink buiten DVK (herijkte BL-05).
+- Ondersteun geen DVK-urenoverdracht of verificatie daarvan; gewerkte uren (`C`) blijven bij het oorspronkelijke lid. Handmatige Sportlink-correcties blijven buiten DVK mogelijk.
 - Respecteer read-only Sportlink-integratie in v0.5; geen verborgen automatische correcties.
 
 ### 6.3 Minimale acceptatietests
 
 - V-01–V-05-scenario's uit §3, met positieve, negatieve en ambigue bronvarianten.
-- Peildatumgrenzen: 18e verjaardag, afmelddatum, commissiebegindatum, seizoensovergang en eventuele besluitvervaldatum.
+- Peildatumgrenzen: 18e verjaardag (inclusief verschuiving van gezinsgebonden taakplicht zonder urenoverdracht), afmelddatum, commissiebegindatum en seizoensovergang.
 - Huishoudvrijstelling: vrijwillig/onbetaald versus betaald/eretitel; volledig adres met toevoeging; ontbrekend of tegenstrijdig adres.
 - Seizoensgebonden A: herberekening, afwijkingssignaal, handmatige correctie en bevestiging via nieuwe import; geen automatische urenoverdracht uit vorig seizoen.
-- Correctie-workflow: openstaand, toegezegd, gedeeltelijk uitgevoerd, volledig bevestigd, bewust geaccepteerd en opnieuw te beoordelen.
+- Taakplichtcontrole: verwachte A opnieuw afleiden en afwijkende Sportlink-A signaleren; geen DVK-registratie van plannerbesluiten of urenoverdracht (herijkte BL-05/BL-06).
 - Bestaande v0.4- en v0.5-plannings-/no-showregressies blijven groen.
 
 ## 7. Resterende verificaties en expliciete acceptatiegrenzen
@@ -146,7 +146,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 **Nog te verifiëren met echte bronbestanden:**
 
 1. De daadwerkelijke **Teams-export**: aanwezigheid, naam en waarden van `Teamsoort`, `Teamrol` en `Spelend lid`, plus eventuele duplicaten of bronvarianten.
-2. De daadwerkelijke **seizoensgebonden Vrijwilligers-/urenexport**: werkelijke veldnamen en betekenis van A/B/C/D/E, seizoensidentificatie en verificatie van twee tegengestelde B-correcties.
+2. De daadwerkelijke **seizoensgebonden Vrijwilligers-/urenexport**: werkelijke veldnamen en betekenis van A/B/C/D/E en seizoensidentificatie. Verificatie van onderlinge B-correcties voor urenoverdracht is geen DVK-vereiste meer.
 3. De volledige functie-/commissieclassificatie als machineleesbare CKC-configuratie, één-op-één getoetst aan de gecontroleerde oorspronkelijke exportwaarden. De functionele hoofdregels en de tijdelijke `Verzorger`-uitzondering zijn vastgesteld; de uiteindelijke configuratie en tests zijn nog niet opgeleverd.
 4. De complete code-impactanalyse en uitvoering van de volledige regressiesuite, inclusief bestaande v0.5-planning en no-shows. De eerdere controle was gericht op de baselinecontracten en kernmodules; zij is geen bewijs dat ieder v0.5-bestand en iedere test reeds is doorgelicht.
 
