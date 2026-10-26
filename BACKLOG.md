@@ -62,6 +62,26 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard ingeklapt; bestaande functionaliteit regressievrij. Lokale visuele/functionele acceptatie door CKC vereist.
 
+## Nieuwe wens — Historische Sportlink-inroosteringen voor No-showregistratie (26 oktober 2026)
+
+**Status:** nieuw backlogitem, nog niet ontworpen of geïmplementeerd; definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+
+**Doel:** No-shows worden achteraf vastgesteld. De planner moet een verstreken periode vóór vandaag kunnen kiezen, de daadwerkelijk in Sportlink ingeroosterde ledendiensten voor die periode via de Vrijwilligers API ophalen en daaruit een dienst/persoon kiezen voor de bestaande No-showregistratie.
+
+**Afbakening:** hergebruik bestaande registratie, intrekking, historie, geldigheidscontrole en bronherkomst. Een historische bronraadpleging mag niet stilzwijgend de actieve planningssessie, actuele broncontext of tijdelijke DVK-indelingen vervangen. Onderzoek in het functionele ontwerp hoe historische raadpleging zich verhoudt tot de bestaande actieve-bron-/periodebeperkingen. Geen Sportlink-writeback.
+
+**Acceptatie:** een geldige historische Sportlink-inroostering kan voor No-show worden gekozen en geregistreerd; niet-ingeroosterde personen niet; bestaande historie en huidige planning blijven behouden; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand.
+
+## Nieuwe wens — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
+
+**Status:** nieuw backlogitem, nog niet ontworpen of geïmplementeerd; definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+
+**Doel:** gebruik de speeldag van het team in de Teams-export om kandidaten/voorstellen voor ledendiensten in het weekend te filteren. **Spelers van zondagteams niet aanbieden op zaterdag; spelers van zaterdagteams niet aanbieden op zondag.** Op de eigen weekenddag is deze specifieke filter geen belemmering. Voor diensten op maandag t/m vrijdag geldt deze restrictie niet.
+
+**Afbakening:** pas de filter toe bij het samenstellen van vrijwilligerskandidaten en voorstellen; overige bestaande geschiktheids-, prioriteits- en capaciteitsregels blijven behouden. Verifieer vóór implementatie de feitelijke Teams-exportkolom en betekenis, de koppeling van personen aan teams, en de afhandeling van meerdere teams, ontbrekende of onbekende speeldagen en niet-spelende leden. Geen aannames over ontbrekende bronwaarden.
+
+**Acceptatie:** zondagteamspelers ontbreken in zaterdagvoorstellen, zaterdagteamspelers ontbreken in zondagvoorstellen; de omgekeerde eigen-speeldagcombinaties worden door deze filter niet uitgesloten; doordeweekse voorstellen blijven ongewijzigd. Tests dekken de nader vast te leggen uitzonderingen.
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
