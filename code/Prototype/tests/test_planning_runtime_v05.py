@@ -1,4 +1,5 @@
 """BL-16 replaces PR #35's process-start deletion rule. Synthetic SQLite only."""
+from ui_table_events import table as ui_table
 from datetime import date
 from pathlib import Path
 import json
@@ -180,7 +181,7 @@ def test_ui_period_cancel_confirm_and_no_work_confirmation(tmp_path):
     assert rows(db) == before
     app.button(key='confirm-period-change').click().run()
     assert not app.exception and prepare_planning(db) == P2 and not work(db)
-    assert set(app.dataframe[0].value['Sportlink']) == {'Onbekend'}
+    assert set(ui_table(app, "services_editor-").value['Sportlink']) == {'Onbekend'}
 
 
 def test_stale_close_confirmation_cannot_close_another_session(tmp_path):

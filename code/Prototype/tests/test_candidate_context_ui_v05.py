@@ -1,4 +1,5 @@
 """Synthetic Streamlit integration; no local CSVs, HTTP or CKC database."""
+from ui_table_events import table as ui_table
 from dataclasses import replace
 from ui_table_events import table, pick
 
@@ -28,7 +29,7 @@ def operational_page(tmp_path, monkeypatch):
     assert observed == [PERIOD]  # Automatic on first operational use, not every rerun.
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
-    app.session_state['selected_service_id'] = app.dataframe[0].value.iloc[0].service_id
+    app.session_state['selected_service_id'] = ui_table(app, "services_editor-").value.iloc[0].service_id
     app.run()
     return app, db, observed
 

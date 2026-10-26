@@ -161,87 +161,106 @@ def _choose_service(service_ids, click_key):
 @trace_planning
 def _render_planning():
     st.subheader("Ledendienst Planning")
+    settings = st.container()
+    with settings:
+        st.markdown("## 1 — Instellingen")
+    data_sources = st.container()
+    with data_sources:
+        st.markdown("## 2 — Databronnen")
+    duties = st.container()
+    with duties:
+        st.markdown("## 3 — Diensten")
+        sportlink_source = st.container()
+        duty_table = st.container()
+    candidates = st.container()
+    with candidates:
+        st.markdown("## 4 — Kandidaten")
+    fixtures = st.container()
+    with fixtures:
+        st.markdown("## 5 — Wedstrijden")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
     database.initialize()
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
-    with database.unit_of_work() as uow:
-        active_session = PlanningSessionApplicationService(uow, identity).current()
-    active_period = active_session.period if active_session else None
-    needs_resume = active_session and st.session_state.get("planning-resumed") != active_session.session_id
-    if needs_resume:
-        st.info(f"Bewaarde planning: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
-        if st.button("Bestaande planning hervatten", key="resume-planning"):
-            st.session_state["planning-resumed"] = active_session.session_id
+    with settings:
+        with database.unit_of_work() as uow:
+            active_session = PlanningSessionApplicationService(uow, identity).current()
+        active_period = active_session.period if active_session else None
+        needs_resume = active_session and st.session_state.get("planning-resumed") != active_session.session_id
+        if needs_resume:
+            st.info(f"Bewaarde planning: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
+            if st.button("Bestaande planning hervatten", key="resume-planning"):
+                st.session_state["planning-resumed"] = active_session.session_id
+                st.session_state["planning-mode"] = "Aangepast"
+                st.session_state["planning-from"] = active_period.start
+                st.session_state["planning-until"] = active_period.end
+                _clear_period_widgets()
+                st.rerun()
+        if active_session and st.button("Nieuwe planning starten" if needs_resume else "Start nieuwe planning", key="start-new-planning"):
+            st.session_state["planning-close-request"] = active_session.session_id
+        if st.session_state.get("planning-close-request"):
+            st.warning("De tijdelijke DVK-indelingen komen te vervallen. Bevestig dat deze niet langer nodig zijn "
+                       "en dat je de noodzakelijke handmatige verwerking in Sportlink hebt afgehandeld. "
+                       "DVK controleert die verwerking niet.")
+            if st.button("Afsluiten en nieuwe planning starten", key="confirm-close-planning"):
+                with database.unit_of_work() as uow:
+                    PlanningSessionApplicationService(uow, identity).close(confirmed=True,
+                        expected_session_id=st.session_state["planning-close-request"])
+                for key in ("planning-close-request", "planning-resumed", "planning-mode", "planning-from", "planning-until"):
+                    st.session_state.pop(key, None)
+                _clear_period_widgets()
+                st.rerun()
+            if st.button("Annuleren", key="cancel-close-planning"):
+                st.session_state.pop("planning-close-request", None)
+                st.rerun()
+            return
+        if needs_resume:
+            return
+        # Widget state may disappear on navigation; restore the durable period.
+        if active_period is not None and "planning-mode" not in st.session_state:
             st.session_state["planning-mode"] = "Aangepast"
             st.session_state["planning-from"] = active_period.start
             st.session_state["planning-until"] = active_period.end
+        mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
+        selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
+        if mode == "Dag": period = PlanningPeriod(selected, selected)
+        elif mode == "Week":
+            monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
+        else:
+            if st.session_state.get("planning-until", selected) < selected:
+                st.session_state["planning-until"] = selected + timedelta(days=6)
+            until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
+        inputs = {key: st.session_state[key] for key in
+                  ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
+        if active_session is not None and active_period != period:
+            st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
+            st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
+                       "Bevestig dat deze niet langer nodig zijn en dat de noodzakelijke handmatige verwerking in Sportlink is afgehandeld. DVK controleert die verwerking niet.")
+            if st.button("Periode wijzigen en tijdelijke indelingen verwijderen", key="confirm-period-change"):
+                with database.unit_of_work() as uow:
+                    session = PlanningSessionApplicationService(uow, identity).start(
+                        period, confirmed=True, expected_session_id=active_session.session_id)
+                st.session_state["planning-resumed"] = session.session_id
+                st.session_state["planning-accepted-inputs"] = inputs
+                _clear_period_widgets()
+                st.rerun()
+            st.button("Annuleren", key="cancel-period-change", on_click=_cancel_period_change)
+            return
+        if active_period is not None and active_period != period:
             _clear_period_widgets()
-            st.rerun()
-    if active_session and st.button("Nieuwe planning starten" if needs_resume else "Start nieuwe planning", key="start-new-planning"):
-        st.session_state["planning-close-request"] = active_session.session_id
-    if st.session_state.get("planning-close-request"):
-        st.warning("De tijdelijke DVK-indelingen komen te vervallen. Bevestig dat deze niet langer nodig zijn "
-                   "en dat je de noodzakelijke handmatige verwerking in Sportlink hebt afgehandeld. "
-                   "DVK controleert die verwerking niet.")
-        if st.button("Afsluiten en nieuwe planning starten", key="confirm-close-planning"):
-            with database.unit_of_work() as uow:
-                PlanningSessionApplicationService(uow, identity).close(confirmed=True,
-                    expected_session_id=st.session_state["planning-close-request"])
-            for key in ("planning-close-request", "planning-resumed", "planning-mode", "planning-from", "planning-until"):
-                st.session_state.pop(key, None)
-            _clear_period_widgets()
-            st.rerun()
-        if st.button("Annuleren", key="cancel-close-planning"):
-            st.session_state.pop("planning-close-request", None)
-            st.rerun()
-        return
-    if needs_resume:
-        return
-    # Widget state may disappear on navigation; restore the durable period.
-    if active_period is not None and "planning-mode" not in st.session_state:
-        st.session_state["planning-mode"] = "Aangepast"
-        st.session_state["planning-from"] = active_period.start
-        st.session_state["planning-until"] = active_period.end
-    mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
-    selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
-    if mode == "Dag": period = PlanningPeriod(selected, selected)
-    elif mode == "Week":
-        monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
-    else:
-        if st.session_state.get("planning-until", selected) < selected:
-            st.session_state["planning-until"] = selected + timedelta(days=6)
-        until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
-    inputs = {key: st.session_state[key] for key in
-              ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
-    if active_session is not None and active_period != period:
-        st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
-        st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
-                   "Bevestig dat deze niet langer nodig zijn en dat de noodzakelijke handmatige verwerking in Sportlink is afgehandeld. DVK controleert die verwerking niet.")
-        if st.button("Periode wijzigen en tijdelijke indelingen verwijderen", key="confirm-period-change"):
-            with database.unit_of_work() as uow:
-                session = PlanningSessionApplicationService(uow, identity).start(
-                    period, confirmed=True, expected_session_id=active_session.session_id)
-            st.session_state["planning-resumed"] = session.session_id
-            st.session_state["planning-accepted-inputs"] = inputs
-            _clear_period_widgets()
-            st.rerun()
-        st.button("Annuleren", key="cancel-period-change", on_click=_cancel_period_change)
-        return
-    if active_period is not None and active_period != period:
-        _clear_period_widgets()
-    st.session_state["planning-accepted-inputs"] = inputs
-    with database.unit_of_work() as uow:
-        active_session = PlanningSessionApplicationService(uow, identity).current()
-    if active_session:
-        st.session_state["planning-resumed"] = active_session.session_id
-    elif st.button("Start nieuwe planning", key="activate-planning"):
+        st.session_state["planning-accepted-inputs"] = inputs
         with database.unit_of_work() as uow:
-            session = PlanningSessionApplicationService(uow, identity).start(period)
-        st.session_state["planning-resumed"] = session.session_id
-        st.rerun()
-    st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
+            active_session = PlanningSessionApplicationService(uow, identity).current()
+        if active_session:
+            st.session_state["planning-resumed"] = active_session.session_id
+        elif st.button("Start nieuwe planning", key="activate-planning"):
+            with database.unit_of_work() as uow:
+                session = PlanningSessionApplicationService(uow, identity).start(period)
+            st.session_state["planning-resumed"] = session.session_id
+            st.rerun()
+        st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
-    demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
+    with data_sources:
+        demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
     if st.session_state.get("candidate-source-mode") != demo:
         st.session_state.pop("candidate-context", None)
         st.session_state.pop("candidate-load-key", None)
@@ -259,12 +278,13 @@ def _render_planning():
         success, attempt, source_matches = source_app.source(period)
         source_bookings = source_app.bookings(period) if not demo else ()
         services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
-    if demo:
-        st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
-    else:
-        st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Kandidaten gebruiken de vijf lokale CKC-exports en het Sportlink-wedstrijdprogramma. Persoonsconflicten met Sportlink-inroosteringen zijn nog niet aangesloten.")
-        if not source_matches:
-            st.warning("Geen gevalideerde Sportlink-bezetting voor deze periode. Bezetting en resterende behoefte zijn onbekend totdat de bron succesvol is opgehaald.")
+    with data_sources:
+        if demo:
+            st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
+        else:
+            st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Kandidaten gebruiken de vijf lokale CKC-exports en het Sportlink-wedstrijdprogramma. Persoonsconflicten met Sportlink-inroosteringen zijn nog niet aangesloten.")
+            if not source_matches:
+                st.warning("Geen gevalideerde Sportlink-bezetting voor deze periode. Bezetting en resterende behoefte zijn onbekend totdat de bron succesvol is opgehaald.")
     if not demo and candidate_context is not None and candidate_context.error is None:
         matches = candidate_context.program.matches
     with database.unit_of_work() as uow:
@@ -272,396 +292,404 @@ def _render_planning():
         overview = planning_app.build_overview(period=period, services=services, staffing_needs=needs, matches=matches, source_statuses=statuses)
         needs = planning_app.staffing_needs(services=services, source_needs=needs)
     need_by_service = {n.service_id: n for n in needs}; service_by_id = {s.service_id: s for s in services}
-    st.write(f"**Periode:** {overview.period.start:%d-%m-%Y} t/m {overview.period.end:%d-%m-%Y}")
-    known = demo or source_matches
-    c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services) if known else "Onbekend"); c3.metric("DVK-planningsbezetting", sum(r.confirmed_occupancy for r in overview.services) if known else "Onbekend"); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services) if known else "Onbekend")
+    with duty_table:
+        st.write(f"**Periode:** {overview.period.start:%d-%m-%Y} t/m {overview.period.end:%d-%m-%Y}")
+        known = demo or source_matches
+        c1, c2, c3, c4 = st.columns(4); c1.metric("Diensten", len(overview.services)); c2.metric("Open minimum", sum(r.open_need for r in overview.services) if known else "Onbekend"); c3.metric("DVK-planningsbezetting", sum(r.confirmed_occupancy for r in overview.services) if known else "Onbekend"); c4.metric("Resterende capaciteit", sum(r.remaining_capacity for r in overview.services) if known else "Onbekend")
 
-    st.markdown("### Diensten")
-    selected_service_id = None
-    if not overview.services: st.info("Geen diensten in de gekozen periode.")
-    else:
-        previous_service = st.session_state.get("selected_service_id")
-        row_actions = hasattr(st.column_config, "ButtonColumn")
-        bindings = catalog.bindings(period)
-        names_by_service = {s.service_id: _sportlink_names(s, bindings, source_bookings)
-                            for s in services} if not demo else {s.service_id: "Onbekend" for s in services}
-        rows = [{"Kies": ("☑" if r.service_id == previous_service else "☐") if row_actions else r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
-        if not known:
-            for row in rows:
-                for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
-                    row[field] = "Onbekend"
-        numeric = ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit")
-        widths = {"Datum": 90, "Tijd": 110, "Dienst": 170, **{name: 65 for name in numeric}}
-        columns = {name: st.column_config.Column(name, width=width, help=name,
-                   **_table_column_options(st.column_config.Column,
-                                           alignment="right" if name in numeric else "left"))
-                   for name, width in widths.items()}
-        columns.update({"service_id": None,
-                        "Kies": st.column_config.CheckboxColumn("Kies", width=55,
-                            help="Selecteer één dienst; een nieuwe keuze vervangt de vorige.",
-                            **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
-                        "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
-        service_ids = tuple(row["service_id"] for row in rows)
-        row_key = sha256("\0".join(service_ids).encode()).hexdigest()
-        if row_actions:
-            click_key = f"service-choice-{row_key}"
-            columns["Kies"] = st.column_config.ButtonColumn("Kies", width=55, pinned=True,
-                type="tertiary", help="Kies één dienst. Klik het aangevinkte vakje om de keuze op te heffen.",
-                on_click=_choose_service, args=(service_ids, click_key), key=click_key)
-            editor_key = f"services_editor-stable-{row_key}"
+        st.markdown("### Diensten")
+        selected_service_id = None
+        if not overview.services: st.info("Geen diensten in de gekozen periode.")
         else:
-            # Older runtimes lack row actions. Preserve their previous fallback;
-            # stable scrolling is verified for the accepted runtime 1.64.0.
-            editor_key = f"services_editor-{st.session_state.get('services-table-revision', 0)}"
-        st.data_editor(pd.DataFrame(rows), hide_index=True, **_table_width_options(), height=210, row_height=32,
-                       disabled=[name for name in rows[0] if name != "Kies"], column_config=columns,
-                       key=editor_key, on_change=None if row_actions else _select_service,
-                       args=None if row_actions else (service_ids, editor_key))
+            previous_service = st.session_state.get("selected_service_id")
+            row_actions = hasattr(st.column_config, "ButtonColumn")
+            bindings = catalog.bindings(period)
+            names_by_service = {s.service_id: _sportlink_names(s, bindings, source_bookings)
+                                for s in services} if not demo else {s.service_id: "Onbekend" for s in services}
+            rows = [{"Kies": ("☑" if r.service_id == previous_service else "☐") if row_actions else r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
+            if not known:
+                for row in rows:
+                    for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
+                        row[field] = "Onbekend"
+            numeric = ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit")
+            widths = {"Datum": 90, "Tijd": 110, "Dienst": 170, **{name: 65 for name in numeric}}
+            columns = {name: st.column_config.Column(name, width=width, help=name,
+                       **_table_column_options(st.column_config.Column,
+                                               alignment="right" if name in numeric else "left"))
+                       for name, width in widths.items()}
+            columns.update({"service_id": None,
+                            "Kies": st.column_config.CheckboxColumn("Kies", width=55,
+                                help="Selecteer één dienst; een nieuwe keuze vervangt de vorige.",
+                                **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
+                            "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
+            service_ids = tuple(row["service_id"] for row in rows)
+            row_key = sha256("\0".join(service_ids).encode()).hexdigest()
+            if row_actions:
+                click_key = f"service-choice-{row_key}"
+                columns["Kies"] = st.column_config.ButtonColumn("Kies", width=55, pinned=True,
+                    type="tertiary", help="Kies één dienst. Klik het aangevinkte vakje om de keuze op te heffen.",
+                    on_click=_choose_service, args=(service_ids, click_key), key=click_key)
+                editor_key = f"services_editor-stable-{row_key}"
+            else:
+                # Older runtimes lack row actions. Preserve their previous fallback;
+                # stable scrolling is verified for the accepted runtime 1.64.0.
+                editor_key = f"services_editor-{st.session_state.get('services-table-revision', 0)}"
+            st.data_editor(pd.DataFrame(rows), hide_index=True, **_table_width_options(), height=210, row_height=32,
+                           disabled=[name for name in rows[0] if name != "Kies"], column_config=columns,
+                           key=editor_key, on_change=None if row_actions else _select_service,
+                           args=None if row_actions else (service_ids, editor_key))
 
-        selected_service_id = previous_service if previous_service in service_by_id else None
+            selected_service_id = previous_service if previous_service in service_by_id else None
 
-    st.markdown("### Kandidaten en voorstellen")
     candidate_result = None
-    if not demo:
-        st.caption("Prioritering op achterstanden uit vorig seizoen is pas beschikbaar na BL-03; er worden geen fictieve achterstanden gebruikt.")
-        st.caption(export_location_hint())
-        source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
-        st.caption("Controleer zelf of de vijf handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma; beoordeel de kandidaten altijd in die context.")
-        if candidate_context is not None and candidate_context.source_period != source_period.strip():
-            st.session_state.pop("candidate-context", None)
-            candidate_context = None
-        refresh_candidates = st.button("Brongegevens vernieuwen", key="load-candidate-sources")
-        candidate_load_key = (period, source_period)
-        if refresh_candidates or st.session_state.get("candidate-load-key") != candidate_load_key:
-            st.session_state["candidate-load-key"] = candidate_load_key
-            st.session_state.pop("candidate-load-error", None)
-            st.session_state.pop("candidate-context", None)
-            for key in list(st.session_state):
-                if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
-                    del st.session_state[key]
-            try:
-                with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
-                    candidate_context = CandidateContextApplicationService(identity).load(
-                        period=period, source_period=source_period,
-                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
-                st.session_state["candidate-context"] = candidate_context
-                st.rerun()
-            except CandidateSourceError as exc:
+    with data_sources:
+        if not demo:
+            st.caption("Prioritering op achterstanden uit vorig seizoen is pas beschikbaar na BL-03; er worden geen fictieve achterstanden gebruikt.")
+            st.caption(export_location_hint())
+            with settings:
+                source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
+            st.caption("Controleer zelf of de vijf handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma; beoordeel de kandidaten altijd in die context.")
+            if candidate_context is not None and candidate_context.source_period != source_period.strip():
+                st.session_state.pop("candidate-context", None)
                 candidate_context = None
-                st.session_state["candidate-load-error"] = str(exc)
-        if st.session_state.get("candidate-load-error"):
-            st.error(st.session_state["candidate-load-error"])
-        if candidate_context is not None:
-            st.caption("Ingelezen bestanden: " + ", ".join(candidate_context.source_files))
-            st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen. DVK controleert de map niet op de achtergrond.")
-            stats = candidate_context.stats
-            st.caption(f"Kandidaatbronnen geladen: {candidate_context.fetched_at:%d-%m-%Y %H:%M}. Programma API: {stats.calls} aanvraag, {stats.retries} herhalingen, {stats.failures} definitieve fouten.")
-            if candidate_context.error:
-                st.error(candidate_context.error)
-            elif stats.retries:
-                st.warning("Programma API tijdelijk instabiel; een herhaalpoging is geslaagd. De wedstrijdcontext is beschikbaar.")
-            else:
-                st.caption("Programma API: technisch geslaagd, ook als Sportlink geen wedstrijden aanlevert.")
-            if candidate_context.signal_counts:
-                if candidate_context.error is None and any(signal.severity in {"ERROR", "WARNING"} for signal in candidate_context.source.signals):
-                    st.info("Kandidaatbronnen geladen. Bij enkele personen zijn bronafwijkingen gemeld. Personen met onvoldoende betrouwbare gegevens worden niet voorgesteld; de overige kandidaten worden normaal beoordeeld. U hoeft deze administratieve bijzonderheden niet eerst in Sportlink te corrigeren.")
-                with st.expander("Bronmeldingen kandidaatcontext"):
-                    for code, count in candidate_context.signal_counts.items():
-                        st.caption(f"{code}: {count}")
-                    st.dataframe([{"Bronbestand": d.filename, "Omschrijving": d.description,
-                                   "Relatiecode": d.person_id, "Naam": d.name,
-                                   "Bronregel": d.row_number, "Bronwaarden": dict(d.values)}
-                                  for d in candidate_context.diagnostic_details],
-                                 hide_index=True, height=300)
-    ready = demo or (known and candidate_context is not None and candidate_context.error is None)
-    if not ready:
-        st.info("Kandidaten zijn beschikbaar na een geslaagde bronimport en gevalideerde Sportlink-bezetting voor deze periode.")
-    elif selected_service_id is None:
-        st.info("Selecteer eerst één dienst in de tabel hierboven.")
-    else:
-        service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
-        proposal_run_key = f"proposal-run-{selected_service_id}"
-        if proposal_run_key not in st.session_state:
-            st.session_state[proposal_run_key] = str(uuid4())
-        with database.unit_of_work() as uow:
-            planning_app = PlanningApplicationService(identity, uow=uow)
-            if demo:
-                cases, planned = _demo_proposals(service, need, matches, planning_app=planning_app, proposal_run_id=st.session_state[proposal_run_key])
-            else:
+            refresh_candidates = st.button("Brongegevens vernieuwen", key="load-candidate-sources")
+            candidate_load_key = (period, source_period)
+            if refresh_candidates or st.session_state.get("candidate-load-key") != candidate_load_key:
+                st.session_state["candidate-load-key"] = candidate_load_key
+                st.session_state.pop("candidate-load-error", None)
+                st.session_state.pop("candidate-context", None)
+                for key in list(st.session_state):
+                    if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
+                        del st.session_state[key]
                 try:
-                    candidate_result = CandidateContextApplicationService(identity).propose(
-                        candidate_context, service=service, need=need, planning_app=planning_app,
-                        proposal_run_id=st.session_state[proposal_run_key])
-                    cases, planned = candidate_result.cases, candidate_result.planned
+                    with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
+                        candidate_context = CandidateContextApplicationService(identity).load(
+                            period=period, source_period=source_period,
+                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
+                    st.session_state["candidate-context"] = candidate_context
+                    st.rerun()
                 except CandidateSourceError as exc:
-                    st.error(str(exc))
-                    cases, planned = (), ()
-        if candidate_result is not None:
-            uncertain = sum(control.status == "niet betrouwbaar beoordeelbaar" for control in candidate_result.controls)
-            if uncertain:
-                st.warning(f"{uncertain} leden niet betrouwbaar beoordeelbaar; deze leveren geen kandidaatvoorstel op. Bekijk de Taakplichtcontrole voor toelichting.")
-            if any(control.status == "afwijking" for control in candidate_result.controls):
-                st.warning("Bij leden wijkt de Sportlink-urenverplichting af van de DVK-afleiding. De actuele Sportlink-urenpositie blijft leidend; bekijk de Taakplichtcontrole voor herbeoordeling.")
-        case_by_person = {c.person.person_id: c for c in cases}
-        if not planned:
-            if not demo and candidate_result is None:
-                pass  # The explicit source error above is not an empty candidate result.
-            elif need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
-            else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
+                    candidate_context = None
+                    st.session_state["candidate-load-error"] = str(exc)
+            if st.session_state.get("candidate-load-error"):
+                st.error(st.session_state["candidate-load-error"])
+            if candidate_context is not None:
+                st.caption("Ingelezen bestanden: " + ", ".join(candidate_context.source_files))
+                st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen. DVK controleert de map niet op de achtergrond.")
+                stats = candidate_context.stats
+                st.caption(f"Kandidaatbronnen geladen: {candidate_context.fetched_at:%d-%m-%Y %H:%M}. Programma API: {stats.calls} aanvraag, {stats.retries} herhalingen, {stats.failures} definitieve fouten.")
+                if candidate_context.error:
+                    st.error(candidate_context.error)
+                elif stats.retries:
+                    st.warning("Programma API tijdelijk instabiel; een herhaalpoging is geslaagd. De wedstrijdcontext is beschikbaar.")
+                else:
+                    st.caption("Programma API: technisch geslaagd, ook als Sportlink geen wedstrijden aanlevert.")
+                if candidate_context.signal_counts:
+                    if candidate_context.error is None and any(signal.severity in {"ERROR", "WARNING"} for signal in candidate_context.source.signals):
+                        st.info("Kandidaatbronnen geladen. Bij enkele personen zijn bronafwijkingen gemeld. Personen met onvoldoende betrouwbare gegevens worden niet voorgesteld; de overige kandidaten worden normaal beoordeeld. U hoeft deze administratieve bijzonderheden niet eerst in Sportlink te corrigeren.")
+                    with st.expander("Bronmeldingen kandidaatcontext"):
+                        for code, count in candidate_context.signal_counts.items():
+                            st.caption(f"{code}: {count}")
+                        st.dataframe([{"Bronbestand": d.filename, "Omschrijving": d.description,
+                                       "Relatiecode": d.person_id, "Naam": d.name,
+                                       "Bronregel": d.row_number, "Bronwaarden": dict(d.values)}
+                                      for d in candidate_context.diagnostic_details],
+                                     hide_index=True, height=300)
+    with candidates:
+        st.markdown("### Kandidaten en voorstellen")
+        ready = demo or (known and candidate_context is not None and candidate_context.error is None)
+        if not ready:
+            st.info("Kandidaten zijn beschikbaar na een geslaagde bronimport en gevalideerde Sportlink-bezetting voor deze periode.")
+        elif selected_service_id is None:
+            st.info("Selecteer eerst één dienst in de tabel hierboven.")
         else:
-            st.caption(f"Er zijn nog {need.remaining_capacity} plaatsen beschikbaar. Niet geselecteerde kandidaten blijven beschikbaar voor een volgende planning.")
-            candidate_rows = [{"Kies": False, "proposal_id": item.proposal.proposal_id,
-                               "Rang": item.proposal.priority_rank,
-                               "Kandidaat": case_by_person[item.proposal.person_id].person.name,
-                               "Team": item.proposal.team_id or "—", "Openstaande uren": item.proposal.E,
-                               "Doel": "Min bezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot Max",
-                               "Wedstrijdcontext": _vriendelijke_wedstrijdcontext(item.proposal.match_relation),
-                               "Opmerkingen": _vriendelijke_waarom(item.proposal)} for item in planned]
-            row_identity = sha256("\0".join(row["proposal_id"] for row in candidate_rows).encode()).hexdigest()
-            candidate_table = st.data_editor(pd.DataFrame(candidate_rows), hide_index=True, height=330, row_height=32,
-                **_table_width_options(), disabled=[name for name in candidate_rows[0] if name != "Kies"],
-                column_config={"proposal_id": None,
-                               "Kies": st.column_config.CheckboxColumn("Kies", width=55,
-                                   **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
-                               "Rang": st.column_config.NumberColumn(width=60),
-                               "Kandidaat": st.column_config.TextColumn(width=190)},
-                key=f"candidate-table-{selected_service_id}-{row_identity}")
-            selected_proposal_ids = candidate_table.loc[candidate_table["Kies"], "proposal_id"].tolist()
-            # One shared detail form instead of a hidden form for every candidate.
-            with st.expander("Kandidaattoelichting en uitzondering"):
-                proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
-                detail_id = st.selectbox("Kandidaat voor toelichting", tuple(proposals_by_id),
-                    format_func=lambda pid: f"{proposals_by_id[pid].priority_rank}. {case_by_person[proposals_by_id[pid].person_id].person.name}",
-                    key=f"candidate-detail-{selected_service_id}-{st.session_state[proposal_run_key]}")
-                p = proposals_by_id[detail_id]
-                if candidate_result is not None:
-                    detail = next(row for row in candidate_result.explanations if row.person_id == p.person_id)
-                    st.caption("Taakplicht: " + detail.why)
-                    st.caption("Prioriteit: " + "; ".join(p.applied_priority_rules))
-                st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
-                with st.form(f"exception-{p.proposal_id}"):
-                    label = st.selectbox("Reden", tuple(REJECTION_LABELS), key=f"reasoncat-{p.proposal_id}"); reason = st.text_input("Toelichting", key=f"reason-{p.proposal_id}"); submitted = st.form_submit_button("Uitzondering vastleggen")
-                    if submitted:
-                        if not reason.strip(): st.error("Een toelichting is verplicht.")
-                        else:
-                            with database.unit_of_work() as uow:
-                                result = ProposalDecisionApplicationService(identity, uow=uow).reject(p, case_by_person[p.person_id], reason_category=REJECTION_LABELS[label], reason=reason)
-                            st.session_state[f"exception-result-{p.proposal_id}"] = result
-                if st.session_state.get(f"exception-result-{p.proposal_id}"): st.warning("Uitzondering vastgelegd. De urenpositie blijft ongewijzigd; deze persoon kan bij een volgende planning opnieuw worden voorgesteld.")
-            st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
+            service = service_by_id[selected_service_id]; need = need_by_service[selected_service_id]
+            proposal_run_key = f"proposal-run-{selected_service_id}"
+            if proposal_run_key not in st.session_state:
+                st.session_state[proposal_run_key] = str(uuid4())
             with database.unit_of_work() as uow:
-                selection_problem = PlanningApplicationService(identity, uow=uow).selection_problem(
-                    person_ids=tuple(next(i.proposal.person_id for i in planned if i.proposal.proposal_id == pid)
-                                     for pid in selected_proposal_ids), service=service, staffing_need=need)
-            if selection_problem and selected_proposal_ids:
-                st.warning(selection_problem)
-            if st.button("Selectie bevestigen", type="primary", disabled=bool(selection_problem) or not selected_proposal_ids):
-                selections = tuple((next(i.proposal for i in planned if i.proposal.proposal_id == pid), case_by_person[next(i.proposal for i in planned if i.proposal.proposal_id == pid).person_id], f"UI-{uuid4()}") for pid in selected_proposal_ids)
+                planning_app = PlanningApplicationService(identity, uow=uow)
+                if demo:
+                    cases, planned = _demo_proposals(service, need, matches, planning_app=planning_app, proposal_run_id=st.session_state[proposal_run_key])
+                else:
+                    try:
+                        candidate_result = CandidateContextApplicationService(identity).propose(
+                            candidate_context, service=service, need=need, planning_app=planning_app,
+                            proposal_run_id=st.session_state[proposal_run_key])
+                        cases, planned = candidate_result.cases, candidate_result.planned
+                    except CandidateSourceError as exc:
+                        st.error(str(exc))
+                        cases, planned = (), ()
+            if candidate_result is not None:
+                uncertain = sum(control.status == "niet betrouwbaar beoordeelbaar" for control in candidate_result.controls)
+                if uncertain:
+                    st.warning(f"{uncertain} leden niet betrouwbaar beoordeelbaar; deze leveren geen kandidaatvoorstel op. Bekijk de Taakplichtcontrole voor toelichting.")
+                if any(control.status == "afwijking" for control in candidate_result.controls):
+                    st.warning("Bij leden wijkt de Sportlink-urenverplichting af van de DVK-afleiding. De actuele Sportlink-urenpositie blijft leidend; bekijk de Taakplichtcontrole voor herbeoordeling.")
+            case_by_person = {c.person.person_id: c for c in cases}
+            if not planned:
+                if not demo and candidate_result is None:
+                    pass  # The explicit source error above is not an empty candidate result.
+                elif need.remaining_capacity == 0: st.info("Geen kandidaatvoorstellen: de maximumbezetting is bereikt.")
+                else: st.info("Geen kandidaatvoorstellen: er zijn geen geschikte kandidaten voor deze dienst.")
+            else:
+                st.caption(f"Er zijn nog {need.remaining_capacity} plaatsen beschikbaar. Niet geselecteerde kandidaten blijven beschikbaar voor een volgende planning.")
+                candidate_rows = [{"Kies": False, "proposal_id": item.proposal.proposal_id,
+                                   "Rang": item.proposal.priority_rank,
+                                   "Kandidaat": case_by_person[item.proposal.person_id].person.name,
+                                   "Team": item.proposal.team_id or "—", "Openstaande uren": item.proposal.E,
+                                   "Doel": "Min bezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot Max",
+                                   "Wedstrijdcontext": _vriendelijke_wedstrijdcontext(item.proposal.match_relation),
+                                   "Opmerkingen": _vriendelijke_waarom(item.proposal)} for item in planned]
+                row_identity = sha256("\0".join(row["proposal_id"] for row in candidate_rows).encode()).hexdigest()
+                candidate_table = st.data_editor(pd.DataFrame(candidate_rows), hide_index=True, height=330, row_height=32,
+                    **_table_width_options(), disabled=[name for name in candidate_rows[0] if name != "Kies"],
+                    column_config={"proposal_id": None,
+                                   "Kies": st.column_config.CheckboxColumn("Kies", width=55,
+                                       **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
+                                   "Rang": st.column_config.NumberColumn(width=60),
+                                   "Kandidaat": st.column_config.TextColumn(width=190)},
+                    key=f"candidate-table-{selected_service_id}-{row_identity}")
+                selected_proposal_ids = candidate_table.loc[candidate_table["Kies"], "proposal_id"].tolist()
+                # One shared detail form instead of a hidden form for every candidate.
+                with st.expander("Kandidaattoelichting en uitzondering"):
+                    proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
+                    detail_id = st.selectbox("Kandidaat voor toelichting", tuple(proposals_by_id),
+                        format_func=lambda pid: f"{proposals_by_id[pid].priority_rank}. {case_by_person[proposals_by_id[pid].person_id].person.name}",
+                        key=f"candidate-detail-{selected_service_id}-{st.session_state[proposal_run_key]}")
+                    p = proposals_by_id[detail_id]
+                    if candidate_result is not None:
+                        detail = next(row for row in candidate_result.explanations if row.person_id == p.person_id)
+                        st.caption("Taakplicht: " + detail.why)
+                        st.caption("Prioriteit: " + "; ".join(p.applied_priority_rules))
+                    st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
+                    with st.form(f"exception-{p.proposal_id}"):
+                        label = st.selectbox("Reden", tuple(REJECTION_LABELS), key=f"reasoncat-{p.proposal_id}"); reason = st.text_input("Toelichting", key=f"reason-{p.proposal_id}"); submitted = st.form_submit_button("Uitzondering vastleggen")
+                        if submitted:
+                            if not reason.strip(): st.error("Een toelichting is verplicht.")
+                            else:
+                                with database.unit_of_work() as uow:
+                                    result = ProposalDecisionApplicationService(identity, uow=uow).reject(p, case_by_person[p.person_id], reason_category=REJECTION_LABELS[label], reason=reason)
+                                st.session_state[f"exception-result-{p.proposal_id}"] = result
+                    if st.session_state.get(f"exception-result-{p.proposal_id}"): st.warning("Uitzondering vastgelegd. De urenpositie blijft ongewijzigd; deze persoon kan bij een volgende planning opnieuw worden voorgesteld.")
+                st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
+                with database.unit_of_work() as uow:
+                    selection_problem = PlanningApplicationService(identity, uow=uow).selection_problem(
+                        person_ids=tuple(next(i.proposal.person_id for i in planned if i.proposal.proposal_id == pid)
+                                         for pid in selected_proposal_ids), service=service, staffing_need=need)
+                if selection_problem and selected_proposal_ids:
+                    st.warning(selection_problem)
+                if st.button("Selectie bevestigen", type="primary", disabled=bool(selection_problem) or not selected_proposal_ids):
+                    selections = tuple((next(i.proposal for i in planned if i.proposal.proposal_id == pid), case_by_person[next(i.proposal for i in planned if i.proposal.proposal_id == pid).person_id], f"UI-{uuid4()}") for pid in selected_proposal_ids)
+                    try:
+                        with database.unit_of_work() as uow:
+                            results = ProposalDecisionApplicationService(identity, uow=uow).approve_many(selections, service, need)
+                        st.session_state[f"confirmed-{selected_service_id}"] = results
+                        st.session_state[proposal_run_key] = str(uuid4())
+                        st.rerun()
+                    except ValueError as exc: st.error(str(exc))
+            confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
+            if confirmed:
+                names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
+
+        st.divider()
+        st.markdown("### Actieve tijdelijke DVK-inroosteringen")
+        st.caption("Deze werkvoorraad telt mee in de planning; de Sportlink-bronbezetting blijft ongewijzigd.")
+        with database.unit_of_work() as uow:
+            temporary_rows = PlanningApplicationService(identity, uow=uow).temporary_assignment_contexts(
+                persons=(tuple(c.person for c in demo_candidate_cases()) if demo else
+                         candidate_context.source.persons if candidate_context is not None else ()),
+            )
+        if temporary_rows:
+            temporary_labels = {row.assignment.assignment_id: _assignment_label(row) for row in temporary_rows}
+            with st.form("undo-temporary-planning"):
+                undo_id = st.selectbox("Tijdelijke inroostering", tuple(temporary_labels), format_func=temporary_labels.get)
+                undo_submitted = st.form_submit_button("Tijdelijke inroostering ongedaan maken")
+            if undo_submitted:
                 try:
                     with database.unit_of_work() as uow:
-                        results = ProposalDecisionApplicationService(identity, uow=uow).approve_many(selections, service, need)
-                    st.session_state[f"confirmed-{selected_service_id}"] = results
-                    st.session_state[proposal_run_key] = str(uuid4())
+                        ProposalDecisionApplicationService(identity, uow=uow).undo(undo_id)
+                    # A fresh proposal run also permits selecting the undone person again.
+                    for key in list(st.session_state):
+                        if key.startswith("proposal-run-") or key.startswith("confirmed-"):
+                            del st.session_state[key]
+                    st.session_state["undo-planning-result"] = "Tijdelijke inroostering ongedaan gemaakt. Bezetting en beschikbaarheid zijn opnieuw berekend."
                     st.rerun()
-                except ValueError as exc: st.error(str(exc))
-        confirmed = st.session_state.get(f"confirmed-{selected_service_id}")
-        if confirmed:
-            names = [case_by_person[r.assignment.person_id].person.name for r in confirmed if r.assignment]; st.success(f"Inroostering bevestigd voor: {', '.join(names)}.")
-
-    st.markdown("### Actieve tijdelijke DVK-inroosteringen")
-    st.caption("Deze werkvoorraad telt mee in de planning; de Sportlink-bronbezetting blijft ongewijzigd.")
-    with database.unit_of_work() as uow:
-        temporary_rows = PlanningApplicationService(identity, uow=uow).temporary_assignment_contexts(
-            persons=(tuple(c.person for c in demo_candidate_cases()) if demo else
-                     candidate_context.source.persons if candidate_context is not None else ()),
-        )
-    if temporary_rows:
-        temporary_labels = {row.assignment.assignment_id: _assignment_label(row) for row in temporary_rows}
-        with st.form("undo-temporary-planning"):
-            undo_id = st.selectbox("Tijdelijke inroostering", tuple(temporary_labels), format_func=temporary_labels.get)
-            undo_submitted = st.form_submit_button("Tijdelijke inroostering ongedaan maken")
-        if undo_submitted:
-            try:
-                with database.unit_of_work() as uow:
-                    ProposalDecisionApplicationService(identity, uow=uow).undo(undo_id)
-                # A fresh proposal run also permits selecting the undone person again.
-                for key in list(st.session_state):
-                    if key.startswith("proposal-run-") or key.startswith("confirmed-"):
-                        del st.session_state[key]
-                st.session_state["undo-planning-result"] = "Tijdelijke inroostering ongedaan gemaakt. Bezetting en beschikbaarheid zijn opnieuw berekend."
-                st.rerun()
-            except ValueError as exc:
-                st.error(str(exc))
-    else:
-        st.info("Geen actieve tijdelijke inroosteringen.")
-    undo_result = st.session_state.pop("undo-planning-result", None)
-    if undo_result:
-        st.success(undo_result)
-
-    st.markdown("### No-shows")
-    st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
-    with database.unit_of_work() as uow:
-        assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
-            services=services, persons=tuple(c.person for c in demo_candidate_cases()), period=period,
-        )
-    if not assignment_rows:
-        st.info("Geen betrouwbaar aan een persoon gekoppelde inroosteringen beschikbaar voor no-showregistratie.")
-    else:
-        assignment_by_id = {c.assignment.assignment_id: c for c in assignment_rows}
-        assignment_options = {key: _assignment_label(c, source_name=True) for key, c in assignment_by_id.items()}
-        with st.form("no-show-form"):
-            assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
-            submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
-        if submitted_no_show:
-            with database.unit_of_work() as uow:
-                context = assignment_by_id[assignment_id]
-                assignment = context.assignment
-                service_info = context.service
-                if service_info is None:
-                    st.error("De datum/tijd van deze inroostering is niet beschikbaar in de huidige planning.")
-                    st.stop()
-                occurred_at = service_info.starts_at
-                event = NoShowEvent(
-                    f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id,
-                    occurred_at, datetime.now().astimezone(), identity.subject_id,
-                    season_id(occurred_at.date()),
-                )
-                try:
-                    assessment = NoShowApplicationService(uow, identity).register(event, period=period,
-                        source_revision=st.session_state.get("no-show-selection-revision"))
                 except ValueError as exc:
                     st.error(str(exc))
-                else:
-                    st.session_state["last-no-show"] = assessment
-        assessment = st.session_state.pop("last-no-show", None)
-        if assessment:
-            if assessment.counter == 1:
-                st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
-            else:
-                card = "gele kaart" if assessment.card == "yellow" else "rode kaart"
-                follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
-                st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
-            st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
-
-    st.session_state["no-show-selection-revision"] = assignment_rows[0].source_revision if assignment_rows else None
-
-    with database.unit_of_work() as uow:
-        revocable_rows = NoShowApplicationService(uow, identity).revocable_no_shows(
-            services=services, persons=tuple(c.person for c in demo_candidate_cases()),
-        )
-
-    if st.session_state.pop("clear-no-show-revocation-reason", False):
-        st.session_state["no-show-revocation-reason"] = ""
-
-    if revocable_rows:
-        no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
-        with st.form("no-show-revocation-form"):
-            revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get,
-                                          key="no-show-revocation-id")
-            revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
-            revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
-        if revoke_submitted:
-            try:
-                with database.unit_of_work() as uow:
-                    app = NoShowApplicationService(uow, identity)
-                    app.revoke(revoke_no_show_id, reason=revocation_reason, revoked_at=datetime.now().astimezone())
-                    selected_row = next(row for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
-                    selected_no_show = selected_row.no_show
-                    state = app.current_state(selected_no_show.person_id, selected_no_show.season)
-                person_label = selected_row.assignment.person_name or "dit lid (naam onbekend)"
-                st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
-                st.session_state["clear-no-show-revocation-reason"] = True
-                st.session_state.pop("last-no-show", None)
-                st.rerun()
-            except ValueError as exc:
-                st.error(str(exc))
-    else:
-        st.info("Geen geregistreerde no-shows beschikbaar voor intrekking.")
-
-    revocation_result = st.session_state.pop("no-show-revocation-result", None)
-    if revocation_result:
-        st.success(revocation_result)
-
-    st.markdown("### Wedstrijden")
-    if not demo and (candidate_context is None or candidate_context.error):
-        st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
-    elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
-    else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
-    st.markdown("### Databronnen")
-    with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
-        st.caption(export_location_hint(("leden",)))
-        st.caption("Leden.csv wordt bij synchroniseren opnieuw uit de vaste lokale map gelezen voor persoonskoppeling.")
-        st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
-        replace_confirmed = False
-        replacing = bool(active_session and (active_session.source_revision or temporary_rows))
-        if replacing:
-            replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{active_session.source_revision}")
-            st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
-        if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
-            try:
-                persons = LocalCsvSourceApplicationService().volunteer_persons()
-                with database.unit_of_work() as uow:
-                    if active_session is None:
-                        active_session = PlanningSessionApplicationService(uow, identity).start(period)
-                        st.session_state["planning-resumed"] = active_session.session_id
-                    error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
-                        period=period,
-                        client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
-                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
-                        persons=persons, imported_at=datetime.now().astimezone(),
-                        confirmed=replace_confirmed, source_revision=active_session.source_revision)
-                if error:
-                    st.error(error)
-                else:
-                    st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
-                    st.rerun()
-            except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
-                st.error(str(exc))
-        for signal in st.session_state.get("sportlink-booking-signals", ()):
-            st.error(signal.message)
-        sync_result = st.session_state.pop("sportlink-sync-result", None)
-        if sync_result:
-            st.success(sync_result)
-    if not demo:
-        st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
-        if success:
-            st.caption(f"Laatste geslaagde bronperiode: {success['start']} t/m {success['end']}; opgehaald: {success['fetched_at']}")
-            st.write(success.get("status", "Geslaagd"))
-            report = success.get("identity")
-            if report is not None:
-                st.write(f"Opgehaalde Sportlink-inroosteringen: {report['total']} · "
-                         f"Afgeschermd: {report['shielded']} · "
-                         f"Zonder betrouwbare unieke persoonskoppeling: {report['unlinked']}")
-                if report["details"]:
-                    st.warning(f"Administratieve aandachtspunten voor {report['problem_names']} verschillende probleemnamen. "
-                               "Aantallen boekingen per categorie kunnen overlappen.")
-                    for category in report["categories"]:
-                        st.write(f"{category['problem']}: {category['bookings']} boeking(en), {category['names']} verschillende naam/namen.")
-                    with st.expander("Lokale administratieve aandachtspunten"):
-                        st.table([{"Sportlink-naam": row["name"], "Probleem": row["problem"],
-                                   "Aantal boekingen": row["bookings"]} for row in report["details"]])
-            if source_bookings:
-                with st.expander("Sportlink-inroosteringen voor de gekozen periode"):
-                    st.table([{"Sportlink-naam": b.volunteer_name, "Datum": _datum_met_dag(b.starts_at),
-                               "Tijd": f"{b.starts_at:%H:%M}–{b.ends_at:%H:%M}",
-                               "Dienst": b.service.service_type if b.service else "Dienst onbekend",
-                               "No-showregistratie mogelijk": "Ja" if b.can_register_no_show else "Nee"}
-                              for b in source_bookings])
-            st.dataframe([{"Sportlink-taakcode": row["task_code"], "Taakomschrijving": row["description"],
-                           "Aantal geplande diensten": row["services"], "Aantal Sportlink-inroosteringen": row["bookings"],
-                           "Uitvraagstatus": row["status"]} for row in success["tasks"]], hide_index=True, height=190)
         else:
-            st.info("Nog geen geslaagde Sportlink-synchronisatie.")
-        if attempt and attempt["status"] == "Mislukt":
-            st.error(f"Verversen mislukt voor {attempt['start']} t/m {attempt['end']} ({attempt['at']}): {attempt['message']}. Vorige bron en tijdelijke planning behouden.")
-            st.write("Taakcodes en uitvraagstatus laatste poging: " + "; ".join(
-                f"{row['task_code']} — {row['description']}: {row['status']}"
-                for row in attempt["tasks"]))
-    st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True, height=360)
-    st.markdown("### Datakwaliteit")
-    if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
-    else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-    st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+            st.info("Geen actieve tijdelijke inroosteringen.")
+        undo_result = st.session_state.pop("undo-planning-result", None)
+        if undo_result:
+            st.success(undo_result)
+
+        st.divider()
+        st.markdown("### No-shows")
+        st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
+        with database.unit_of_work() as uow:
+            assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
+                services=services, persons=tuple(c.person for c in demo_candidate_cases()), period=period,
+            )
+        if not assignment_rows:
+            st.info("Geen betrouwbaar aan een persoon gekoppelde inroosteringen beschikbaar voor no-showregistratie.")
+        else:
+            assignment_by_id = {c.assignment.assignment_id: c for c in assignment_rows}
+            assignment_options = {key: _assignment_label(c, source_name=True) for key, c in assignment_by_id.items()}
+            with st.form("no-show-form"):
+                assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
+                submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
+            if submitted_no_show:
+                with database.unit_of_work() as uow:
+                    context = assignment_by_id[assignment_id]
+                    assignment = context.assignment
+                    service_info = context.service
+                    if service_info is None:
+                        st.error("De datum/tijd van deze inroostering is niet beschikbaar in de huidige planning.")
+                        st.stop()
+                    occurred_at = service_info.starts_at
+                    event = NoShowEvent(
+                        f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id,
+                        occurred_at, datetime.now().astimezone(), identity.subject_id,
+                        season_id(occurred_at.date()),
+                    )
+                    try:
+                        assessment = NoShowApplicationService(uow, identity).register(event, period=period,
+                            source_revision=st.session_state.get("no-show-selection-revision"))
+                    except ValueError as exc:
+                        st.error(str(exc))
+                    else:
+                        st.session_state["last-no-show"] = assessment
+            assessment = st.session_state.pop("last-no-show", None)
+            if assessment:
+                if assessment.counter == 1:
+                    st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
+                else:
+                    card = "gele kaart" if assessment.card == "yellow" else "rode kaart"
+                    follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
+                    st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
+                st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
+
+        st.session_state["no-show-selection-revision"] = assignment_rows[0].source_revision if assignment_rows else None
+
+        with database.unit_of_work() as uow:
+            revocable_rows = NoShowApplicationService(uow, identity).revocable_no_shows(
+                services=services, persons=tuple(c.person for c in demo_candidate_cases()),
+            )
+
+        if st.session_state.pop("clear-no-show-revocation-reason", False):
+            st.session_state["no-show-revocation-reason"] = ""
+
+        if revocable_rows:
+            no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
+            with st.form("no-show-revocation-form"):
+                revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get,
+                                              key="no-show-revocation-id")
+                revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
+                revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
+            if revoke_submitted:
+                try:
+                    with database.unit_of_work() as uow:
+                        app = NoShowApplicationService(uow, identity)
+                        app.revoke(revoke_no_show_id, reason=revocation_reason, revoked_at=datetime.now().astimezone())
+                        selected_row = next(row for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
+                        selected_no_show = selected_row.no_show
+                        state = app.current_state(selected_no_show.person_id, selected_no_show.season)
+                    person_label = selected_row.assignment.person_name or "dit lid (naam onbekend)"
+                    st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
+                    st.session_state["clear-no-show-revocation-reason"] = True
+                    st.session_state.pop("last-no-show", None)
+                    st.rerun()
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            st.info("Geen geregistreerde no-shows beschikbaar voor intrekking.")
+
+        revocation_result = st.session_state.pop("no-show-revocation-result", None)
+        if revocation_result:
+            st.success(revocation_result)
+
+    with fixtures, st.expander("Wedstrijdoverzicht voor de gekozen periode", expanded=False):
+        if not demo and (candidate_context is None or candidate_context.error):
+            st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
+        elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
+        else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
+    with sportlink_source:
+        with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
+            st.caption(export_location_hint(("leden",)))
+            st.caption("Leden.csv wordt bij synchroniseren opnieuw uit de vaste lokale map gelezen voor persoonskoppeling.")
+            st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
+            replace_confirmed = False
+            replacing = bool(active_session and (active_session.source_revision or temporary_rows))
+            if replacing:
+                replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{active_session.source_revision}")
+                st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
+            if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
+                try:
+                    persons = LocalCsvSourceApplicationService().volunteer_persons()
+                    with database.unit_of_work() as uow:
+                        if active_session is None:
+                            active_session = PlanningSessionApplicationService(uow, identity).start(period)
+                            st.session_state["planning-resumed"] = active_session.session_id
+                        error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
+                            period=period,
+                            client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
+                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
+                            persons=persons, imported_at=datetime.now().astimezone(),
+                            confirmed=replace_confirmed, source_revision=active_session.source_revision)
+                    if error:
+                        st.error(error)
+                    else:
+                        st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
+                        st.rerun()
+                except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
+                    st.error(str(exc))
+            for signal in st.session_state.get("sportlink-booking-signals", ()):
+                st.error(signal.message)
+            sync_result = st.session_state.pop("sportlink-sync-result", None)
+            if sync_result:
+                st.success(sync_result)
+        if not demo:
+            st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
+            if success:
+                st.caption(f"Laatste geslaagde bronperiode: {success['start']} t/m {success['end']}; opgehaald: {success['fetched_at']}")
+                st.write(success.get("status", "Geslaagd"))
+                report = success.get("identity")
+                if report is not None:
+                    st.write(f"Opgehaalde Sportlink-inroosteringen: {report['total']} · "
+                             f"Afgeschermd: {report['shielded']} · "
+                             f"Zonder betrouwbare unieke persoonskoppeling: {report['unlinked']}")
+                    if report["details"]:
+                        st.warning(f"Administratieve aandachtspunten voor {report['problem_names']} verschillende probleemnamen. "
+                                   "Aantallen boekingen per categorie kunnen overlappen.")
+                        for category in report["categories"]:
+                            st.write(f"{category['problem']}: {category['bookings']} boeking(en), {category['names']} verschillende naam/namen.")
+                        with st.expander("Lokale administratieve aandachtspunten"):
+                            st.table([{"Sportlink-naam": row["name"], "Probleem": row["problem"],
+                                       "Aantal boekingen": row["bookings"]} for row in report["details"]])
+                if source_bookings:
+                    with st.expander("Sportlink-inroosteringen voor de gekozen periode"):
+                        st.table([{"Sportlink-naam": b.volunteer_name, "Datum": _datum_met_dag(b.starts_at),
+                                   "Tijd": f"{b.starts_at:%H:%M}–{b.ends_at:%H:%M}",
+                                   "Dienst": b.service.service_type if b.service else "Dienst onbekend",
+                                   "No-showregistratie mogelijk": "Ja" if b.can_register_no_show else "Nee"}
+                                  for b in source_bookings])
+                st.dataframe([{"Sportlink-taakcode": row["task_code"], "Taakomschrijving": row["description"],
+                               "Aantal geplande diensten": row["services"], "Aantal Sportlink-inroosteringen": row["bookings"],
+                               "Uitvraagstatus": row["status"]} for row in success["tasks"]], hide_index=True, height=190)
+            else:
+                st.info("Nog geen geslaagde Sportlink-synchronisatie.")
+            if attempt and attempt["status"] == "Mislukt":
+                st.error(f"Verversen mislukt voor {attempt['start']} t/m {attempt['end']} ({attempt['at']}): {attempt['message']}. Vorige bron en tijdelijke planning behouden.")
+                st.write("Taakcodes en uitvraagstatus laatste poging: " + "; ".join(
+                    f"{row['task_code']} — {row['description']}: {row['status']}"
+                    for row in attempt["tasks"]))
+    with data_sources:
+        with st.expander("Bronstatus en actualiteit", expanded=False):
+            st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True, height=360)
+        st.markdown("### Datakwaliteit")
+        if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
+        else: st.success("Geen datakwaliteitssignalen voor deze planning.")
+        st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
 
 
 def _render_planning_screen():
