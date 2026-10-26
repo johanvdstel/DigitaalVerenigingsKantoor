@@ -62,6 +62,38 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard zichtbaar (uitgeklapt); bestaande functionaliteit regressievrij. BL-18 is lokaal functioneel geaccepteerd met als laatste wijzigingsverzoek standaard zichtbare wedstrijden (26 oktober 2026); uitsluitend die standaardzichtbaarheid vereist nog lokale controle.
 
+## Nieuwe wens — Zelfstandig No-showmanagement (26 oktober 2026)
+
+**Status:** nieuw backlogitem, functionele richting aangevuld op 26 oktober 2026; nog niet ontworpen of geïmplementeerd. Definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+
+**Plaats in de navigatie:** afzonderlijke functie **No-showmanagement** onder **Ledendiensten & Vrijwilligersbeleid**, los van **Ledendienst Planning**. Verplaats de bestaande No-showbediening uit Ledendienst Planning/Kandidaten; hergebruik bestaande registratie-, intrekkings- en historiefuncties zonder verlies van gegevens.
+
+**Functie 1 — No-show registreren:** de planner kiest een verstreken periode vóór vandaag, haalt de daadwerkelijk in Sportlink ingeroosterde ledendiensten via de Vrijwilligers API op en selecteert daaruit de betreffende persoon en dienst om een No-show vast te leggen. Niet-ingeroosterde personen mogen niet worden geregistreerd. Historische bronraadpleging mag de actieve planningssessie, actuele broncontext of tijdelijke DVK-indelingen niet vervangen of verstoren. Onderzoek in het functionele ontwerp hoe dit samengaat met de bestaande actieve-bron-/periodecontroles.
+
+**Functie 2 — No-shows beheren en analyseren:** overzicht van registraties **over alle seizoenen**, met het huidige seizoen als standaardfilter en filters op seizoen, persoon en status. Toon ook ingetrokken registraties en behoud de volledige historie. Maak herhaald gedrag inzichtelijk door per lid het aantal **niet-ingetrokken** No-shows in het geselecteerde seizoen en over meerdere seizoenen te tonen. Ingetrokken No-shows blijven raadpleegbaar maar tellen niet mee als geldige No-show. Analyse is signalerend en leidt niet zelfstandig tot nieuwe sancties; bestaand CKC-beleid blijft leidend.
+
+**Acceptatie:** beide functies zijn afzonderlijk herkenbaar; een geldige historische Sportlink-inroostering kan worden geregistreerd; intrekking en historie blijven werken; overzichten over meerdere seizoenen onderscheiden actieve en ingetrokken registraties; bestaande planning blijft onaangetast; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand. Geen Sportlink-writeback.
+
+## Nieuwe wens — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
+
+**Status:** nieuw backlogitem, nog niet ontworpen of geïmplementeerd; definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+
+**Doel:** gebruik de speeldag van het team in de Teams-export om kandidaten/voorstellen voor ledendiensten in het weekend te filteren. **Spelers van zondagteams niet aanbieden op zaterdag; spelers van zaterdagteams niet aanbieden op zondag.** Op de eigen weekenddag is deze specifieke filter geen belemmering. Voor diensten op maandag t/m vrijdag geldt deze restrictie niet.
+
+**Afbakening:** pas de filter toe bij het samenstellen van vrijwilligerskandidaten en voorstellen; overige bestaande geschiktheids-, prioriteits- en capaciteitsregels blijven behouden. Verifieer vóór implementatie de feitelijke Teams-exportkolom en betekenis, de koppeling van personen aan teams, en de afhandeling van ontbrekende of onbekende speeldagen en niet-spelende leden. Een speler hoort volgens het CKC-uitgangspunt niet in twee teams voor te komen. Als een speler toch zowel aan een zaterdagteam als een zondagteam gekoppeld is, wordt die speler door deze speeldagfilter op **beide weekenddagen toegestaan** (niet uitgesloten); dit is een expliciete uitzondering, geen stilzwijgende datacorrectie. Geen aannames over ontbrekende bronwaarden.
+
+**Acceptatie:** zondagteamspelers ontbreken in zaterdagvoorstellen, zaterdagteamspelers ontbreken in zondagvoorstellen; de omgekeerde eigen-speeldagcombinaties worden door deze filter niet uitgesloten; doordeweekse voorstellen blijven ongewijzigd. Tests dekken expliciet ook de dubbele teamkoppeling (zaterdag én zondag: op beide dagen toegestaan) en de nog vast te leggen behandeling van ontbrekende bronwaarden.
+
+## Nieuwe wens — Versieaanduiding op het DVK-hoofdscherm (26 oktober 2026)
+
+**Status:** opgenomen in backlog; uitvoeren bij de eerstvolgende code-update, niet als onderdeel van PR #46 (BL-18). Definitief backlognummer bij werkvoorbereiding bepalen om bestaande reserveringen niet te doorkruisen.
+
+**Wens:** toon direct onder de titel `CKC Digitaal Verenigingskantoor (DVK)` een kleine, subtiele aanduiding van de daadwerkelijk actieve applicatieversie, bijvoorbeeld `PR #46 (BL-18)` tijdens de acceptatie van die versie. Zo is bij lokaal testen direct zichtbaar welke codeversie draait.
+
+**Uitwerking:** werk de aanduiding bij elke nieuwe versie bij; geef waar praktisch mogelijk de voorkeur aan een centraal beheerde of automatisch afgeleide versie-identificatie in plaats van losse handmatige tekst. Zorg dat de aanduiding overeenkomt met de werkelijk gestarte versie, ook bij gebruik van verschillende Git-branches/worktrees. Geen wijziging in de functionele werking.
+
+**Acceptatie:** versieaanduiding staat leesbaar maar onopvallend onder de hoofdtitel; bij een volgende versie is zichtbaar dat de identificatie mee verandert. Bestaande schermwerking blijft ongewijzigd.
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
