@@ -108,6 +108,22 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** versieaanduiding staat leesbaar maar onopvallend onder de hoofdtitel; bij een volgende versie is zichtbaar dat de identificatie mee verandert. Bestaande schermwerking blijft ongewijzigd.
 
+## BL-22 — Onderhoudbare CKC-beleidsregels voor taakplichtcontrole (26 oktober 2026)
+
+**Status:** nieuwe functionele wens voor prototype v0.5; nog niet technisch geïnventariseerd, ontworpen of geïmplementeerd. Eerst de bestaande implementatie en configuratie onderzoeken; scope en planning daarna gericht vaststellen.
+
+**Doel:** de CKC-beleidsregels voor het afleiden van de verwachte taakplicht afzonderlijk inzichtelijk, reviewbaar en eenvoudig onderhoudbaar maken, zonder dat voor gewone beleidswijzigingen onnodig Python-programmacode aangepast hoeft te worden.
+
+**Leidende ontwerpkeuze:** **zo licht en simpel mogelijk**, passend binnen de bestaande Python-architectuur. **Geen nieuw rules-engineproduct, apart platform of externe tool uitsluitend voor deze beleidsregels.** Onderzoek eerst welke regels en functiemappings al configureerbaar zijn, welke nog in Python zijn vastgelegd en welke minimale scheiding zinvol is. Een leesbaar, versiebeheerd configuratiebestand (bijvoorbeeld YAML of JSON) met beperkte bestaande Python-verwerking is een mogelijke uitkomst, **geen vooraf opgelegde technische oplossing**. Een nieuw onderhoudsscherm is niet vereist.
+
+**Functionele randvoorwaarden:**
+- De bestaande, functioneel geaccepteerde CKC-beleidsregels en taakplichtuitkomsten blijven behouden; wijzigingen aan het beleid zijn geen onderdeel van deze technische onderhoudbaarheidsverbetering.
+- De taakplichtcontrole blijft de verwachte taakplicht uit bronfeiten en CKC-beleid afleiden, de toegepaste vrijstellingsgrond verklaren en afwijkingen ten opzichte van de Sportlink-registratie signaleren.
+- **Ledendienst Planning gebruikt de in Sportlink geregistreerde taakplicht als leidende kandidatenbasis.** De regelconfiguratie mag geen afzonderlijke uitzonderingsadministratie of concurrerende taakplichtwaarheid voor de planning creëren (zie BL-05 en BL-17).
+- Maak regels en mappings reviewbaar, traceerbaar en met gerichte regressietests controleerbaar. Vermijd onnodige abstrahering, migratie of nieuwe afhankelijkheden.
+
+**Eerstvolgende stap:** gerichte technische inventarisatie van de huidige Python-implementatie, bestaande configuratie, beleidsregels en tests; daarna een minimaal wijzigingsvoorstel met expliciete acceptatiecriteria voorleggen vóór implementatie.
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
