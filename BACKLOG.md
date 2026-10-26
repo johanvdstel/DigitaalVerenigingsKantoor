@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt op 25 oktober 2026; PR #44 functioneel geaccepteerd en gemerged; BL-18 (herstructurering Ledendienst Planning) toegevoegd; BL-10/BL-11 kennen nog resterende integrale verificatie  
+**Status:** bijgewerkt op 26 oktober 2026; BL-05 herijkt, opruimactie uitzonderingsregistratie afzonderlijk opgenomen; BL-18 en Programma API-status gecorrigeerd; overige openstaande punten nog niet herbeoordeeld  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -19,13 +19,27 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 | ID | Onderwerp | Afspraak en eerstvolgende stap | Afhankelijkheid |
 | --- | --- | --- | --- |
 | BL-03 | Achterstallige uren vorig seizoen | **Hoge prioriteit, v0.5.** Planner bevestigt beschikbaar Excel-overzicht; bestand/kolommen nog te ontvangen en lokaal te verifiëren. Koppeling bij voorkeur op Sportlink-lidnummer, met seizoen, openstaande uren en controle op duplicaten/ontbrekende matches. Achterstand beïnvloedt kandidaatprioritering **tot en met 31 december**; vanaf 1 januari niet meer. Niet optellen bij Sportlink A van het nieuwe seizoen. **Wijziging B-13** t.o.v. eerdere grens 1 december: functionele baseline, configuratie en regressietests expliciet bijwerken vóór implementatie. | Excel van planner; bronsemantiek en seizoensidentificatie |
-| BL-05 | Duurzame plannerbeslissingen bij taakplichtafwijkingen | **v0.5, na terugkoppeling planner.** Leg besluit, reden, actor, tijdstip, geldigheid en herbeoordeling na bronvernieuwing vast; onderscheid DVK-afleiding van menselijke administratieve beslissing. Ontwerp mede op basis van beoordeling van de 87 afwijkingen. | Terugkoppeling CKC-planner; B-09/B-14 |
+| BL-05 | Duurzame plannerbeslissingen bij taakplichtafwijkingen | **Vervallen als ontwikkelopdracht (besluit 26 oktober 2026).** DVK blijft afwijkingen tussen de Sportlink-taakplichtregistratie en CKC-beleidsregels signaleren via de bestaande taakplichtcontrole. De planner beoordeelt deze en corrigeert zo nodig Sportlink. Geen aparte DVK-registratie van besluiten, redenen of taakplichtuitzonderingen. De 87 eerder geconstateerde afwijkingen hoeven niet eerst door de planner te zijn beoordeeld om BL-05 af te sluiten. | Geen DVK-ontwikkeling; bestaande taakplichtcontrole behouden |
 | BL-06 | Urenoverdracht bij 18 jaar | **v0.5.** Signaleer overdrachtsmogelijkheid; uitsluitend menselijke goedkeuring en twee tegengestelde handmatige Sportlink-B-correcties; na nieuwe import beide verifiëren. Geen automatische Sportlink-mutatie. | B-08; verificatie Sportlink B |
 | BL-07 | Sportlink-urenbron en seizoensgegevens | **Gedeeltelijk gevalideerd.** Sportlink A is voor read-only taakplichtcontrole met echte CKC-exports getoetst. Nog open: werkelijke B/C/D/E-betekenis, beschikbare velden, seizoensafbakening en controle van correcties na import. | Brononderzoek Sportlink |
 | BL-08 | Functieclassificatie `Verzorger` | **Wacht op CKC-broncorrectie.** Onderscheid betaalde en onbetaalde functie in Sportlink nog niet betrouwbaar; huidige tijdelijke classificatie niet persoonsgebonden hardcoden. Na correctie lokaal opnieuw controleren. Blokkeert ander v0.5-werk niet. | CKC/Sportlink |
 | BL-09 | Bronactualiteit functies en commissies | **Bewaken binnen v0.5.** Bestaande bron- en controlediagnose behouden; verouderde of onvolledige bronfeiten signaleren, geen ontbrekende functiedatums verzinnen. Geen aparte ontwikkelronde tenzij controle een concrete tekortkoming aantoont. | Nieuwe bronexports |
 | BL-10 | Tijdelijke planning en Sportlink-synchronisatie | **v0.5, duurzame sessies en Vrijwilligers-bronverversing lokaal geaccepteerd via PR #38; integrale planningsverificatie open.** PR #34 borgt afwijzing van ongeldige Vrijwilligers-responsen vóór publicatie en behoud van bestaande gegevens bij mislukte verversing. PR #35 borgde behoud tijdens navigatie/refresh, bevestigde periodewisseling en destijds wissen bij procesherstart; vijf lokale acceptatiescenario's geslaagd. **De herstartregel is inmiddels functioneel achterhaald** door het op 22 oktober 2026 geaccepteerde [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). Nog te toetsen in de volledige API-/planningsketen: actuele bezetting en beschikbaarheid, undo, handmatige Sportlink-verwerking en succesvolle bronverversing als wisgrens. Alleen aantoonbare gaps herstellen. | API Vrijwilligers; FR-02–FR-08 |
 | BL-11 | No-shows en handmatige Sportlink-correctiewerkvoorraad | **v0.5, registratie, intrekking en sanctieafleiding lokaal geaccepteerd via PR #38; handmatige correctiewerkvoorraad en integrale verificatie blijven open.** Controleer koppeling aan feitelijke Sportlink-inroostering, duurzame no-show, intrekking, sanctieafleiding en status openstaand/afgehandeld van handmatige correctie. Hergebruik geaccepteerde functionaliteit. | API Vrijwilligers; FR-09–FR-12 |
+
+## BL-17 — Uitzonderingsregistratie verwijderen uit Kandidaten (26 oktober 2026)
+
+**Status:** BL-17 toegekend op 26 oktober 2026; afgesproken opruimactie voor prototype v0.5, nog niet geïmplementeerd. **Bewust opnemen in de prototypeplanning**; bij voorkeur combineren met de afzonderlijk vastgelegde teamspeeldagfilter-iteratie (BL-20).
+
+**Functioneel uitgangspunt:** in Ledendienst Planning is de in Sportlink geregistreerde taakplicht leidend voor de kandidatenbasis, ongeacht of die registratie volgens de CKC-beleidsregels juist is. De afzonderlijke taakplichtcontrole signaleert beleidsafwijkingen; de planner beoordeelt deze en corrigeert zo nodig Sportlink. DVK legt geen taakplichtuitzonderingen vast.
+
+**Uit te voeren:**
+- Verwijder de mogelijkheid om in de sectie **Kandidaten** van Ledendienst Planning uitzonderingen op de taakplicht te registreren.
+- Verwijder de bijbehorende invloed van deze uitzonderingen op kandidaatselectie en voorstellen. Behoud de overige bestaande selectie-, geschiktheids- en prioriteitsregels.
+- Ruim uitsluitend hiervoor gebruikte programmatuur en eventuele opslag zorgvuldig op; behoud relevante historie en voorkom onbedoeld gegevensverlies.
+- Behoud de bestaande vrijheid van de planner om een voorstel niet over te nemen; dat is geen uitzonderingsregistratie.
+
+**Acceptatie:** in Kandidaten is geen uitzonderingsregistratie meer beschikbaar en dergelijke sessiegebonden uitzonderingen beïnvloeden de kandidaten of voorstellen niet meer. Sportlink-taakplicht blijft leidend, taakplichtcontrole blijft werken, en bestaande voorstellen, tijdelijke indelingen, bevestiging/undo en sessiegedrag blijven regressievrij. Geen nieuwe persoonsgebonden uitzonderingsregistratie of Sportlink-writeback.
 
 ## BL-16 — Levenscyclus planningssessies (geïmplementeerd en functioneel geaccepteerd)
 
@@ -46,9 +60,9 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 | BL-14 | Beheer op te vragen Sportlink-taakcodes | **Nieuwe wens; na eerste Vrijwilligers API-integratie.** Onderhoudscherm voor bevoegde DVK-gebruiker om de vaste set uit te vragen Sportlink-taakcodes toe te voegen, te wijzigen en te deactiveren, zonder codewijziging. Synchronisatie vraagt altijd de volledige actieve set op; het dashboard toont per uitgevraagde taakcode de resultaten voor de gekozen periode, inclusief nul inroosteringen. Nieuwe Sportlink-taakcodes worden niet automatisch ontdekt; beheer vereist expliciete opname. | Werkende en geaccepteerde Vrijwilligers API-integratie; vast taakcodecontract |
 | BL-15 | Beheer DVK-dienstencatalogus | **Nieuwe wens; na eerste bronintegratie.** Onderhoudscherm voor bevoegde DVK-gebruiker als vervanging van het huidige Excel-onderhoud van de eigen dienstencatalogus. Onderhoud van bestaande catalogusgegevens (zoals diensttype, gekoppelde taakcode, weekpatroon en bezettingsnormen) conform te verifiëren broncontract. Catalogus bepaalt alle concrete diensten per week, ook volledig onbezet; Vrijwilligers API levert uitsluitend feitelijke inroosteringen. Migratie en beheeropslag pas bij uitwerking bepalen; geen nieuwe catalogusarchitectuur veronderstellen. | Bestaande Excel-catalogus en cataloguscontract verifiëren; integratie met concrete dienstmomenten |
 
-## BL-18 — Herstructurering scherm Ledendienst Planning (laatste zichtbaarheidscontrole open)
+## BL-18 — Herstructurering scherm Ledendienst Planning (afgerond en functioneel geaccepteerd)
 
-**Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026; implementatie aangeboden voor afzonderlijke lokale UI-acceptatie op 26 oktober 2026. Zie [uitvoering en acceptatiestappen](code/Prototype/DVK-v0.5-BL18-schermindeling.md). PR #44 is functioneel geaccepteerd en gemerged naar `prototype-v0.5`. Afzonderlijke UI-iteratie **na functionele acceptatie van PR #44 en vóór integrale functionele acceptatie van prototype v0.5**. De geaccepteerde functionaliteit uit PR #44 blijft behouden. Nummer BL-17 wordt niet voor dit onderwerp gebruikt; eventuele eerdere reservering afzonderlijk verifiëren.
+**Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026; via [PR #46](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/46) inclusief standaard uitgeklapte wedstrijdtabel op 26 oktober 2026 lokaal functioneel geaccepteerd en gemerged naar `prototype-v0.5`. Zie [uitvoering en acceptatiestappen](code/Prototype/DVK-v0.5-BL18-schermindeling.md). De eerder geaccepteerde functionaliteit uit PR #44 blijft behouden. BL-18 blijft het nummer voor deze herstructurering; BL-17 is toegekend aan het verwijderen van de uitzonderingsregistratie uit Kandidaten.
 
 **Doel:** het scherm Ledendienst Planning onderverdelen in vijf duidelijk gescheiden en gemarkeerde secties:
 
@@ -60,11 +74,11 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Afbakening:** uitsluitend UI-indeling en presentatie; bestaande functionaliteit, applicatieservices, broncontracten, sessiegedrag, bevestiging/undo en CKC-beleid blijven behouden. Geen Sportlink-writeback, nieuwe beleidsregels of ongevraagde architectuurwijzigingen.
 
-**Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard zichtbaar (uitgeklapt); bestaande functionaliteit regressievrij. BL-18 is lokaal functioneel geaccepteerd met als laatste wijzigingsverzoek standaard zichtbare wedstrijden (26 oktober 2026); uitsluitend die standaardzichtbaarheid vereist nog lokale controle.
+**Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard zichtbaar (uitgeklapt); bestaande functionaliteit regressievrij. BL-18 is inclusief standaard zichtbare wedstrijden lokaal functioneel geaccepteerd op 26 oktober 2026; geen afzonderlijke zichtbaarheidscontrole meer open.
 
-## Nieuwe wens — Zelfstandig No-showmanagement (26 oktober 2026)
+## BL-19 — Zelfstandig No-showmanagement (26 oktober 2026)
 
-**Status:** nieuw backlogitem, functionele richting aangevuld op 26 oktober 2026; nog niet ontworpen of geïmplementeerd. Definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+**Status:** BL-19 toegekend op 26 oktober 2026; functionele richting aangevuld, nog niet ontworpen of geïmplementeerd. Onderdeel van prototype v0.5.
 
 **Plaats in de navigatie:** afzonderlijke functie **No-showmanagement** onder **Ledendiensten & Vrijwilligersbeleid**, los van **Ledendienst Planning**. Verplaats de bestaande No-showbediening uit Ledendienst Planning/Kandidaten; hergebruik bestaande registratie-, intrekkings- en historiefuncties zonder verlies van gegevens.
 
@@ -74,9 +88,9 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** beide functies zijn afzonderlijk herkenbaar; een geldige historische Sportlink-inroostering kan worden geregistreerd; intrekking en historie blijven werken; overzichten over meerdere seizoenen onderscheiden actieve en ingetrokken registraties; bestaande planning blijft onaangetast; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand. Geen Sportlink-writeback.
 
-## Nieuwe wens — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
+## BL-20 — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
 
-**Status:** nieuw backlogitem, nog niet ontworpen of geïmplementeerd; definitief BL-nummer bepalen na controle van bestaande nummerreserveringen.
+**Status:** BL-20 toegekend op 26 oktober 2026; nog niet ontworpen of geïmplementeerd. Onderdeel van prototype v0.5.
 
 **Doel:** gebruik de speeldag van het team in de Teams-export om kandidaten/voorstellen voor ledendiensten in het weekend te filteren. **Spelers van zondagteams niet aanbieden op zaterdag; spelers van zaterdagteams niet aanbieden op zondag.** Op de eigen weekenddag is deze specifieke filter geen belemmering. Voor diensten op maandag t/m vrijdag geldt deze restrictie niet.
 
@@ -84,15 +98,31 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** zondagteamspelers ontbreken in zaterdagvoorstellen, zaterdagteamspelers ontbreken in zondagvoorstellen; de omgekeerde eigen-speeldagcombinaties worden door deze filter niet uitgesloten; doordeweekse voorstellen blijven ongewijzigd. Tests dekken expliciet ook de dubbele teamkoppeling (zaterdag én zondag: op beide dagen toegestaan) en de nog vast te leggen behandeling van ontbrekende bronwaarden.
 
-## Nieuwe wens — Versieaanduiding op het DVK-hoofdscherm (26 oktober 2026)
+## BL-21 — Versieaanduiding op het DVK-hoofdscherm (26 oktober 2026)
 
-**Status:** opgenomen in backlog; uitvoeren bij de eerstvolgende code-update, niet als onderdeel van PR #46 (BL-18). Definitief backlognummer bij werkvoorbereiding bepalen om bestaande reserveringen niet te doorkruisen.
+**Status:** BL-21 toegekend op 26 oktober 2026; uitvoeren bij de eerstvolgende geschikte code-update, niet als onderdeel van PR #46 (BL-18).
 
 **Wens:** toon direct onder de titel `CKC Digitaal Verenigingskantoor (DVK)` een kleine, subtiele aanduiding van de daadwerkelijk actieve applicatieversie, bijvoorbeeld `PR #46 (BL-18)` tijdens de acceptatie van die versie. Zo is bij lokaal testen direct zichtbaar welke codeversie draait.
 
 **Uitwerking:** werk de aanduiding bij elke nieuwe versie bij; geef waar praktisch mogelijk de voorkeur aan een centraal beheerde of automatisch afgeleide versie-identificatie in plaats van losse handmatige tekst. Zorg dat de aanduiding overeenkomt met de werkelijk gestarte versie, ook bij gebruik van verschillende Git-branches/worktrees. Geen wijziging in de functionele werking.
 
 **Acceptatie:** versieaanduiding staat leesbaar maar onopvallend onder de hoofdtitel; bij een volgende versie is zichtbaar dat de identificatie mee verandert. Bestaande schermwerking blijft ongewijzigd.
+
+## BL-22 — Onderhoudbare CKC-beleidsregels voor taakplichtcontrole (26 oktober 2026)
+
+**Status:** nieuwe functionele wens voor prototype v0.5; nog niet technisch geïnventariseerd, ontworpen of geïmplementeerd. Eerst de bestaande implementatie en configuratie onderzoeken; scope en planning daarna gericht vaststellen.
+
+**Doel:** de CKC-beleidsregels voor het afleiden van de verwachte taakplicht afzonderlijk inzichtelijk, reviewbaar en eenvoudig onderhoudbaar maken, zonder dat voor gewone beleidswijzigingen onnodig Python-programmacode aangepast hoeft te worden.
+
+**Leidende ontwerpkeuze:** **zo licht en simpel mogelijk**, passend binnen de bestaande Python-architectuur. **Geen nieuw rules-engineproduct, apart platform of externe tool uitsluitend voor deze beleidsregels.** Onderzoek eerst welke regels en functiemappings al configureerbaar zijn, welke nog in Python zijn vastgelegd en welke minimale scheiding zinvol is. Een leesbaar, versiebeheerd configuratiebestand (bijvoorbeeld YAML of JSON) met beperkte bestaande Python-verwerking is een mogelijke uitkomst, **geen vooraf opgelegde technische oplossing**. Een nieuw onderhoudsscherm is niet vereist.
+
+**Functionele randvoorwaarden:**
+- De bestaande, functioneel geaccepteerde CKC-beleidsregels en taakplichtuitkomsten blijven behouden; wijzigingen aan het beleid zijn geen onderdeel van deze technische onderhoudbaarheidsverbetering.
+- De taakplichtcontrole blijft de verwachte taakplicht uit bronfeiten en CKC-beleid afleiden, de toegepaste vrijstellingsgrond verklaren en afwijkingen ten opzichte van de Sportlink-registratie signaleren.
+- **Ledendienst Planning gebruikt de in Sportlink geregistreerde taakplicht als leidende kandidatenbasis.** De regelconfiguratie mag geen afzonderlijke uitzonderingsadministratie of concurrerende taakplichtwaarheid voor de planning creëren (zie BL-05 en BL-17).
+- Maak regels en mappings reviewbaar, traceerbaar en met gerichte regressietests controleerbaar. Vermijd onnodige abstrahering, migratie of nieuwe afhankelijkheden.
+
+**Eerstvolgende stap:** gerichte technische inventarisatie van de huidige Python-implementatie, bestaande configuratie, beleidsregels en tests; daarna een minimaal wijzigingsvoorstel met expliciete acceptatiecriteria voorleggen vóór implementatie.
 
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
@@ -123,13 +153,15 @@ De eerste proef gebruikt een zichtbaar browservenster waarin de bevoegde planner
 
 ## Gegevensintegraties als afzonderlijke ontwikkelstappen
 
-De **Vrijwilligers API** en **Programma API** zijn noodzakelijke bouwstenen voor Stap 3 Planning. Ze staan als aparte acceptatiestappen in [DVK-PROTOTYPE-PLANNING.md](DVK-PROTOTYPE-PLANNING.md), niet als verondersteld geheel nieuwe backlogfunctionaliteit. De Vrijwilligers API is via PR #38 lokaal geaccepteerd. Voor Programma zijn teamnaamkoppeling en datum-/tijdverwerking via [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) lokaal geaccepteerd (141/141 gekoppelde operationele wedstrijden); de operationele schermintegratie en volledige kandidaatcontext blijven open. [PR #42](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/42) standaardiseert de vijf lokale CSV-exportpaden; de standaardlocatie voor Teams.csv is lokaal functioneel gecontroleerd. Eerst de actuele adapters, broncontracten en werkelijke integratiestatus verifiëren; geen duplicatie.
+De **Vrijwilligers API** en **Programma API** zijn noodzakelijke bouwstenen voor Stap 3 Planning. Ze staan als aparte acceptatiestappen in [DVK-PROTOTYPE-PLANNING.md](DVK-PROTOTYPE-PLANNING.md), niet als verondersteld geheel nieuwe backlogfunctionaliteit. De Vrijwilligers API is via PR #38 lokaal geaccepteerd. Voor Programma zijn teamnaamkoppeling en datum-/tijdverwerking via [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) lokaal geaccepteerd (141/141 gekoppelde operationele wedstrijden). De operationele schermintegratie en zichtbaarheid van wedstrijden zijn inmiddels eveneens functioneel geaccepteerd (BL-18/PR #46). **De Programma API-integratie is afgerond; geen afzonderlijke ontwikkelstap meer.** Het gebruik van wedstrijd- en teamgegevens in nieuwe kandidaatselectieregels, waaronder de teamspeeldagfilter, is een afzonderlijke backlogwens; geen heropening van de Programma API-integratie. [PR #42](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/42) standaardiseert de vijf lokale CSV-exportpaden; de standaardlocatie voor Teams.csv is lokaal functioneel gecontroleerd. Eerst de actuele adapters, broncontracten en werkelijke integratiestatus verifiëren; geen duplicatie.
 
 ## Niet in de backlog
 
 Voormalig **BL-12 — Integrale acceptatie prototype v0.5** is een **implementatie-/acceptatiemijlpaal**, geen functionele backlogwens. Deze staat daarom in de [prototypeplanning](DVK-PROTOTYPE-PLANNING.md).
 
 ## Werkafspraken
+
+**Nummeringsregel (26 oktober 2026):** ken ieder nieuw backlogitem direct het eerstvolgende beschikbare BL-nummer toe. Ga niet uit van niet-vastgelegde reserveringen. Komt later een ouder of eerder informeel gereserveerd onderwerp naar voren, dan krijgt het op dat moment het eerstvolgende beschikbare nummer; bestaande toegekende nummers blijven ongewijzigd.
 
 1. Besluiten uit deze bespreking vormen geen stilzwijgende codewijziging. Functionele baseline, technische implementatie en tests worden traceerbaar bijgewerkt.
 2. Echte CKC-bestanden (Sportlink CSV's, planner-Excel), persoonsgegevens en lokale databases blijven op de eigen computer; niet uploaden naar GitHub, Codex of ChatGPT. Alleen synthetische voorbeelden en niet-herleidbare aggregaten in repository.
