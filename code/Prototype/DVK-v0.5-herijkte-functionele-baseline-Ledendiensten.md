@@ -12,7 +12,7 @@
 
 Het Digitaal Verenigingskantoor (DVK) leidt uit Sportlink-bronfeiten en expliciet CKC-beleid af wie ledendienstplichtig is, welke verplichte uren voor het lopende seizoen verwacht worden, wie voor een dienst in aanmerking komt en waar menselijke beoordeling of correctie nodig is. Sportlink blijft bronhouder van lidmaatschappen, geregistreerde functies, teams, feitelijke dienstinroosteringen en de administratieve urenpositie. DVK voert in v0.5 **geen automatische Sportlink-mutaties** uit.
 
-De op 13 september 2026 geaccepteerde v0.4-baseline (R01–R18, met C01–C22 en W/I-regressiebasis) blijft het uitgangspunt. Het bestaande `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` blijft van kracht voor tijdelijke planning, synchronisatie, no-shows, taakplichtdashboard en portaal. Deze herijking preciseert vooral de taakplichtafleiding, broninterpretatie en plannerbeslissingen. Bij strijdigheid met oudere prototype-aannames gaan de hieronder expliciet herijkte besluiten voor; een eventuele spanning met eerder geaccepteerde casussen moet in de regressie-impactanalyse worden gedocumenteerd.
+De op 13 september 2026 geaccepteerde v0.4-baseline (R01–R18, met C01–C22 en W/I-regressiebasis) blijft het uitgangspunt. Het bestaande `FUNCTIONEEL-CONTRACT-v0.5-vervolg.md` blijft van kracht voor tijdelijke planning, synchronisatie, no-shows, taakplichtdashboard en portaal. Deze herijking preciseert vooral de taakplichtafleiding, broninterpretatie en de scheiding tussen read-only taakplichtcontrole en Sportlink-registratie. Bij strijdigheid met oudere prototype-aannames gaan de hieronder expliciet herijkte besluiten voor; een eventuele spanning met eerder geaccepteerde casussen moet in de regressie-impactanalyse worden gedocumenteerd.
 
 **Vaste scheiding:** bronfeit (`SOURCE_FACT`) ≠ CKC-beleidsconfiguratie (`CONFIGURATION`) ≠ DVK-afleiding (`DERIVED`) ≠ menselijke beslissing. DVK toont geen schijnzekerheid bij ontbrekende of tegenstrijdige brongegevens.
 
@@ -58,7 +58,7 @@ Bij het bereiken van 18 jaar ontstaat, indien aan de overige voorwaarden is vold
 
 ### B-09 — Afwijkingen tussen DVK en Sportlink
 
-DVK berekent per relevant lid de **verwachte A** en vergelijkt die met de in Sportlink **geregistreerde A**. Een afwijking wordt bij relevante planningsruns gesignaleerd; een volledige kwaliteitscontrole voor alle leden is daarnaast mogelijk. Een overeengekomen maar nog niet in Sportlink uitgevoerde correctie blijft zichtbaar tot een nieuwe import de wijziging bevestigt. Een bewust geaccepteerde afwijking krijgt een vastgelegde reden, verantwoordelijke en eventuele einddatum en hoeft bij ongewijzigde feiten en ongewijzigd beleid niet telkens opnieuw te worden gemeld. Opgeloste afwijkingen worden afgesloten.
+DVK berekent per relevant lid de **verwachte A** en vergelijkt die met de in Sportlink **geregistreerde A**. Een afwijking wordt bij relevante planningsruns gesignaleerd; een volledige kwaliteitscontrole voor alle leden is daarnaast mogelijk. De controle toont afwijkingen op basis van de meest recent ingelezen Sportlink-gegevens. Na een correctie in Sportlink kan een volgende import de actuele stand tonen; als het verschil dan is verdwenen, verdwijnt ook het actuele afwijkingssignaal. Ook bewust niet-gecorrigeerde afwijkingen blijven als verschil zichtbaar. DVK legt geen individuele acceptatiebesluiten, redenen, verantwoordelijken, vervaldata of toezeggingen vast en onderdrukt geen signalen op grond van zulke besluiten. Voor kandidaatselectie en voorstellen is de in Sportlink geregistreerde taakplicht leidend, ook bij verschil met de CKC-beleidsafleiding.
 
 ### B-10 — Betrouwbare fallback
 
@@ -74,11 +74,11 @@ DVK toont per relevante bron wanneer gegevens zijn opgehaald. Bij verouderde inf
 
 ### B-13 — Seizoensovergang en verwachte uren
 
-Elk seizoen heeft een eigen Sportlink-urenregistratie. Bij seizoensstart beoordeelt DVK de taakplicht van ieder relevant lid opnieuw op basis van actuele feiten en beleid, berekent **verwachte A per lid** en bereidt daarmee de controle en eventuele handmatige instelling van A in Sportlink voor. Een planner beoordeelt verschillen en voert in v0.5 eventuele wijzigingen zelf uit; een nieuwe import controleert het resultaat. Uren uit een vorig seizoen worden niet automatisch overgeboekt. Seizoensgebonden individuele uitzonderingen verlopen; expliciet langer geldende besluiten worden op geldigheid en nieuwe feiten getoetst. Historische gegevens blijven bewaard. Openstaande uren uit het vorige seizoen kunnen volgens de bestaande prioriteringsregel vóór 1 december meewegen bij kandidaatselectie, maar worden niet automatisch bij de nieuwe A opgeteld.
+Elk seizoen heeft een eigen Sportlink-urenregistratie. Bij seizoensstart beoordeelt DVK de taakplicht van ieder relevant lid opnieuw op basis van actuele feiten en beleid, berekent **verwachte A per lid** en bereidt daarmee de controle en eventuele handmatige instelling van A in Sportlink voor. Een planner beoordeelt verschillen en voert in v0.5 eventuele wijzigingen zelf uit; een nieuwe import controleert het resultaat. Uren uit een vorig seizoen worden niet automatisch overgeboekt. DVK beheert geen seizoensgebonden of langer geldige individuele taakplichtbesluiten. Beschikbare historische brongegevens blijven bewaard volgens de bestaande afspraken. Openstaande uren uit het vorige seizoen kunnen volgens de bestaande prioriteringsregel vóór 1 december meewegen bij kandidaatselectie, maar worden niet automatisch bij de nieuwe A opgeteld.
 
-### B-14 — Levenscyclus van plannerbeslissingen
+### B-14 — Geen DVK-levenscyclus voor taakplichtbesluiten (herijkt 26 oktober 2026)
 
-Een afgesproken maar nog niet uitgevoerde Sportlink-correctie blijft bij relevante controles signaleren tot een nieuwe import uitvoering bevestigt. Een bewust geaccepteerde afwijking wordt duurzaam vastgelegd met reden, verantwoordelijke, beslisdatum en optionele vervaldatum; herhaalde signalen worden onderdrukt zolang feiten, beleid en geldigheid ongewijzigd blijven. Relevante bronwijzigingen, beleidswijzigingen en verlopen geldigheid leiden tot herbeoordeling. Een nieuwe import **zonder** relevante wijziging heropent een geaccepteerde afwijking niet. Bij een nieuw seizoen worden seizoensgebonden besluiten opnieuw beoordeeld; expliciet langer geldige besluiten blijven alleen bestaan als de actuele feiten en het beleid dat toelaten.
+De oorspronkelijk voorziene duurzame levenscyclus van plannerbeslissingen over taakplichtafwijkingen is **vervallen** (BL-05). De planner beoordeelt de signalen in de read-only taakplichtcontrole en voert eventuele aanpassingen rechtstreeks in Sportlink uit. DVK beheert hiervoor geen openstaande correctietoezeggingen, goedkeuringen, acceptaties, redenen, verantwoordelijken, vervaldata of herbeoordelingsstatussen. Nieuwe bronimports en gewijzigde feiten of beleidsregels leiden uitsluitend tot een actuele herberekening en vergelijking volgens B-09; afwijkingen blijven zichtbaar zolang ze feitelijk bestaan. Dit besluit raakt niet aan de afzonderlijke afspraken over tijdelijke planning en no-showregistratie.
 
 ## 3. Verificatiepunten V-01–V-05: geaccepteerde uitwerking
 
@@ -107,11 +107,11 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 
 1. **Tijdelijke planning:** Sportlink is bronhouder van feitelijke inroostering. DVK-planningsposities zijn tijdelijk, beïnvloeden meteen bezetting en beschikbaarheid, kunnen vóór synchronisatie worden teruggedraaid en verdwijnen bij succesvolle Sportlink-synchronisatie. Bij mislukte synchronisatie blijven ze intact. Er is geen verplichte permanente historie van iedere tijdelijke planningshandeling.
 2. **No-shows:** uitsluitend op een concrete feitelijke Sportlink-inroostering; zelfstandig duurzaam en onveranderlijk no-showfeit; eventuele intrekking als afzonderlijk duurzaam feit met actor, tijdstip en toelichting; actuele seizoenteller en sanctiestatus worden afgeleid. Handmatige Sportlink-correctie blijft een aparte eenvoudige werkvoorraad.
-3. **Taakplichtdashboard:** volledige relevante populatie raadpleegbaar, met DVK-afleiding, reden, Sportlink-A, controlestatus, datakwaliteit en plannerafhandeling. CKC-beleid (waaronder momenteel 10 uur) blijft configureerbaar.
+3. **Taakplichtdashboard:** volledige relevante populatie raadpleegbaar, met DVK-afleiding, afleidingsreden, Sportlink-A, actuele vergelijkingsstatus en datakwaliteit; geen duurzame plannerafhandeling of persoonsgebonden uitzonderingsadministratie. CKC-beleid (waaronder momenteel 10 uur) blijft configureerbaar.
 4. **Portaal:** Ledendienst Planning is een module binnen DVK. De UI gebruikt begrijpelijke CKC-termen, toont ontwikkelstatus van andere modules en bevat geen beleidslogica in de Streamlit-presentatielaag.
 5. **Bestaande regressies:** de geaccepteerde C-, W-, I- en R-cases blijven verplicht; waar deze herijking bewust een oudere prototype-aanname wijzigt, wordt de test expliciet aangepast en de reden vastgelegd.
 
-**Herijking 26 oktober 2026:** de eerder beschreven duurzame registratie van taakplicht-/correctiebeslissingen in DVK is vervallen als ontwikkelopdracht (BL-05). Tijdelijke planningshandelingen blijven onder FR-08 vallen. De historische tekst van B-09/B-14 wordt afzonderlijk geharmoniseerd; zij vormt geen opdracht om een nieuwe beslisadministratie te bouwen.
+**Herijking 26 oktober 2026:** B-09 en B-14 zijn in overeenstemming gebracht met BL-05: geen duurzame registratie van taakplicht-/correctiebeslissingen in DVK. Tijdelijke planningshandelingen blijven onder FR-08 vallen.
 
 ## 6. Implementatie- en verificatiecontract
 
@@ -124,7 +124,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 - Verwerk het woonadres volgens B-05/B-06; ouders en contact-via-ouders zijn uitsluitend broncontext en geen taakplichtcriterium.
 - Behoud herkomst en bronactualiteit, en verwerk geen overbodige financiële of identiteitsvelden.
 
-### 6.2 Domeinlogica en plannerbeslissingen
+### 6.2 Domeinlogica en taakplichtcontrole
 
 - Bereken per peildatum en seizoen de taakplicht en verwachte A; scheid die van geregistreerde Sportlink-A.
 - Maak de volledige CKC-functieclassificatie expliciete configuratie, inclusief het tijdelijke besluit over `Verzorger`.
@@ -137,7 +137,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 - V-01–V-05-scenario's uit §3, met positieve, negatieve en ambigue bronvarianten.
 - Peildatumgrenzen: 18e verjaardag (inclusief verschuiving van gezinsgebonden taakplicht zonder urenoverdracht), afmelddatum, commissiebegindatum en seizoensovergang.
 - Huishoudvrijstelling: vrijwillig/onbetaald versus betaald/eretitel; volledig adres met toevoeging; ontbrekend of tegenstrijdig adres.
-- Seizoensgebonden A: herberekening, afwijkingssignaal, handmatige correctie en bevestiging via nieuwe import; geen automatische urenoverdracht uit vorig seizoen.
+- Seizoensgebonden A: herberekening en actueel afwijkingssignaal op basis van ingelezen Sportlink-A; handmatige correctie gebeurt buiten DVK en is na een nieuwe import zichtbaar; geen automatische urenoverdracht uit vorig seizoen.
 - Taakplichtcontrole: verwachte A opnieuw afleiden en afwijkende Sportlink-A signaleren; geen DVK-registratie van plannerbesluiten of urenoverdracht (herijkte BL-05/BL-06).
 - Bestaande v0.4- en v0.5-plannings-/no-showregressies blijven groen.
 
