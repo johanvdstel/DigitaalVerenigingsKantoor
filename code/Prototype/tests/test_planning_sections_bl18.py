@@ -38,7 +38,7 @@ def test_five_sections_and_controls_in_agreed_order(operational_page):
     assert not fixtures.button
     expander, = fixtures.expander
     assert expander.label == "Wedstrijdoverzicht voor de gekozen periode"
-    assert expander.proto.expanded is False
+    assert expander.proto.expanded is True
 
 
 def test_source_warning_stays_visible_while_detail_is_collapsed(operational_page, monkeypatch):
@@ -77,12 +77,12 @@ def test_service_context_and_widget_identity_survive_actions(operational_page):
     assert not app.exception
 
 
-def test_matches_table_remains_inside_collapsed_overview(operational_page):
+def test_matches_table_is_visible_in_expanded_overview(operational_page):
     app, _, _ = operational_page
     app.radio(key="planning-source-mode").set_value("Demonstratie").run()
     assert not app.exception
     fixtures = sections(app)[4]
     expander, = fixtures.expander
-    assert expander.proto.expanded is False
+    assert expander.proto.expanded is True
     assert set(expander.dataframe[0].value.columns) == {"Datum", "Tijd", "Team", "Thuis/uit"}
     assert len(expander.dataframe[0].value) > 0

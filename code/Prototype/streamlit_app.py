@@ -608,7 +608,7 @@ def _render_planning():
         if revocation_result:
             st.success(revocation_result)
 
-    with fixtures, st.expander("Wedstrijdoverzicht voor de gekozen periode", expanded=False):
+    with fixtures, st.expander("Wedstrijdoverzicht voor de gekozen periode", expanded=True):
         if not demo and (candidate_context is None or candidate_context.error):
             st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
         elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")

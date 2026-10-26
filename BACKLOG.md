@@ -46,7 +46,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 | BL-14 | Beheer op te vragen Sportlink-taakcodes | **Nieuwe wens; na eerste Vrijwilligers API-integratie.** Onderhoudscherm voor bevoegde DVK-gebruiker om de vaste set uit te vragen Sportlink-taakcodes toe te voegen, te wijzigen en te deactiveren, zonder codewijziging. Synchronisatie vraagt altijd de volledige actieve set op; het dashboard toont per uitgevraagde taakcode de resultaten voor de gekozen periode, inclusief nul inroosteringen. Nieuwe Sportlink-taakcodes worden niet automatisch ontdekt; beheer vereist expliciete opname. | Werkende en geaccepteerde Vrijwilligers API-integratie; vast taakcodecontract |
 | BL-15 | Beheer DVK-dienstencatalogus | **Nieuwe wens; na eerste bronintegratie.** Onderhoudscherm voor bevoegde DVK-gebruiker als vervanging van het huidige Excel-onderhoud van de eigen dienstencatalogus. Onderhoud van bestaande catalogusgegevens (zoals diensttype, gekoppelde taakcode, weekpatroon en bezettingsnormen) conform te verifiëren broncontract. Catalogus bepaalt alle concrete diensten per week, ook volledig onbezet; Vrijwilligers API levert uitsluitend feitelijke inroosteringen. Migratie en beheeropslag pas bij uitwerking bepalen; geen nieuwe catalogusarchitectuur veronderstellen. | Bestaande Excel-catalogus en cataloguscontract verifiëren; integratie met concrete dienstmomenten |
 
-## BL-18 — Herstructurering scherm Ledendienst Planning (lokale UI-acceptatie open)
+## BL-18 — Herstructurering scherm Ledendienst Planning (laatste zichtbaarheidscontrole open)
 
 **Status en plaatsing:** schermindeling afgesproken op 25 oktober 2026; implementatie aangeboden voor afzonderlijke lokale UI-acceptatie op 26 oktober 2026. Zie [uitvoering en acceptatiestappen](code/Prototype/DVK-v0.5-BL18-schermindeling.md). PR #44 is functioneel geaccepteerd en gemerged naar `prototype-v0.5`. Afzonderlijke UI-iteratie **na functionele acceptatie van PR #44 en vóór integrale functionele acceptatie van prototype v0.5**. De geaccepteerde functionaliteit uit PR #44 blijft behouden. Nummer BL-17 wordt niet voor dit onderwerp gebruikt; eventuele eerdere reservering afzonderlijk verifiëren.
 
@@ -56,11 +56,11 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 2. **Databronnen:** databronnen, bronmeldingen kandidaatcontext, brongegevens vernieuwen en datakwaliteit. Detailinformatie waar mogelijk compact of inklapbaar, maar waarschuwingen die actie vereisen blijven zichtbaar.
 3. **Diensten:** Sportlink-inroosteringen voor de gekozen periode, feitelijke Sportlink-inroosteringen ophalen, opgehaalde Sportlink-inroosteringen, dienstenstatistieken en dienstentabel. Dienstselectie blijft binnen de tabel.
 4. **Kandidaten:** kandidaten en voorstellen, gevolgd door visueel onderscheiden actieve tijdelijke DVK-inroosteringen. Een dienstkeuze werkt direct door in de kandidaatcontext.
-5. **Wedstrijden:** wedstrijdoverzicht voor de gekozen periode als tabel, standaard ingeklapt en uitklapbaar.
+5. **Wedstrijden:** wedstrijdoverzicht voor de gekozen periode als tabel, standaard uitgeklapt en inklapbaar.
 
 **Afbakening:** uitsluitend UI-indeling en presentatie; bestaande functionaliteit, applicatieservices, broncontracten, sessiegedrag, bevestiging/undo en CKC-beleid blijven behouden. Geen Sportlink-writeback, nieuwe beleidsregels of ongevraagde architectuurwijzigingen.
 
-**Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard ingeklapt; bestaande functionaliteit regressievrij. Lokale visuele/functionele acceptatie door CKC vereist.
+**Acceptatie:** vijf secties in afgesproken volgorde; instellingen direct zichtbaar; databronnen compact zonder belangrijke waarschuwingen te verbergen; dienstselectie en kandidaatcontext consistent; tijdelijke DVK-inroosteringen herkenbaar afzonderlijk; wedstrijden standaard zichtbaar (uitgeklapt); bestaande functionaliteit regressievrij. BL-18 is lokaal functioneel geaccepteerd met als laatste wijzigingsverzoek standaard zichtbare wedstrijden (26 oktober 2026); uitsluitend die standaardzichtbaarheid vereist nog lokale controle.
 
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
