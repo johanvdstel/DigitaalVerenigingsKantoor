@@ -124,6 +124,15 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Eerstvolgende stap:** gerichte technische inventarisatie van de huidige Python-implementatie, bestaande configuratie, beleidsregels en tests; daarna een minimaal wijzigingsvoorstel met expliciete acceptatiecriteria voorleggen vóór implementatie.
 
+## BL-23 — In- en uitklapbare rubrieken Ledendienst Planning (27 oktober 2026)
+
+**Status:** nieuwe UI-wens voor prototype v0.5; nog niet geïmplementeerd.
+
+**Wens:** maak de vijf bestaande rubrieken **Instellingen, Databronnen, Diensten, Kandidaten en Wedstrijden** afzonderlijk in- en uitklapbaar. Bij het openen van het scherm Ledendienst Planning zijn alle vijf standaard **ingeklapt**: alleen de rubrieknamen zijn zichtbaar. De planner kan één of meerdere rubrieken naar keuze openklappen, zonder dat het openen van de ene rubriek andere automatisch sluit.
+
+**Randvoorwaarden en acceptatie:** behoud de in BL-18 geaccepteerde volgorde, inhoud, gegevens, waarschuwingen en functionaliteit. Dit wijzigt bewust de eerdere BL-18-startstand waarin Wedstrijden standaard uitgeklapt was; de nieuwe standaard is dat **alle vijf rubrieken ingeklapt** starten. Geen wijziging van onderliggende planning, selectie, bronverwerking of gegevensopslag. Controleer lokaal dat elke rubriek onafhankelijk werkt en dat bestaande functies na openklappen bereikbaar blijven.
+
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
