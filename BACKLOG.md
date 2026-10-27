@@ -110,11 +110,11 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-22 — Onderhoudbare CKC-beleidsregels voor taakplichtcontrole (26 oktober 2026)
 
-**Status:** nieuwe functionele wens voor prototype v0.5; nog niet technisch geïnventariseerd, ontworpen of geïmplementeerd. Eerst de bestaande implementatie en configuratie onderzoeken; scope en planning daarna gericht vaststellen.
+**Status (ontwerpuitgangspunt bevestigd 27 oktober 2026):** open voor uitvoering binnen prototype v0.5; nog niet technisch geïnventariseerd of geïmplementeerd. Eerst bestaande regels en configuratie onderzoeken, daarna een minimale aanpassing voorstellen.
 
 **Doel:** de CKC-beleidsregels voor het afleiden van de verwachte taakplicht afzonderlijk inzichtelijk, reviewbaar en eenvoudig onderhoudbaar maken, zonder dat voor gewone beleidswijzigingen onnodig Python-programmacode aangepast hoeft te worden.
 
-**Leidende ontwerpkeuze:** **zo licht en simpel mogelijk**, passend binnen de bestaande Python-architectuur. **Geen nieuw rules-engineproduct, apart platform of externe tool uitsluitend voor deze beleidsregels.** Onderzoek eerst welke regels en functiemappings al configureerbaar zijn, welke nog in Python zijn vastgelegd en welke minimale scheiding zinvol is. Een leesbaar, versiebeheerd configuratiebestand (bijvoorbeeld YAML of JSON) met beperkte bestaande Python-verwerking is een mogelijke uitkomst, **geen vooraf opgelegde technische oplossing**. Een nieuw onderhoudsscherm is niet vereist.
+**Leidende ontwerpkeuze (CKC, 27 oktober 2026):** bundel de CKC-beleidsregels en functieclassificaties bij voorkeur in **één gemakkelijk leesbaar, reviewbaar en versiebeheerd Python-bestand**, duidelijk gescheiden van technische verwerking. Dit volstaat voorlopig als onderhoudsoplossing. Onderzoek eerst hoe regels en mappings nu verspreid zijn en behoud reeds bruikbare bestaande configuratie waar passend; introduceer geen onnodige migratie of extra afhankelijkheden. **Geen Rules-tool, rules-engineproduct of beheerinterface** in deze iteratie. Een afzonderlijke Rules-tool kan pas later op basis van een nieuw besluit worden overwogen.
 
 **Functionele randvoorwaarden:**
 - De bestaande, functioneel geaccepteerde CKC-beleidsregels en taakplichtuitkomsten blijven behouden; wijzigingen aan het beleid zijn geen onderdeel van deze technische onderhoudbaarheidsverbetering.
