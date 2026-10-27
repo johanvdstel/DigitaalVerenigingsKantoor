@@ -100,7 +100,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-21 — Versieaanduiding op het DVK-hoofdscherm (26 oktober 2026)
 
-**Status:** BL-21 toegekend op 26 oktober 2026; uitvoeren bij de eerstvolgende geschikte code-update, niet als onderdeel van PR #46 (BL-18).
+**Status (bevestigd 27 oktober 2026):** open voor uitvoering binnen prototype v0.5, **gelijktijdig met een andere ontwikkelopdracht** (bijvoorbeeld de gecombineerde BL-17/BL-20-iteratie). Geen afzonderlijke ontwikkelronde voor BL-21. Afsluiten na zichtbare versieaanduiding en lokale verificatie.
 
 **Wens:** toon direct onder de titel `CKC Digitaal Verenigingskantoor (DVK)` een kleine, subtiele aanduiding van de daadwerkelijk actieve applicatieversie, bijvoorbeeld `PR #46 (BL-18)` tijdens de acceptatie van die versie. Zo is bij lokaal testen direct zichtbaar welke codeversie draait.
 
