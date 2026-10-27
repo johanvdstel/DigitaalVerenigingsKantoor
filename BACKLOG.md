@@ -29,7 +29,7 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 
 ## BL-17 — Uitzonderingsregistratie verwijderen uit Kandidaten (26 oktober 2026)
 
-**Status:** BL-17 toegekend op 26 oktober 2026; afgesproken opruimactie voor prototype v0.5, nog niet geïmplementeerd. **Bewust opnemen in de prototypeplanning**; bij voorkeur combineren met de afzonderlijk vastgelegde teamspeeldagfilter-iteratie (BL-20).
+**Status (functionele afbakening bevestigd 27 oktober 2026):** open uitvoeractie voor prototype v0.5, nog niet geïmplementeerd. Verwijder uitzonderingsregistratie uit Kandidaten en haar invloed op kandidaatselectie en indelingsvoorstellen, zonder overige kandidaatfunctionaliteit te wijzigen of relevante historie onnodig te wissen. **Opnemen in de prototypeplanning en uitvoering bij voorkeur combineren met BL-20**; gezamenlijk regressietesten. Geen herintroductie van DVK-taakplichtuitzonderingen (zie BL-05).
 
 **Functioneel uitgangspunt:** in Ledendienst Planning is de in Sportlink geregistreerde taakplicht leidend voor de kandidatenbasis, ongeacht of die registratie volgens de CKC-beleidsregels juist is. De afzonderlijke taakplichtcontrole signaleert beleidsafwijkingen; de planner beoordeelt deze en corrigeert zo nodig Sportlink. DVK legt geen taakplichtuitzonderingen vast.
 
