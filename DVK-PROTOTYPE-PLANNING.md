@@ -21,7 +21,23 @@
 | Open | BL-21 t/m BL-24 | Versieaanduiding samen met andere codewijziging; centraal leesbaar Python-regelbestand (na inventarisatie); inklapbare rubrieken; volledig bronstatusoverzicht. | **Nog te implementeren en accepteren** |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
-De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand voor BL-03 is al beschikbaar. **Voorgestelde, nog te bevestigen uitvoeringsvolgorde:** eerst BL-17/BL-20/BL-21 gezamenlijk, direct daarna BL-03; overige open items vervolgens gericht plannen. Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's. De API-integraties zijn **twee afzonderlijke ontwikkel- en acceptatiestappen**.
+## Vastgestelde resterende uitvoeringsvolgorde prototype v0.5 (28 oktober 2026)
+
+De opdrachtgever heeft onderstaande **werkplanning** bevestigd. De volgorde is leidend, maar geen onwrikbaar watervalplan: bij aantoonbare technische afhankelijkheden kunnen werkzaamheden worden gecombineerd of verschoven, na afstemming. Er zijn nog **geen kalenderdata of tijdsramingen** vastgesteld. Elke iteratie krijgt gerichte technische controle, regressietests en afzonderlijke lokale functionele acceptatie.
+
+| Volgorde | Iteratie | Backlog | Uitvoering en acceptatie |
+| --- | --- | --- | --- |
+| 1 | Kandidaten en versiebeheer | BL-17, BL-20, BL-21 | Uitzonderingsregistratie en haar invloed op voorstellen verwijderen; weekendfilter op teamspeeldag invoeren; daadwerkelijk actieve versie onder hoofdtitel tonen. Gezamenlijk regressietesten en lokaal accepteren. |
+| 2 | Achterstallige uren | BL-03 | Reeds beschikbaar planner-Excel lokaal koppelen aan leden en seizoen; controles op bronsemantiek en matches. Achterstanden tellen mee in kandidaatprioritering t/m **31 december**, vanaf 1 januari niet; geen wijziging aan Sportlink A. De beschikbaarheid van Excel is **geen** externe blokkade. |
+| 3 | Bedieningsgemak en bronstatus | BL-23, BL-24 | Vijf rubrieken onafhankelijk inklapbaar (bij openen allemaal ingeklapt); compleet en eerlijk overzicht van gebruikte API- en CSV-bronnen met status en import-/ophaalmomenten. |
+| 4 | Dynamische dienstencatalogus | BL-14 (inclusief voormalig BL-15) | Eerst bestaande code en cataloguscontract inventariseren; vervolgens lokale `Shift Catalog.xlsx` dynamisch gebruiken voor relevante taakcodes, dienstmomenten en bezettingsnormen. Geen afzonderlijk beheerscherm. |
+| 5 | Zelfstandig No-showmanagement | BL-19 | No-showbediening uit Ledendienst Planning verplaatsen; aanmelden voor werkelijk ingeroosterde diensten binnen de laatste 14 kalenderdagen inclusief vandaag; seizoensoverzicht met historie en intrekking van oudere actieve registraties. Geen gegevensverlies of Sportlink-writeback. |
+| 6 | Onderhoudbaarheid beleidsregels | BL-22 | Bestaande regels en tests inventariseren; CKC-regels bij voorkeur in één goed leesbaar en reviewbaar Python-bestand centraliseren zonder beleidsuitkomsten te veranderen. Geen Rules-tool of beheerinterface. |
+| Eindmijlpaal | Integrale functionele acceptatie v0.5 | Voormalig BL-12 | Met echte CKC-gegevens uitsluitend lokaal de samenhang van taakplicht, bronnen, planning, sessies, no-shows en portaal toetsen; expliciete acceptatie door opdrachtgever. |
+
+**Na integrale acceptatie van v0.5:** BL-13a RPA-haalbaarheidsproef, daarna alleen bij positief besluit BL-13b (pilot) en BL-13c (beheerde productie-invoering). Dit is geen onderdeel van de resterende v0.5-ontwikkeliteraties. De Sportlink-verwerking blijft tot die tijd handmatig.
+
+Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's; beide API-integraties zijn afzonderlijk functioneel geaccepteerd. De bovenstaande iteraties completeren de nog openstaande v0.5-scope.
 
 ### Aanvullende afgeronde voorbereidingen (21 oktober 2026)
 
