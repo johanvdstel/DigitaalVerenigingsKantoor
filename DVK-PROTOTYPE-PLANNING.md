@@ -79,7 +79,7 @@ De aparte [productieroadmap](PRODUCTIE-ROADMAP.md) behandelt hosting, echte data
 
 ## Releasevervolg — RPA (BL-13), toegevoegd 12 oktober 2026
 
-**Voorstel op verzoek van opdrachtgever:** RPA krijgt de eerste afgebakende vervolgproef na integrale functionele acceptatie van v0.5. De bestaande v0.5-stappen en read-only scope blijven gelden. Er zijn nog geen vaste kalenderdata of geaccepteerde versienummers voor dit vervolg.
+**Bevestigd door opdrachtgever op 27 oktober 2026:** RPA (BL-13) behoudt een expliciete plaats in de prototype-opleverplanning, met de eerste afgebakende vervolgproef na integrale functionele acceptatie van v0.5. De bestaande v0.5-stappen en read-only scope blijven gelden. Er zijn nog geen vaste kalenderdata of geaccepteerde versienummers voor dit vervolg.
 
 | Volgorde / releasevenster | Onderdeel | Besluit / acceptatie |
 | --- | --- | --- |
