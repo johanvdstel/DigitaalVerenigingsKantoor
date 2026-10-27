@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** bijgewerkt op 26 oktober 2026; BL-05 herijkt, opruimactie uitzonderingsregistratie afzonderlijk opgenomen; BL-18 en Programma API-status gecorrigeerd; overige openstaande punten nog niet herbeoordeeld  
+**Status:** backlog integraal functioneel herbeoordeeld t/m BL-24 op 27 oktober 2026; afgesloten, vervallen en open uitvoerwerk onderscheiden. Integrale acceptatie prototype v0.5 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -90,7 +90,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-20 — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
 
-**Status:** BL-20 toegekend op 26 oktober 2026; nog niet ontworpen of geïmplementeerd. Onderdeel van prototype v0.5.
+**Status (functionele afbakening bevestigd 27 oktober 2026):** open voor implementatie binnen prototype v0.5, bij voorkeur samen met BL-17. Nog niet geïmplementeerd.
 
 **Doel:** gebruik de speeldag van het team in de Teams-export om kandidaten/voorstellen voor ledendiensten in het weekend te filteren. **Spelers van zondagteams niet aanbieden op zaterdag; spelers van zaterdagteams niet aanbieden op zondag.** Op de eigen weekenddag is deze specifieke filter geen belemmering. Voor diensten op maandag t/m vrijdag geldt deze restrictie niet.
 
