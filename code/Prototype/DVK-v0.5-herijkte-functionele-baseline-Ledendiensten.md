@@ -36,7 +36,7 @@ DVK combineert de actuele Sportlink-exports **Functies** en **Commissies**. De w
 
 Erkende **onbetaalde** vrijwilligersfuncties, waaronder de afzonderlijk geregistreerde trainers-, teambegeleidings-, bestuurs- en commissiefuncties, geven persoonlijke **én huishoudvrijstelling**. De betaalde `Hoofdtrainer Sen.` en `Verzorger` geven alleen persoonlijke vrijstelling. `Lid van verdienste` en `Erelid` geven alleen persoonlijke vrijstelling; het zijn eretitels, geen bewijs van operationele vrijwilligersarbeid. De volledige definitieve mapping wordt uit de werkelijke exportwaarden vastgelegd en getest; niet-herkende titels worden niet stilzwijgend geclassificeerd.
 
-**Bewust geaccepteerde tijdelijke bronafwijking:** de huidige twee registraties `Verzorger` worden beide als betaalde functie behandeld, hoewel in werkelijkheid één van beide onbetaald is. CKC zal de onbetaalde registratie later een onderscheidende titel geven. Er komt hiervoor geen persoonsgebonden hardcoded uitzondering. Na nieuwe bronimport wordt de nieuwe titel opnieuw geclassificeerd. Volgens de bij besluitvorming bekende situatie heeft deze tijdelijke classificatie geen effect op een huishoudvrijstelling; die aanname wordt niet als permanente persoonsregel vastgelegd.
+**CKC-classificatiebesluit 27 oktober 2026 (BL-08 afgesloten):** beide huidige Sportlink-registraties met functienaam `Verzorger` worden bewust als betaalde functie behandeld, hoewel één van beide in werkelijkheid onbetaald is. Conform B-04 geeft dit **persoonlijke vrijstelling, maar geen huishoudvrijstelling**. Met de huidige bezetting heeft deze keuze geen effect op huishoudvrijstelling. Een onderscheidende Sportlink-functienaam is geen voorwaarde meer voor afronding van BL-08. Er komt geen persoonsgebonden hardcoded uitzondering of aanvullende DVK-functie. Als CKC later de functienaam of het beleid wijzigt, kan de classificatie opnieuw worden beoordeeld; de huidige keuze wordt niet als permanent persoonsfeit vastgelegd.
 
 ### B-05 — Huishoudvrijstelling op adres
 
@@ -127,7 +127,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 ### 6.2 Domeinlogica en taakplichtcontrole
 
 - Bereken per peildatum en seizoen de taakplicht en verwachte A; scheid die van geregistreerde Sportlink-A.
-- Maak de volledige CKC-functieclassificatie expliciete configuratie, inclusief het tijdelijke besluit over `Verzorger`.
+- Maak de volledige CKC-functieclassificatie expliciete configuratie, inclusief het CKC-classificatiebesluit over `Verzorger` (BL-08).
 - Behoud de bestaande read-only signalering van taakplichtafwijkingen; de planner beoordeelt en corrigeert zo nodig Sportlink buiten DVK (herijkte BL-05).
 - Ondersteun geen DVK-urenoverdracht of verificatie daarvan; gewerkte uren (`C`) blijven bij het oorspronkelijke lid. Handmatige Sportlink-correcties blijven buiten DVK mogelijk.
 - Respecteer read-only Sportlink-integratie in v0.5; geen verborgen automatische correcties.
@@ -147,7 +147,7 @@ De ruwe bestanden maken **geen** deel uit van deze baseline. Voor ontwikkeling e
 
 1. De daadwerkelijke **Teams-export**: aanwezigheid, naam en waarden van `Teamsoort`, `Teamrol` en `Spelend lid`, plus eventuele duplicaten of bronvarianten.
 2. **BL-07 functioneel afgesloten op 27 oktober 2026:** in de Sportlink-export *Overzicht per periode* betekenen de velden A = `Verplichte punten`, B = `Gecorrigeerde punten`, C = `Voldaan`, D = `Nog ingedeeld`, E = `Niet ingedeeld` (E = A − B − C − D). De export bevat per definitie uitsluitend het huidige seizoen. Een praktijksteekproef van de openstaande uren en prioritering in Kandidaten en Voorstellen tegen het CSV-bestand is akkoord. Geen afzonderlijk brononderzoek of DVK-verificatie van handmatige urenoverdracht meer vereist. Dit vervangt de eerdere openstaande functionele bronverificatie, maar claimt geen volledige technische regressie.
-3. De volledige functie-/commissieclassificatie als machineleesbare CKC-configuratie, één-op-één getoetst aan de gecontroleerde oorspronkelijke exportwaarden. De functionele hoofdregels en de tijdelijke `Verzorger`-uitzondering zijn vastgesteld; de uiteindelijke configuratie en tests zijn nog niet opgeleverd.
+3. De volledige functie-/commissieclassificatie als machineleesbare CKC-configuratie, één-op-één getoetst aan de gecontroleerde oorspronkelijke exportwaarden. De functionele hoofdregels en het vastgestelde CKC-classificatiebesluit voor `Verzorger` zijn bekend (BL-08 functioneel afgesloten); de uiteindelijke volledige configuratie en tests vallen onder de afzonderlijke technische verificatie, niet onder een openstaande BL-08-broncorrectie.
 4. De complete code-impactanalyse en uitvoering van de volledige regressiesuite, inclusief bestaande v0.5-planning en no-shows. De eerdere controle was gericht op de baselinecontracten en kernmodules; zij is geen bewijs dat ieder v0.5-bestand en iedere test reeds is doorgelicht.
 
 **Functionele acceptatie** van dit document kan plaatsvinden voordat alle code is gewijzigd, mits de bovenstaande punten als expliciete technische acceptatievoorwaarden blijven staan. **Technische acceptatie** mag pas na uitvoering, controle van de vereiste echte bronstructuren en een aantoonbaar geslaagde regressiesuite worden uitgesproken.
