@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** bijgewerkt op 25 oktober 2026; PR #44 functioneel geaccepteerd en gemerged; BL-18 schermherstructurering ingepland vóór integrale v0.5-acceptatie; overige openstaande acceptaties blijven ongewijzigd.  
+**Status:** bijgewerkt op 27 oktober 2026 na integrale backlogreview; afgesloten en vervallen BL-items onderscheiden van open uitvoerwerk. Integrale v0.5-acceptatie blijft open.  
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -12,11 +12,13 @@
 | Afgerond | BL-04 — DVK-portaal | Startscherm en modulenavigatie; lokaal geaccepteerd en [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged. | **Afgerond (19 oktober 2026)** |
 | Voorbereiding afgerond | Vrijwilligers API-responsvalidatie (PR #34) en tijdelijke planning (PR #35) | Ongeldige bronresponsen worden vóór publicatie geweigerd; tijdelijke planning bleef volgens de toen geaccepteerde afspraak behouden bij navigatie en verviel bij procesherstart; deze laatste afspraak is vervangen door het op 22 oktober 2026 geaccepteerde [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). | **Afgerond en lokaal geaccepteerd waar van toepassing; geen volledige live API-integratie** |
 | Afgerond | Integratie Vrijwilligers API en BL-16 — duurzame planningssessies | Actuele Sportlink-inroosteringen en bezetting; bronrevisie, sessiehervatting, bevestigde vervanging, No-Show-selectie en registratie met historie. [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38). | **Lokaal functioneel geaccepteerd (23 oktober 2026); 917 regressietests, CI #332 groen** |
-| 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Deelacceptatie PR #41: 141/141 wedstrijden gekoppeld en operationeel; schermintegratie en volledige kandidaatcontext nog open** |
+| 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Afgerond en lokaal functioneel geaccepteerd via PR #41 en BL-18/PR #46; nieuwe kandidaatfilter BL-20 staat afzonderlijk open** |
 | 4 | BL-03 — Achterstallige uren | Lokaal planner-Excel koppelen op lidnummer; seizoens- en matchcontroles; prioriteit t/m 31 december, geen wijziging Sportlink A. | **Hoge prioriteit; Excel bevestigd, nog te ontvangen** |
 | 5 | Stap 3 — Ledendienst Planning | Taakplicht + Vrijwilligers + Programma + achterstanden combineren voor zinvolle kandidaten, prioriteit, bezetting en tijdelijke planning. | **Na bronacceptaties** |
-| Vervolg | BL-05/06/07/08/09/10/11 | Openstaande besluiten, broncorrecties en integrale processen realiseren of verifiëren volgens backlog; exacte onderlinge volgorde nader bepalen. | **Open / afhankelijkheden** |
-| PR #44 geaccepteerd en gemerged; vóór integrale v0.5-acceptatie | BL-18 — Herstructurering Ledendienst Planning | Vijf gescheiden secties: Instellingen, Databronnen, Diensten, Kandidaten, Wedstrijden; behoud bestaande functionaliteit en afzonderlijke lokale UI-acceptatie. | **Lokaal functioneel geaccepteerd; laatste correctie: wedstrijden standaard uitgeklapt. Alleen standaardzichtbaarheid nog lokaal controleren; [verslag](code/Prototype/DVK-v0.5-BL18-schermindeling.md)** |
+| Afgesloten/vervallen | BL-05 t/m BL-11 | BL-05 en BL-06 vervallen als afzonderlijke DVK-functies; BL-07 t/m BL-11 functioneel afgesloten volgens backlog. | **Geen afzonderlijk uitvoerwerk** |
+| PR #44 geaccepteerd en gemerged; vóór integrale v0.5-acceptatie | BL-18 — Herstructurering Ledendienst Planning | Vijf gescheiden secties: Instellingen, Databronnen, Diensten, Kandidaten, Wedstrijden; behoud bestaande functionaliteit en afzonderlijke lokale UI-acceptatie. | **Afgerond en lokaal functioneel geaccepteerd op 26 oktober 2026; nieuwe inklapwens valt onder BL-23; [verslag](code/Prototype/DVK-v0.5-BL18-schermindeling.md)** |
+| Open | BL-14 (incl. BL-15), BL-17, BL-19, BL-20 | Catalogus dynamisch inlezen; uitzonderingsregistratie verwijderen; zelfstandig No-showmanagement; teamspeeldagfilter. BL-17 en BL-20 bij voorkeur combineren. | **Nog te implementeren en accepteren** |
+| Open | BL-21 t/m BL-24 | Versieaanduiding samen met andere codewijziging; centraal leesbaar Python-regelbestand (na inventarisatie); inklapbare rubrieken; volledig bronstatusoverzicht. | **Nog te implementeren en accepteren** |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder beschikbaar komen en in parallel worden voorbereid. Stap 3 mag niet afhankelijk zijn van onbevestigde aannames over de twee API's. De API-integraties zijn **twee afzonderlijke ontwikkel- en acceptatiestappen**.
@@ -25,7 +27,7 @@ De volgorde is **geen onwrikbaar watervalplan**: het Excel-bestand kan eerder be
 
 - **PR #34 — VRIJ-01:** ongeldige of lege Vrijwilligers API-responsen worden vóór publicatie geweigerd; bestaande bronfeiten en tijdelijke planning blijven behouden bij een mislukte verversing. Gemerged naar `prototype-v0.5` (merge-commit `8ccdb473`). Dit is bronveiligheid, **geen** bewijs dat de volledige live API-integratie is geaccepteerd.
 - **PR #35 — tijdelijke planning:** werkvoorraad blijft behouden tijdens schermwisselingen en browser-refresh binnen hetzelfde applicatieproces; een periodewisseling met tijdelijke indelingen vereist waarschuwing en expliciete bevestiging; volgens de destijds geaccepteerde implementatie werd de werkvoorraad na een echte applicatieherstart gewist; **dit is inmiddels een achterhaalde functionele regel**, vervangen door het [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). Lokaal vijf acceptatiescenario's geslaagd; 693 regressietests en CI groen. Gemerged naar `prototype-v0.5` (merge-commit `e7d173e7`). Duurzame no-showgegevens blijven buiten deze wisacties.
-- **Resterend:** Programma API, achterstallige uren en de integrale planning/acceptatie blijven open. De Vrijwilligers API-integratie en duurzame sessies zijn via PR #38 lokaal geaccepteerd.
+- **Resterend:** BL-03, BL-14, BL-17, BL-19 t/m BL-24 en integrale v0.5-acceptatie; de Programma API-integratie is afgerond. De Vrijwilligers API-integratie en duurzame sessies zijn via PR #38 lokaal geaccepteerd.
 
 ### Afronding BL-04
 
@@ -49,7 +51,7 @@ Er bestaan reeds Sportlink Vrijwilligers-client-/adapterbouwstenen in het protot
 
 ### Programma API
 
-De gerichte teamnaamkoppeling van 24 oktober 2026 is via [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking. Lokale controle: 141 ontvangen, 141 gekoppeld, 0 bronmeldingen, 141 operationele wedstrijden. Operationele schermintegratie blijft open. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen en verklaart de volledige Programma-integratie niet geaccepteerd.
+De gerichte teamnaamkoppeling van 24 oktober 2026 is via [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking. Lokale controle: 141 ontvangen, 141 gekoppeld, 0 bronmeldingen, 141 operationele wedstrijden. Operationele schermintegratie is inmiddels via BL-18/PR #46 functioneel geaccepteerd. De v0.5-import gebruikt Teams-naamidentiteit, bewaart Speeldag en competitiecontext en maakt onopgeloste koppelingen expliciet. Zie [implementatie en lokaal acceptatiescenario](code/Prototype/DVK-v0.5-teamnaamkoppeling.md). Dit wijzigt geen beleid voor meerdere wedstrijden/lidmaatschappen; de Programma-integratie is inmiddels met de schermintegratie onder BL-18 afgerond.
 Onderzoek bestaande client-/adapterbouwstenen en beschikbaarheid van wedstrijdgegevens. Leg teamkoppeling, tijdstippen, thuis/uit, actualiteit en eventuele onvolledigheid expliciet vast voordat kandidaatselectie met deze bron wordt geaccepteerd.
 
 ### Lokale Sportlink CSV-exports
