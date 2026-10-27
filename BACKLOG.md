@@ -133,6 +133,17 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 **Randvoorwaarden en acceptatie:** behoud de in BL-18 geaccepteerde volgorde, inhoud, gegevens, waarschuwingen en functionaliteit. Dit wijzigt bewust de eerdere BL-18-startstand waarin Wedstrijden standaard uitgeklapt was; de nieuwe standaard is dat **alle vijf rubrieken ingeklapt** starten. Geen wijziging van onderliggende planning, selectie, bronverwerking of gegevensopslag. Controleer lokaal dat elke rubriek onafhankelijk werkt en dat bestaande functies na openklappen bereikbaar blijven.
 
 
+
+## BL-24 — Compleet overzicht Bronstatus en actualiteit (27 oktober 2026)
+
+**Status:** nieuwe UI-wens voor prototype v0.5; nog niet onderzocht of geïmplementeerd. Voorlopig opgenomen in de open documentatie-PR #52, die pas na gezamenlijke backlogreview wordt gemerged.
+
+**Aanleiding:** in de sectie **Databronnen** toont de tabel **Bronstatus en actualiteit** momenteel alleen `Sportlink Vrijwilligers`. Dat is onlogisch bij een overzicht dat bronstatus en actualiteit pretendeert te tonen: **alle relevante bronnen, of geen onvolledig overzicht**.
+
+**Gewenste werking:** toon consequent **alle gegevensbronnen die Ledendienst Planning gebruikt**, zowel de API-bronnen **Sportlink Vrijwilligers** en **Sportlink Programma** als de relevante lokale CSV-bronnen. Vermeld per bron, voor zover bekend, de beschikbaarheids-/laadstatus, datum van ophalen of importeren en eventuele waarschuwingen. Toon ook bronnen die nog niet geladen of beschikbaar zijn, met een eerlijke status in plaats van ze stilzwijgend weg te laten. Vermijd verzonnen ophaaltijden of schijnzekerheid.
+
+**Aanpak en acceptatie:** onderzoek eerst waarom alleen Sportlink Vrijwilligers wordt getoond en welke statusinformatie al beschikbaar is. Hergebruik bestaande bronmetadata; geen nieuwe infrastructuur zonder aantoonbare noodzaak. Controleer lokaal dat alle gebruikte bronnen consistent worden getoond en dat ontbrekende of verouderde bronnen herkenbaar blijven. Geen wijziging aan broninhoud of planninglogica.
+
 ## BL-13 — RPA voor invoer van goedgekeurde Ledendiensten in Sportlink
 
 **Status:** toegevoegd op verzoek van Johan, 12 oktober 2026; vervolg na integrale acceptatie v0.5. Nog geen implementatie of functionele acceptatie.
