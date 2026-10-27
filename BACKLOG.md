@@ -177,7 +177,7 @@ De **Vrijwilligers API** en **Programma API** zijn noodzakelijke bouwstenen voor
 
 ## Niet in de backlog
 
-Voormalig **BL-12 — Integrale acceptatie prototype v0.5** is een **implementatie-/acceptatiemijlpaal**, geen functionele backlogwens. Deze staat daarom in de [prototypeplanning](DVK-PROTOTYPE-PLANNING.md).
+**BL-12 — Integrale acceptatie prototype v0.5: administratief afgesloten als backlogitem (27 oktober 2026).** Dit is een **implementatie-/acceptatiemijlpaal**, geen functionele backlogwens of afzonderlijke ontwikkelopdracht. De mijlpaal blijft opgenomen in de [prototypeplanning](DVK-PROTOTYPE-PLANNING.md) en wordt op het passende moment beoordeeld; afsluiting van BL-12 betekent **niet** dat prototype v0.5 al integraal is geaccepteerd.
 
 ## Werkafspraken
 
