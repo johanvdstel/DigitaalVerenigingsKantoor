@@ -235,3 +235,54 @@ Geen historische fixtures gewijzigd. De twee bestaande wijzigingen in de
 originele werkmap zijn ongemoeid gebleven. Geen resterend beleids- of
 architectuurbesluit binnen deze correcties vastgesteld. Live CKC-brongedrag en
 handmatige browseracceptatie zijn niet beproefd; functionele acceptatie blijft open.
+
+## Herstel PR #53 — Geldige vrijdagteams (28 oktober 2026)
+
+Context vooraf geverifieerd: AGENTS.md, dit iteratieverslag en de actuele GitHub
+PR-head `a6623f3710514724ed85eb83858585eb718c5dcc`; bestaande schone worktree
+`/private/tmp/dvk-iteratie-1` op `codex/iteratie-1-kandidaten-versiebeheer`.
+Geen nieuwe branch. Integratiebaseline blijft `prototype-v0.5` op
+`81f3a5a5c3b2201af57948bb5bb00b9968c08724`; v0.4 blijft functioneel geaccepteerd,
+v0.5 blijft ontwikkeling. Sportlink is bronhouder; Johan/CKC bepaalt beleid.
+
+Geaccepteerde eis: Johan bevestigt `Algemeen/Vrijdag` als geldige Teams-bronwaarde.
+Vrijdag veroorzaakt geen weekendbeperking of teamspeeldagnoodstatus. Bij bestaande
+Sportlink-taakplicht en positieve open uren is de speler op beide weekenddagen
+gewoon kandidaat, mits de overige regels dit toestaan. Recreatieve vrijstelling
+blijft uitsluitend bij Taakplichtcontrole; de planning krijgt geen vrijstellingsregel.
+
+Vastgesteld feit: `dvk/team_matchday.py` herkende vrijdag niet en zou na alleen
+uitbreiden van de waardentabel vrijdag ten onrechte als andere weekenddag behandelen.
+Minimale correctie: vrijdag valideren als weekdag 4, maar niet toevoegen aan de
+verzameling beperkende weekendkoppelingen. Bij vrijdag plus zaterdag/zondag telt
+uitsluitend de bestaande weekendkoppeling; vrijdag voegt geen beperking of
+opheffing toe. Er is hiervoor geen aanvullende beleidskeuze nodig.
+
+Gewijzigde bestanden en reden:
+- `dvk/team_matchday.py`: uitsluitend de bevestigde bronwaarde toevoegen en
+  vrijdag buiten de weekendfilter houden. Programma-teamidentiteiten intact.
+- `tests/test_iteration1_candidates_v05.py`: 23 nieuwe synthetische regressies voor
+  laden, gewone kandidatuur op beide dagen, A=0 ondanks positieve open uren,
+  minimumtekort, vrijdag naast zaterdag/zondag/beide (beide bronvolgordes),
+  ongeldige waarden naast vrijdag en tegenstrijdige speeldagen voor hetzelfde team.
+- Dit iteratieverslag: opdracht, herleiding, grenzen en verificatie vastleggen.
+
+Bestaande regressies voor beide weekendkoppelingen, minimumbezettingsuitzondering,
+overige geschiktheid, menselijke bevestiging en afzonderlijke Programma-teams 2
+zijn ongewijzigd. Geen historische fixtures gewijzigd, migratie, schemawijziging,
+nieuwe bronspellingen, echte CKC-exports of databases gelezen. Geen functionele
+acceptatie of merge. Johan herhaalt lokaal de bronverversing en vervolgt acceptatie.
+
+Gerichte verificatie (Python 3.11.16): `test_iteration1_candidates_v05.py`,
+`test_programma_team_linking_v05.py`, `test_candidate_context_v05.py` en
+`test_candidate_context_ui_v05.py`: **159 geslaagd**, 0 mislukt/overgeslagen.
+Een eerste testaanmaakpoging gebruikte een verkeerd relatief pad en schreef niets;
+de daaropvolgende lege vrijdagselectie leverde pytest-exit 5 op. Pad gecorrigeerd;
+geen functionele testverwachtingen versoepeld.
+
+Volledige regressiesuite: `python -m pytest -q` vanuit `code/Prototype`:
+**1199 geslaagd**, 0 mislukt, 0 overgeslagen (72,29 seconden).
+`git diff --check`: schoon. Remote-head en integratiebaseline vlak vóór commit
+opnieuw gecontroleerd: ongewijzigd op respectievelijk `a6623f3` en `81f3a5a`.
+Geen resterende functionele of architectuurbeslispunten binnen deze herstelopdracht.
+Commit en uiteindelijke CI-status worden in de chatoplevering vastgelegd.

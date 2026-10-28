@@ -6,6 +6,7 @@ from .proposal_planning import PlannedProposal, plan_proposals
 from .team_linking import membership_identity
 
 MATCHDAY_WEEKDAYS = {
+    "Algemeen/Vrijdag": 4,
     "Algemeen/Zaterdag": 5, "Algemeen/Zondag": 6,
     "Zaterdag": 5,
 }
@@ -53,6 +54,9 @@ def other_weekend_persons(memberships, service):
         if ((membership.team_type or "").casefold() == "bond"
                 and (membership.team_role or "").casefold() == "teamspeler"
                 and membership.playing_member is True):
+            # Friday does not impose a weekend restriction; other links retain theirs.
+            if MATCHDAY_WEEKDAYS[membership.matchday.strip()] < 5:
+                continue
             by_person.setdefault(membership.person_id, set()).add(
                 MATCHDAY_WEEKDAYS[membership.matchday.strip()])
     return frozenset(pid for pid, days in by_person.items() if weekday not in days)

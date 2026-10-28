@@ -233,3 +233,66 @@ def test_policy_date_error_preserves_candidate_and_duty_control(dataset, field, 
     control = next(r for r in dashboard.rows if r.person_id == 'M1')
     assert control.status == 'niet betrouwbaar beoordeelbaar'
     assert label in control.why
+
+
+@pytest.mark.parametrize('weekday', [5, 6])
+def test_friday_player_loads_and_is_regular_on_both_weekend_days(weekday):
+    data = team_data(['Algemeen/Vrijdag'])
+    assert context(data).source.team_memberships[0].matchday == 'Algemeen/Vrijdag'
+    result, _, _ = plan(data, weekday)
+    assert ids(result) == ['M1']
+    assert result.planned[0].staffing_purpose == 'minimum_coverage'
+    assert EMERGENCY_MATCHDAY_REASON not in result.planned[0].proposal.uncertainties
+
+
+@pytest.mark.parametrize('weekday', [5, 6])
+def test_friday_player_without_registered_duty_is_not_a_candidate(weekday):
+    data = team_data(['Algemeen/Vrijdag'])
+    hours = rows(data, 'vrijwilligers_periode')
+    hours[0].update({'Verplichte punten': '0', 'Gecorrigeerde punten': '-5',
+                     'Niet ingedeeld': '5'})
+    write_rows(data, 'vrijwilligers_periode', hours)
+    assert not plan(data, weekday)[0].planned
+
+
+@pytest.mark.parametrize('weekday,own,other', [
+    (5, 'Algemeen/Zaterdag', 'Algemeen/Zondag'),
+    (6, 'Algemeen/Zondag', 'Algemeen/Zaterdag'),
+])
+def test_friday_players_count_as_regular_without_disabling_weekend_filter(weekday, own, other):
+    data = team_data(['Algemeen/Vrijdag', own, other])
+    result, _, _ = plan(data, weekday, minimum=2)
+    assert ids(result) == ['M1', 'M2']
+    assert all(p.staffing_purpose == 'minimum_coverage' for p in result.planned)
+    result, _, _ = plan(data, weekday, minimum=3)
+    assert ids(result) == ['M1', 'M2', 'M3']
+    assert result.planned[-1].staffing_purpose == 'emergency_minimum_coverage'
+
+
+@pytest.mark.parametrize('weekday', [5, 6])
+@pytest.mark.parametrize('weekend_days', [
+    ['Algemeen/Zaterdag'], ['Algemeen/Zondag'],
+    ['Algemeen/Zaterdag', 'Algemeen/Zondag'],
+])
+@pytest.mark.parametrize('reverse', [False, True])
+def test_friday_link_does_not_change_existing_weekend_links(weekday, weekend_days, reverse):
+    data = team_data([weekend_days[0]])
+    teams = rows(data, 'teams')
+    teams.extend(dict(teams[0], Team=f'Extra {i}', Speeldag=day)
+                 for i, day in enumerate(weekend_days[1:] + ['Algemeen/Vrijdag']))
+    write_rows(data, 'teams', teams[::-1] if reverse else teams)
+    result, _, _ = plan(data, weekday)
+    own = 'Algemeen/Zaterdag' if weekday == 5 else 'Algemeen/Zondag'
+    expected = 'minimum_coverage' if own in weekend_days else 'emergency_minimum_coverage'
+    assert result.planned[0].staffing_purpose == expected
+
+
+@pytest.mark.parametrize('invalid', ['', 'Onbekend', 'Vrijdag', 'Algemeen/Donderdag'])
+def test_valid_friday_row_does_not_hide_invalid_team_day(invalid):
+    with pytest.raises(CandidateSourceError, match='Speeldag'):
+        context(team_data(['Algemeen/Vrijdag', invalid]))
+
+
+def test_friday_and_weekend_same_team_conflict_still_blocks():
+    with pytest.raises(CandidateSourceError, match='tegenstrijdige'):
+        context(team_data(['Algemeen/Vrijdag', 'Algemeen/Zaterdag'], names=['Same', 'Same']))
