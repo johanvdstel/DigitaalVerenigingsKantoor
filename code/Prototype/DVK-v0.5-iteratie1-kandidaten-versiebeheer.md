@@ -171,3 +171,67 @@ niet-bestaand catalogustijdstip gecorrigeerd. De versieproef onthulde een echte
 padfout bij de tracked-file-controle vanuit een submap; die is hersteld vóór de
 definitieve groene runs. Dit zijn technische resultaten, geen functionele acceptatie.
 Commit, PR en uiteindelijke GitHub-CI-status staan in de oplevering/PR.
+
+
+## Gerichte correctieronde PR #53 — 28 oktober 2026
+
+Opdracht: uitsluitend drie reviewbevindingen binnen BL-17/20/21 corrigeren.
+De oorspronkelijke opdracht is hierboven onder Context en opdracht vastgelegd;
+AGENTS.md, baseline- en iteratiedocumentatie zijn opnieuw gecontroleerd.
+PR-head en schone bestaande worktree waren bij aanvang beide
+`18c00bb0d282b9959100c6cb669c9c77eea7ae65`; remote-head vóór commit opnieuw
+geverifieerd. Baselinebranch blijft `prototype-v0.5` op
+`81f3a5a5c3b2201af57948bb5bb00b9968c08724`; bestaande werkbranch en worktree
+blijven behouden. Geen nieuwe branch of PR; geen functionele acceptatie of merge.
+
+Vastgesteld probleem en geaccepteerde eis per correctie:
+
+1. `dvk/candidate_context.py`: de algemene ERROR-filter sloot ook kandidaten uit
+   bij uitsluitend beleidsgebonden datumfouten. Alleen INVALID_FUNCTION_DATE,
+   INVALID_COMMITTEE_START_DATE en INVALID_COMMITTEE_END_DATE zijn nu van die
+   planningsblokkade uitgezonderd. De signalen, ernst en Taakplichtcontrole blijven
+   intact. Alle overige bronfoutcontroles en identiteit, lidmaatschap, leeftijd,
+   uren, speler-/teamcontext en teamspeeldag blijven behouden. Dit volgt direct
+   uit Sportlink A als bron voor geregistreerde taakplicht; geen nieuwe beleidsregel.
+2. `streamlit_app.py`: de toelichting over een bestaande tijdelijke indeling wordt
+   bepaald door de bestaande uncertainty temporary_planning_same_day_emergency,
+   in plaats van de bredere suitability emergency. De bestaande teamspeeldagreden
+   blijft zichtbaar. Minimumgrens, geschiktheid en bevestiging zijn ongewijzigd;
+   geen opslag- of schemawijziging nodig.
+3. `streamlit_app.py`: uitsluitend de achterhaalde captionverwijzing naar
+   uitzonderingen via een secundaire actie verwijderd; overige uitleg behouden.
+
+Regressies en bewijs:
+- `tests/test_iteration1_candidates_v05.py`: vier nieuwe synthetische gevallen
+  voor ongeldige begin-/einddatums van functie en commissie. Kandidaat blijft
+  beschikbaar; ERROR blijft in bron en control; de afzonderlijke dashboardingang
+  van Taakplichtcontrole blijft niet betrouwbaar beoordeelbaar en toont de
+  specifieke fouttekst. Bestaande negatieve tests voor echte planningsblokkades
+  zijn niet aangepast.
+- `tests/test_candidate_context_ui_v05.py`: bestaande noodkandidaatproef uitgebreid
+  naar alleen teamspeeldag, alleen tijdelijke indeling en beide. Toetst zowel
+  aanwezigheid als afwezigheid van de twee teksten, plus afwezigheid van de
+  vervallen captioninstructie en behoud van de overige uitleg. Voor de
+  presentatieproef wordt de bestaande tijdelijke-indelingsreden in het voorstel
+  gezet; domein-/bevestigingsregressies blijven onderdeel van de volledige suite.
+- Dit verslag is bijgewerkt; totaal vijf gewijzigde bestanden.
+
+Verificatie met Python 3.11.16 (`/private/tmp/dvk-bl18-venv`):
+- Gerichte run: test_iteration1_candidates_v05, test_candidate_person_issues_v05,
+  test_candidate_context_v05 en test_candidate_context_ui_v05: **116 geslaagd**
+  (10,67 seconden).
+- Daarna volledige `python -m pytest -q`: **1176 geslaagd**, geen mislukkingen of
+  overgeslagen tests (71,03 seconden).
+- `python -m py_compile streamlit_app.py`: exit 0; `git diff --check`: schoon.
+- Een eerste schrijfopdracht voor de nieuwe tests gebruikte een verkeerd relatief
+  pad en wijzigde niets. De gelijktijdige run zonder nieuwe tests slaagde met
+  110 tests; bovenstaande definitieve runs bevatten alle nieuwe regressies.
+- GitHub-CI wordt na push voor de nieuwe head gecontroleerd; definitieve commit
+  en CI-resultaat worden in de PR-oplevering vermeld, zodat het verslag geen
+  uitslag van een eerdere head als bewijs voor deze correctie presenteert.
+
+Uitsluitend synthetische data gebruikt; geen echte exports of databases gelezen.
+Geen historische fixtures gewijzigd. De twee bestaande wijzigingen in de
+originele werkmap zijn ongemoeid gebleven. Geen resterend beleids- of
+architectuurbesluit binnen deze correcties vastgesteld. Live CKC-brongedrag en
+handmatige browseracceptatie zijn niet beproefd; functionele acceptatie blijft open.

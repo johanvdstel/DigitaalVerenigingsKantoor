@@ -120,12 +120,25 @@ def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, 
     assert not any('vernieuw de exports' in t.value for t in app.error)
 
 
-def test_no_exception_input_and_emergency_visible_with_explicit_approval(operational_page, monkeypatch):
+@pytest.mark.parametrize('other_matchday,temporary_same_day', [(True, False), (False, True), (True, True)])
+def test_no_exception_input_and_emergency_visible_with_explicit_approval(
+        operational_page, monkeypatch, other_matchday, temporary_same_day):
     from test_iteration1_candidates_v05 import team_data
     from test_candidate_context_v05 import context
     from test_volunteer_planning_integration_v05 import snapshot
     app, db, _ = operational_page
-    ctx = replace(context(team_data(['Algemeen/Zondag'])),period=PERIOD)
+    ctx = replace(context(team_data(['Algemeen/Zondag' if other_matchday else 'Algemeen/Zaterdag'])),period=PERIOD)
+    if temporary_same_day:
+        # Exercise presentation of the stored same-day reason, alone and combined
+        # with the teamspeeldag emergency produced by the domain service.
+        original_propose = CandidateContextApplicationService.propose
+        def propose_with_temporary_reason(self, *args, **kwargs):
+            result = original_propose(self, *args, **kwargs)
+            return replace(result, planned=tuple(replace(item, proposal=replace(
+                item.proposal, suitability='emergency',
+                uncertainties=item.proposal.uncertainties + ('temporary_planning_same_day_emergency',)))
+                for item in result.planned))
+        monkeypatch.setattr(CandidateContextApplicationService, 'propose', propose_with_temporary_reason)
     monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a, **k: ctx)
     app.button(key='load-candidate-sources').click().run()
     # Select Saturday, while the only player has Sunday as team matchday.
@@ -134,8 +147,15 @@ def test_no_exception_input_and_emergency_visible_with_explicit_approval(operati
     app.session_state['selected_service_id'] = saturday.service_id
     app.run()
     assert not app.exception
-    assert 'Noodkandidaat' in table(app).value.iloc[0]['Doel']
-    assert 'andere teamspeeldag' in table(app).value.iloc[0]['Opmerkingen']
+    if other_matchday:
+        assert 'Noodkandidaat' in table(app).value.iloc[0]['Doel']
+    remarks = table(app).value.iloc[0]['Opmerkingen']
+    assert ('andere teamspeeldag' in remarks) == other_matchday
+    assert ('al tijdelijk ingepland op dezelfde dag' in remarks) == temporary_same_day
+    captions = ' '.join(c.value for c in app.caption)
+    assert 'secundaire actie' not in captions
+    assert 'uitzonderingen worden alleen expliciet vastgelegd' not in captions
+    assert 'Niet selecteren is geen afwijzing' in captions
     assert not any('Uitzondering' in b.label for b in app.button)
     assert not any(w.label in {'Reden','Toelichting'} for w in app.text_input)
     before = snapshot(db)

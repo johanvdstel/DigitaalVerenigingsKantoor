@@ -209,3 +209,27 @@ def test_temporarily_unavailable_regular_person_does_not_mask_minimum_shortage(t
         result,_,_ = plan(data,planning_app=PlanningApplicationService(IDENTITY,uow=uow))
         assert ids(result)==['M1']
         assert result.planned[0].staffing_purpose=='emergency_minimum_coverage'
+
+
+@pytest.mark.parametrize('dataset,field,code,label', [
+    ('functies', 'Begindatum', 'INVALID_FUNCTION_DATE', 'Ongeldige geldigheidsdatum van een functie'),
+    ('functies', 'Einddatum', 'INVALID_FUNCTION_DATE', 'Ongeldige geldigheidsdatum van een functie'),
+    ('commissies', 'Begindatum', 'INVALID_COMMITTEE_START_DATE', 'Ongeldige begindatum van een commissie'),
+    ('commissies', 'Einddatum', 'INVALID_COMMITTEE_END_DATE', 'Ongeldige einddatum van een commissie'),
+])
+def test_policy_date_error_preserves_candidate_and_duty_control(dataset, field, code, label):
+    from dvk.duty_control_presenter import load_duty_dashboard
+    data = exports()
+    write_rows(data, dataset, [{'Rel. code': 'M1', 'Functie': 'Trainer Senioren',
+                               'Commissie': 'Synthetische commissie', field: 'ongeldige datum'}])
+    ctx = context(data)
+    result = propose(ctx)
+    assert ids(result) == ['M1']
+    assert any(s.code == code and s.severity == 'ERROR' for s in ctx.source.signals)
+    assert any(s.code == code for s in result.controls[0].signals)
+    assert result.controls[0].status == 'niet betrouwbaar beoordeelbaar'
+    dashboard = load_duty_dashboard(data, as_of=service().starts_at.date(),
+                                    source_period=ctx.source_period, isolate_person_errors=True)
+    control = next(r for r in dashboard.rows if r.person_id == 'M1')
+    assert control.status == 'niet betrouwbaar beoordeelbaar'
+    assert label in control.why

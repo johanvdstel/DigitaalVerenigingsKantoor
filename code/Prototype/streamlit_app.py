@@ -73,7 +73,7 @@ def _vriendelijke_wedstrijdcontext(value: str) -> str:
 
 def _vriendelijke_waarom(proposal) -> str:
     details: list[str] = []
-    if proposal.suitability == "emergency":
+    if "temporary_planning_same_day_emergency" in proposal.uncertainties:
         details.append("Alleen nood-/uitwijkkandidaat: al tijdelijk ingepland op dezelfde dag")
     if proposal.previous_season_backlog > 0 and proposal.previous_season_considered:
         details.append(f"Nog {proposal.previous_season_backlog} openstaande uren uit vorig seizoen")
@@ -682,7 +682,7 @@ def _render_planning():
         st.markdown("### Datakwaliteit")
         if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
         else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-        st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+        st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing.")
 
 
 def _render_planning_screen():

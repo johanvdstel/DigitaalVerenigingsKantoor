@@ -123,7 +123,8 @@ class CandidateContextApplicationService:
         members = {member.person_id: member for member in source.memberships}
         persons = {person.person_id: person for person in source.persons}
         # Planning trusts Sportlink A, not the policy comparison or household evidence.
-        # Keep diagnostics in controls; only this person's source errors block planning.
+        # Keep policy-only date errors in controls without overruling Sportlink A.
+        # All other source-error checks continue to protect reliable planning.
         def usable_for_planning(control):
             pid = control.person_id
             member = members[pid]
@@ -132,7 +133,9 @@ class CandidateContextApplicationService:
                     or persons[pid].birth_date is None
                     or len(control.duty_records) != 1):
                 return False
-            if any((signal.severity == "ERROR" or signal.code in {
+            if any(((signal.severity == "ERROR" and signal.code not in {
+                       "INVALID_FUNCTION_DATE", "INVALID_COMMITTEE_START_DATE",
+                       "INVALID_COMMITTEE_END_DATE"}) or signal.code in {
                        "UNKNOWN_PLAYING_MEMBER_VALUE", "MISSING_TEAM_TYPE",
                        "UNKNOWN_TEAM_TYPE", "UNMATCHED_TEAM_REFERENCE"})
                    and (signal.record_key is None or signal.record_key.split(":", 1)[0] == pid)
