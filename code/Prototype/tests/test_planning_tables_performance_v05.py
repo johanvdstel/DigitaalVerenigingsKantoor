@@ -58,7 +58,7 @@ def test_candidate_detail_selects_another_person_without_planning(operational_pa
     detail.select_index(len(detail.options)-1).run()
     assert not app.exception
     assert any("Taakplicht:" in c.value for c in app.caption)
-    assert len([s for s in app.selectbox if s.label == "Reden"]) == 1
+    assert not any(s.label == "Reden" for s in app.selectbox)
     assert not active(db)
 
 
@@ -80,7 +80,7 @@ def test_version_feature_fallback_uses_only_supported_arguments():
     assert scope["_table_width_options"]() == {"use_container_width": True}
 
 
-def test_many_candidates_use_one_editor_and_one_exception_form(operational_page, monkeypatch):
+def test_many_candidates_use_one_editor_and_no_exception_form(operational_page, monkeypatch):
     from dataclasses import replace
     from dvk.candidate_context import CandidateContextApplicationService
     from test_candidate_context_v05 import context, exports
@@ -92,7 +92,7 @@ def test_many_candidates_use_one_editor_and_one_exception_form(operational_page,
     assert len(table(app).value) == 250
     assert table(app).value.Rang.tolist() == list(range(1, 251))
     assert len([t for t in app.dataframe if t.key and t.key.startswith("candidate-table-")]) == 1
-    assert len([b for b in app.button if b.label == "Uitzondering vastleggen"]) == 1
+    assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
     pick(app, index=249)
     assert not next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     assert not active(db)
@@ -119,7 +119,7 @@ def test_changed_candidate_rows_discard_old_positional_edits(operational_page, m
     assert not active(db)
 
 
-def test_shared_exception_form_targets_chosen_candidate(operational_page, monkeypatch):
+def test_shared_candidate_detail_never_records_an_exception(operational_page, monkeypatch):
     from dataclasses import replace
     from dvk.candidate_context import CandidateContextApplicationService
     from dvk.application_services import ProposalDecisionApplicationService
@@ -135,9 +135,10 @@ def test_shared_exception_form_targets_chosen_candidate(operational_page, monkey
         observed.append((proposal.person_id, kwargs))
         return original(self, proposal, case, **kwargs)
     monkeypatch.setattr(ProposalDecisionApplicationService, "reject", reject)
-    next(t for t in app.text_input if t.label == "Toelichting").input("Synthetische bijzonderheid")
-    next(b for b in app.button if b.label == "Uitzondering vastleggen").click().run()
+    app.run()
     assert not app.exception
-    assert observed == [("M5", {"reason_category": "personal_circumstance", "reason": "Synthetische bijzonderheid"})]
-    assert any("Uitzondering vastgelegd" in w.value for w in app.warning)
+    assert observed == []
+    assert not any(t.label == "Toelichting" for t in app.text_input)
+    assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
+    assert any("Prioriteit:" in c.value for c in app.caption)
     assert not active(db)

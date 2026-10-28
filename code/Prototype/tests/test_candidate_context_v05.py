@@ -180,11 +180,11 @@ def test_source_v05_qualification_is_used_without_rewriting_raw_membership(monke
     assert result.planned[0].proposal.E == 10
 
 
-def test_source_family_rule_selects_oldest_minor_without_parent_relationship_guess():
+def test_sportlink_duty_preserved_despite_younger_minor_exemption():
     members = [dict(pid='OLD', born='01-01-2010', team='O17-1'),
                dict(pid='YOUNG', born='01-01-2013', team='O17-1')]
     result = propose(context(exports(members=members)))
-    assert [item.proposal.person_id for item in result.planned] == ['OLD']
+    assert [item.proposal.person_id for item in result.planned] == ['OLD', 'YOUNG']
     assert not result.cases[0].relationships
     assert next(c for c in result.controls if c.person_id == 'YOUNG').expectation.status == 'vrijgesteld'
 
@@ -207,9 +207,8 @@ def test_real_abcd_positions_and_existing_priority_without_fictitious_backlog():
     assert (low.A, low.B, low.C, low.D, low.E) == (10, 1, 2, 3, 4)
 
 
-@pytest.mark.parametrize('data', [exports(functions=[{'Rel. code': 'M1', 'Functie': 'Onbekend synthetisch'}]),
-                                 exports(members=[dict(pid='M1', born='', team='O17-1')])])
-def test_uncertain_source_duty_does_not_create_a_proposal(data):
+def test_missing_birth_date_still_prevents_age_based_planning():
+    data = exports(members=[dict(pid='M1', born='', team='O17-1')])
     result = propose(context(data))
     assert not result.planned
     assert result.controls[0].status == 'niet betrouwbaar beoordeelbaar'
@@ -294,12 +293,12 @@ def test_actual_proposal_can_be_human_approved_and_undone_without_changing_sourc
     assert ctx.source.duty_records[0].position.D == 0
 
 
-def test_v05_function_and_household_exemption_are_preserved():
+def test_sportlink_duty_despite_personal_and_household_exemption():
     data = exports(members=[dict(pid='M1', born='01-01-1990', team='O17-1'),
                             dict(pid='M2', born='01-01-1991', team='O17-1')],
                    functions=[{'Rel. code': 'M2', 'Functie': 'Trainer Senioren'}])
     result = propose(context(data))
-    assert not result.planned
+    assert [p.proposal.person_id for p in result.planned] == ['M1', 'M2']
     assert all(c.expectation.status == 'vrijgesteld' for c in result.controls)
     assert any(g.code == 'household_function' for g in result.controls[0].expectation.grounds)
 

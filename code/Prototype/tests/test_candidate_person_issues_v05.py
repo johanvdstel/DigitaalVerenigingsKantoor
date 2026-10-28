@@ -52,7 +52,7 @@ def test_definitief_still_respects_existing_termination_and_reference_date(end, 
     assert ids(propose(context(data))) == expected
 
 
-def test_definitief_does_not_override_existing_football_participation_criteria():
+def test_sportlink_duty_for_definitive_nonplaying_member_is_not_policy_filtered():
     data = data_with_two()
     members = rows(data, 'leden')
     members[1]['Lidsoort'] = 'Relatie'
@@ -61,7 +61,7 @@ def test_definitief_does_not_override_existing_football_participation_criteria()
     teams[1].update({'Teamsoort': 'Vereniging', 'Teamrol': 'Teammanager', 'Spelend lid': 'Nee'})
     write_rows(data, 'teams', teams)
     result = propose(context(data))
-    assert ids(result) == ['M1']
+    assert ids(result) == ['M1', 'M2']
     assert next(c for c in result.controls if c.person_id == 'M2').expectation.status == 'vrijgesteld'
 
 

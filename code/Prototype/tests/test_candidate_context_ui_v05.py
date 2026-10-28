@@ -118,3 +118,38 @@ def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, 
     assert any('de overige kandidaten worden normaal beoordeeld' in t.value for t in app.info)
     assert any('UNKNOWN_MEMBERSHIP_STATUS: 1' in t.value for t in app.caption)
     assert not any('vernieuw de exports' in t.value for t in app.error)
+
+
+def test_no_exception_input_and_emergency_visible_with_explicit_approval(operational_page, monkeypatch):
+    from test_iteration1_candidates_v05 import team_data
+    from test_candidate_context_v05 import context
+    from test_volunteer_planning_integration_v05 import snapshot
+    app, db, _ = operational_page
+    ctx = replace(context(team_data(['Algemeen/Zondag'])),period=PERIOD)
+    monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a, **k: ctx)
+    app.button(key='load-candidate-sources').click().run()
+    # Select Saturday, while the only player has Sunday as team matchday.
+    saturday = next(b.service for b in load_shift_catalog().bindings(PERIOD)
+                    if b.service.starts_at.weekday()==5)
+    app.session_state['selected_service_id'] = saturday.service_id
+    app.run()
+    assert not app.exception
+    assert 'Noodkandidaat' in table(app).value.iloc[0]['Doel']
+    assert 'andere teamspeeldag' in table(app).value.iloc[0]['Opmerkingen']
+    assert not any('Uitzondering' in b.label for b in app.button)
+    assert not any(w.label in {'Reden','Toelichting'} for w in app.text_input)
+    before = snapshot(db)
+    pick(app)
+    assert snapshot(db)==before
+    next(b for b in app.button if b.label=='Selectie bevestigen').click().run()
+    assert not app.exception
+    assert len(snapshot(db)[1])==1
+    # A failed Teams refresh hides the earlier proposal but preserves planning.
+    before = snapshot(db)
+    def broken(*a,**k):
+        raise CandidateSourceError('Teams-bronfout: Speeldag ontbreekt of is onbekend.')
+    monkeypatch.setattr(CandidateContextApplicationService,'load',broken)
+    app.button(key='load-candidate-sources').click().run()
+    assert any('Speeldag' in e.value for e in app.error)
+    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
+    assert snapshot(db)==before
