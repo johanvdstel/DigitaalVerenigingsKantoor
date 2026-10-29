@@ -22,7 +22,7 @@ def synthetic_exports(count, mixed):
     return exports(members=members, functions=functions)
 
 
-def serve(root, count, mixed, port):
+def serve(root, count, mixed, port, historical=False):
     tests = Path(__file__).resolve().parent
     with tempfile.TemporaryDirectory(prefix="dvk-browser-synthetic-") as directory:
         target = Path(directory)/"streamlit_app.py"
@@ -35,6 +35,8 @@ sys.path.insert(0, {str(root)!r})
 sys.path.insert(0, {str(tests)!r})
 import streamlit as st
 from serve_synthetic_planning import synthetic_exports
+from test_historical_backlog_v05 import history_text, history_row
+from dvk.sportlink_exports import ExportFileError
 from dvk.persistence import SQLiteDatabase
 from dvk.planning_session import PlanningSessionApplicationService
 from dvk.shift_catalog import load_shift_catalog
@@ -42,6 +44,12 @@ from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from test_volunteer_planning_integration_v05 import sync, PERIOD, IDENTITY
 _data=synthetic_exports({count!r}, {mixed!r})
+def _read_source(dataset, explicit_path=None):
+    if explicit_path is None:
+        return _data[dataset].decode('utf-8-sig')
+    if {historical!r}:
+        return history_text([history_row(f'SYNTH-{{i}}', (i % 3) * 4) for i in range({count!r})])
+    raise ExportFileError('Synthetic historical file unavailable')
 if 'probe-seeded' not in st.session_state:
     _db=SQLiteDatabase(Path(__file__).with_name('dvk_v05.sqlite'))
     _db.initialize()
@@ -62,7 +70,7 @@ _probe_start=probe_time.perf_counter()
 _probe_outcome='rerun-or-error'
 """
         body = body.replace("from __future__ import annotations", "", 1)
-        wrapper = """with patch('dvk.local_csv_sources.read_export_text',lambda dataset:_data[dataset].decode('utf-8-sig')), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
+        wrapper = """with patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
     try:
 """
         footer = r"""
@@ -88,9 +96,10 @@ if __name__ == "__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--members",type=int,default=250)
     parser.add_argument("--mixed",action="store_true")
+    parser.add_argument("--historical",action="store_true", help="Synthetische historische CSV aansluiten")
     parser.add_argument("--port",type=int,default=8531)
     parser.add_argument("--root",type=Path,default=Path(__file__).resolve().parents[1])
     args=parser.parse_args()
     if args.members < 1:
         parser.error("--members moet positief zijn")
-    serve(args.root.resolve(),args.members,args.mixed,args.port)
+    serve(args.root.resolve(),args.members,args.mixed,args.port,args.historical)

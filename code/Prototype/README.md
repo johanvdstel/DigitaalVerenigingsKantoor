@@ -309,8 +309,10 @@ moeten veranderen; er wordt geen productieopslag of nieuwe importworkflow vastge
 ## Operationele kandidaatcontext — ontwikkeling v0.5
 
 De werkbranch `codex/actuele-kandidaatcontext` sluit de vijf lokale exports en de
-Programma API aan op de bestaande kandidaten- en voorstelketen. De v0.5-taakplicht
-wordt op de dienstdatum afgeleid; BL-03 wordt niet toegepast. Technisch geldige
+Programma API aan op de bestaande kandidaten- en voorstelketen. De geregistreerde Sportlink-taakplicht is leidend voor de kandidatenbasis; de
+DVK-afleiding dient de afzonderlijke Taakplichtcontrole. BL-03 sluit in Iteratie 2
+de optionele historische CSV aan op prioriteit voor diensten in juli t/m december;
+zie [broncontract en acceptatieprotocol](DVK-v0.5-iteratie2-historische-achterstand.md). Technisch geldige
 Programma-lijsten, ook lege, worden vertrouwd volgens het CKC-besluit. Zie de
 [werking, beperkingen en lokale acceptatiestappen](DVK-v0.5-actuele-kandidaatcontext.md).
 De geaccepteerde v0.4-baseline en historische cases blijven ongewijzigd.

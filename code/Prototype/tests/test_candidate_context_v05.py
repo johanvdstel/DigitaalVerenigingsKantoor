@@ -202,7 +202,7 @@ def test_real_abcd_positions_and_existing_priority_without_fictitious_backlog():
     result = propose(context(data))
     assert [(p.person_id, p.remaining_hours) for p in result.priorities] == [('HIGH', 10), ('LOW', 4)]
     assert all(p.previous_season_backlog == 0 and not p.previous_season_considered for p in result.priorities)
-    assert all('BL-03' in ' '.join(p.explanation) for p in result.priorities)
+    assert all('historische bron niet beschikbaar' in p.explanation for p in result.priorities)
     low = next(p.proposal for p in result.planned if p.proposal.person_id == 'LOW')
     assert (low.A, low.B, low.C, low.D, low.E) == (10, 1, 2, 3, 4)
 
@@ -259,7 +259,10 @@ def test_different_period_or_hours_season_cannot_reuse_a_candidate_context():
 def test_default_paths_use_existing_import_boundary_without_real_files(monkeypatch):
     observed = []
     data = exports()
-    def read(dataset):
+    def read(dataset, explicit_path=None):
+        if explicit_path is not None:
+            from dvk.sportlink_exports import ExportFileError
+            raise ExportFileError("Synthetic historical file missing")
         observed.append(dataset)
         return data[dataset].decode('utf-8-sig')
     monkeypatch.setattr('dvk.local_csv_sources.read_export_text', read)
