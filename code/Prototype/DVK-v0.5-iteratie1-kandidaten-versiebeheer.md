@@ -1,6 +1,6 @@
 # Iteratie 1 — BL-17, BL-20, BL-21
 
-Status: technische uitvoering; geen functionele acceptatie of afsluiting backlog.
+Status: functioneel geaccepteerd door Johan op 29 oktober 2026; BL-17/20/21 afgesloten. Expliciete toestemming voor merge PR #53 naar prototype-v0.5 en bijwerken acceptatiedocumentatie. Eerdere uitvoeringsstatussen hieronder zijn historisch.
 Baseline: `prototype-v0.5`, `81f3a5a5c3b2201af57948bb5bb00b9968c08724` (PR #52).
 Werkbranch: `codex/iteratie-1-kandidaten-versiebeheer`; worktree `/private/tmp/dvk-iteratie-1`.
 
@@ -352,3 +352,30 @@ Verificatie met Python 3.11.16 (`/private/tmp/dvk-bl18-venv`):
   aanpassen van uitsluitend de vervallen bediening zijn bovenstaande runs groen.
 - CI voor de nieuwe commit wordt na push gecontroleerd en in de chatoplevering
   vermeld. Geen uitslag van een eerdere head als nieuw bewijs gepresenteerd.
+
+
+## Functionele acceptatie en afronding — 29 oktober 2026
+
+Johan heeft de gewijzigde kandidaattoelichting lokaal geslaagd verklaard en daarna expliciet akkoord gegeven op de integrale functionele acceptatie van Iteratie 1, merge van PR #53 naar prototype-v0.5 en bijwerken van acceptatiedocumentatie.
+
+Geaccepteerde codecommit: `9016c8a17f631bf015308ce43ba50169c7c1aa21` (inclusief herstelcommits `a6623f3` en `4df662e`). Baseline en werkbranch blijven zoals bovenaan vastgelegd. Afsluitdocumentatie wijzigt geen code.
+
+| Onderdeel | Lokaal resultaat / acceptatiegrens |
+| --- | --- |
+| Actieve versie | Geslaagd |
+| Sportlink leidend | Geslaagd |
+| Uitzonderingsinvoer verwijderd | Geslaagd |
+| Directe begrijpelijke toelichting bij aanvinken | Na presentatiecorrectie geslaagd |
+| Weekendfilter | Eén richting lokaal geslaagd; andere richting synthetisch gedekt |
+| Noodkandidaten | Niet lokaal waargenomen door voldoende overige kandidaten; synthetisch gedekt |
+| Bevestiging en undo | Geslaagd |
+| Overige beschikbaarheid | Geslaagd |
+| Vrijdagteams | Geldige bronwaarde Algemeen/Vrijdag bevestigd; correctie geaccepteerd tijdens vervolgacceptatie |
+
+Eén richting van de weekendfilter is lokaal waargenomen; de andere richting en noodkandidaten zijn uitsluitend synthetisch getoetst. Dubbele teamkoppelingen en ongeldige bronwaarden zijn synthetisch gedekt. Integrale v0.5-acceptatie blijft open.
+
+De ontbrekende spelers van zondag 1 werden terecht uitgesloten wegens een overlappende wedstrijd. Zonder wedstrijd werden zij wel aangeboden; geen codewijziging nodig. Recreatieve/niet-spelende leden met geregistreerde Sportlink-taakplicht blijven conform besluit kandidaat; Johan duidt onjuiste registraties als Sportlink-datakwaliteit, geen DVK-afwijking.
+
+Bewijs bij laatste codeversie: Codex rapporteert 84 gerichte tests, 1209 volledige regressietests, elf synthetische scripts, syntax- en diff-check groen. Afzonderlijke review heeft 25 presentatie-/UI-tests opnieuw uitgevoerd (geslaagd), de codewijziging beoordeeld en [CI #381](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/actions/runs/40871625935) voor de exacte codecommit groen bevestigd. De volledige suite is in die laatste review niet opnieuw lokaal gedraaid. Eerdere eigen volledige reviewruns: 1170 en 1176 geslaagd op de toenmalige commits.
+
+Geen resterende blokkerende bevindingen binnen Iteratie 1. Geen echte persoonsgegevens in deze acceptatieregistratie; lokale broninhoud blijft lokaal. Productie- en integrale v0.5-acceptatie blijven open. Volgende iteratie is BL-03; zie de afzonderlijke overdracht. Historische uitvoeringsrapportages hieronder/boven blijven als tijdgebonden bewijs behouden en zijn geen actuele open acceptatiepunten.
