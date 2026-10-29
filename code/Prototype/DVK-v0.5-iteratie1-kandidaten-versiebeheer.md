@@ -286,3 +286,69 @@ Volledige regressiesuite: `python -m pytest -q` vanuit `code/Prototype`:
 opnieuw gecontroleerd: ongewijzigd op respectievelijk `a6623f3` en `81f3a5a`.
 Geen resterende functionele of architectuurbeslispunten binnen deze herstelopdracht.
 Commit en uiteindelijke CI-status worden in de chatoplevering vastgelegd.
+
+## Presentatiecorrectie PR #53 — 29 oktober 2026
+
+Opdracht van Johan na lokale toets: begrijpelijke kandidaattoelichting en details
+rechtstreeks bij de aangevinkte kandidaten. Geen functionele acceptatie.
+Vooraf gelezen: AGENTS.md, actuele PR en dit verslag. Vastgesteld: schone worktree
+`/private/tmp/dvk-iteratie-1`, bestaande branch
+`codex/iteratie-1-kandidaten-versiebeheer`, lokale én GitHub-head
+`4df662e811c26e991eae35a6644af227613e4320`. Integratiebaseline blijft
+`prototype-v0.5` op `81f3a5a5c3b2201af57948bb5bb00b9968c08724`; geaccepteerde
+releasebaseline v0.4; v0.5 is ontwikkeling. Sportlink levert de bronfeiten,
+Johan/CKC bepaalt beleid en acceptatie; DVK presenteert voorstellen.
+
+Vastgesteld probleem: de UI drukte interne prioriteitsregels letterlijk af en
+gebruikte een afzonderlijke detailselectie. Geaccepteerde eis: begrijpelijke
+vertaling van de berekende uitkomst en uitsluitend details van aangevinkte rijen.
+De minimale wijziging introduceert geen beleids- of opslaglogica:
+- `dvk/candidate_presenter.py`: kleine presentatiefunctie vertaalt berekende uren,
+  beschikbaarheid/meeweging van vorig seizoen en de drie wedstrijdvoorkeuren.
+- `streamlit_app.py`: geen backlognummer in broncaption; naam en toelichting per
+  aangevinkte kandidaat direct onder de tabel; vervallen expander/selectbox weg.
+  Sportlink-taakplicht en DVK-beleidscontrole blijven afzonderlijk benoemd.
+  Bestaande wedstrijdcontext, noodredenen en waarschuwingen blijven zichtbaar.
+- `tests/test_candidate_presenter_v05.py`: negen synthetische combinaties voor
+  prioriteits-/wedstrijdcontext, zonder interne codes.
+- `tests/test_candidate_context_ui_v05.py`: bestaande detailverwachtingen aangepast,
+  naam en directe uitleg, beide noodredenen en hun combinatie behouden/getoetst.
+- `tests/test_planning_tables_performance_v05.py`: vervallen bediening vervangen
+  door checkboxproeven; meerdere namen/details, uitvinken, nul opslagmutaties,
+  context-/dienstwisseling en 250 kandidaten blijven gedekt.
+- Dit verslag: herleiding, bewijs en lokale toetsstappen.
+
+Kandidaatselectie, prioritering, teamspeeldagfilter, noodvoorwaarden, bezetting,
+opslag en bevestiging/undo zijn ongewijzigd. Geen uitvoering BL-03, nieuwe
+ afhankelijkheden, historische fixturewijziging of migratie. Alleen synthetische
+gegevens gebruikt; geen echte CKC-exports/databases gelezen. Oorspronkelijke
+werkmap met de twee bestaande wijzigingen ongemoeid gelaten.
+
+Korte lokale toets voor Johan:
+1. Start dezelfde worktree en controleer de nieuwe commit in de versiecaption.
+2. Kies een dienst: zonder vinkjes geen kandidaatdetail. Vink één en daarna
+   meerdere kandidaten aan: direct afzonderlijke uitleg onder herkenbare namen.
+3. Controleer uren, wedstrijdvoorkeur en waar aanwezig de juiste noodreden;
+   Sportlink-taakplicht blijft onderscheiden van de DVK-beleidscontrole.
+4. Vink uit en wissel dienst/broncontext: vervallen details verdwijnen.
+5. Aanvinken alleen verandert geen planning. Bevestig expliciet en gebruik undo.
+   Controleer bij een lange kandidatenlijst ook een kandidaat onderaan.
+
+Bestaande acceptatiebevindingen blijven behouden: één weekendrichting is lokaal
+waargenomen; de andere richting en noodkandidaten zijn synthetisch gedekt, maar
+niet afzonderlijk lokaal waargenomen. Deze gewijzigde presentatie/bediening vraagt
+nog afzonderlijke controle en Johans lokale toets. Geen functionele acceptatie,
+backlogafsluiting of merge; geen nieuw functioneel/architectuurbesluit nodig.
+
+Verificatie met Python 3.11.16 (`/private/tmp/dvk-bl18-venv`):
+- Definitieve gerichte run van presenter, kandidaat-UI, tabel/performance,
+  selectie-events (inclusief bevestiging/undo) en iteratie-1: **84 geslaagd**.
+- Volledige regressiesuite daarna/overlappend uitgevoerd op dezelfde code en
+  tests: **1209 geslaagd**, geen mislukkingen/overgeslagen (73,27 seconden).
+- Alle elf synthetische scripts uit CI: exit 0. Geen live-validaties uitgevoerd.
+- Syntaxcontrole app en presenter: exit 0; definitieve `git diff --check`: schoon.
+- Eerste testbewerkingsopdracht gebruikte een verkeerd relatief pad en wijzigde
+  niets; de al gestarte tests troffen nog oude detailverwachtingen. Na het
+  aanpassen van uitsluitend de vervallen bediening zijn bovenstaande runs groen.
+- CI voor de nieuwe commit wordt na push gecontroleerd en in de chatoplevering
+  vermeld. Geen uitslag van een eerdere head als nieuw bewijs gepresenteerd.

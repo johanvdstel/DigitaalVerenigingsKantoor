@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dvk.candidate_presenter import priority_explanation
+
 from datetime import date, datetime, time, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -346,7 +348,7 @@ def _render_planning():
     candidate_result = None
     with data_sources:
         if not demo:
-            st.caption("Prioritering op achterstanden uit vorig seizoen is pas beschikbaar na BL-03; er worden geen fictieve achterstanden gebruikt.")
+            st.caption("Achterstallige uren uit vorig seizoen zijn nog niet beschikbaar en tellen niet mee.")
             st.caption(export_location_hint())
             with settings:
                 source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
@@ -454,17 +456,19 @@ def _render_planning():
                                    "Kandidaat": st.column_config.TextColumn(width=190)},
                     key=f"candidate-table-{selected_service_id}-{row_identity}")
                 selected_proposal_ids = candidate_table.loc[candidate_table["Kies"], "proposal_id"].tolist()
-                # One shared detail form instead of a hidden form for every candidate.
-                with st.expander("Kandidaattoelichting"):
-                    proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
-                    detail_id = st.selectbox("Kandidaat voor toelichting", tuple(proposals_by_id),
-                        format_func=lambda pid: f"{proposals_by_id[pid].priority_rank}. {case_by_person[proposals_by_id[pid].person_id].person.name}",
-                        key=f"candidate-detail-{selected_service_id}-{st.session_state[proposal_run_key]}")
+                proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
+                for detail_id in selected_proposal_ids:
                     p = proposals_by_id[detail_id]
+                    st.markdown("#### " + case_by_person[p.person_id].person.name)
                     if candidate_result is not None:
                         detail = next(row for row in candidate_result.explanations if row.person_id == p.person_id)
-                        st.caption("Taakplicht: " + detail.why)
-                        st.caption("Prioriteit: " + "; ".join(p.applied_priority_rules))
+                        st.caption("DVK-beleidscontrole taakplicht: " + detail.why)
+                        st.caption("Geregistreerde Sportlink-taakplicht is leidend voor planning.")
+                    st.caption(priority_explanation(p))
+                    st.caption("Wedstrijdcontext: " + _vriendelijke_wedstrijdcontext(p.match_relation))
+                    remarks = "; ".join(filter(None, (_vriendelijke_waarom(p), *(reason for reason in p.uncertainties if reason == EMERGENCY_MATCHDAY_REASON))))
+                    if remarks != "—":
+                        st.caption(remarks)
                 st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
                 with database.unit_of_work() as uow:
                     selection_problem = PlanningApplicationService(identity, uow=uow).selection_problem(

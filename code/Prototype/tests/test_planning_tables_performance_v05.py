@@ -31,6 +31,7 @@ def test_service_checkbox_switches_directly_and_deselects_previous(operational_p
     assert table(app).value.proposal_id.tolist() != first_proposals
     assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     assert not active(db)
+    assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
     assert len(observed) == 1  # No CSV/API reload on table interaction.
     app.run()
     assert (table(app, "services_editor-").value.Kies == "☑").sum() == 1
@@ -53,11 +54,12 @@ def test_service_table_native_options_and_compact_numbers(operational_page):
 
 def test_candidate_detail_selects_another_person_without_planning(operational_page):
     app, db, _ = operational_page
-    detail = next(s for s in app.selectbox if s.label == "Kandidaat voor toelichting")
-    assert detail.options
-    detail.select_index(len(detail.options)-1).run()
+    assert not any(s.label == "Kandidaat voor toelichting" for s in app.selectbox)
+    pick(app)
     assert not app.exception
-    assert any("Taakplicht:" in c.value for c in app.caption)
+    assert any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
+    pick(app, value=False)
+    assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
     assert not any(s.label == "Reden" for s in app.selectbox)
     assert not active(db)
 
@@ -94,6 +96,7 @@ def test_many_candidates_use_one_editor_and_no_exception_form(operational_page, 
     assert len([t for t in app.dataframe if t.key and t.key.startswith("candidate-table-")]) == 1
     assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
     pick(app, index=249)
+    assert any(m.value == "#### " + table(app).value.iloc[249].Kandidaat for m in app.markdown)
     assert not next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     assert not active(db)
 
@@ -115,6 +118,7 @@ def test_changed_candidate_rows_discard_old_positional_edits(operational_page, m
     monkeypatch.setattr(CandidateContextApplicationService, "propose", changed)
     app.run()
     assert table(app).key != old_key
+    assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
     assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
     assert not active(db)
 
@@ -128,7 +132,7 @@ def test_shared_candidate_detail_never_records_an_exception(operational_page, mo
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
     app.button(key="load-candidate-sources").click().run()
-    next(s for s in app.selectbox if s.label == "Kandidaat voor toelichting").select_index(5).run()
+    pick(app, index=5)
     observed = []
     original = ProposalDecisionApplicationService.reject
     def reject(self, proposal, case, **kwargs):
@@ -140,5 +144,24 @@ def test_shared_candidate_detail_never_records_an_exception(operational_page, mo
     assert observed == []
     assert not any(t.label == "Toelichting" for t in app.text_input)
     assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
-    assert any("Prioriteit:" in c.value for c in app.caption)
+    assert any("Openstaande uren:" in c.value for c in app.caption)
     assert not active(db)
+
+
+def test_multiple_selected_details_and_deselect_preserve_storage(operational_page, monkeypatch):
+    from dataclasses import replace
+    from dvk.candidate_context import CandidateContextApplicationService
+    from test_planning_acceptance_abc_v05 import many
+    from test_volunteer_planning_integration_v05 import snapshot
+    app, db, _ = operational_page
+    ctx = replace(many(), period=app.session_state["candidate-context"].period)
+    monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
+    app.button(key="load-candidate-sources").click().run()
+    names = table(app).value.Kandidaat.tolist()
+    before = snapshot(db)
+    edit(app, table(app), {0: {"Kies": True}, 1: {"Kies": True}})
+    assert [m.value for m in app.markdown if m.value.startswith("#### ")] == ["#### " + n for n in names[:2]]
+    assert len([c for c in app.caption if c.value.startswith("Openstaande uren:")]) == 2
+    pick(app, value=False)
+    assert [m.value for m in app.markdown if m.value.startswith("#### ")] == ["#### " + names[1]]
+    assert snapshot(db) == before

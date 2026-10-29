@@ -40,11 +40,13 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
     assert not app.exception
     assert observed == [PERIOD, PERIOD]
     assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
-    assert any('BL-03' in t.value for t in app.caption)
-    assert any('Taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
-    assert any('Prioriteit: actuele E=10' in t.value for t in app.caption)
-    assert any('technisch geslaagd' in t.value for t in app.caption)
+    assert not any('BL-03' in t.value for t in app.caption)
+    assert not any('DVK-beleidscontrole taakplicht:' in t.value for t in app.caption)
     pick(app)
+    assert any(t.value == '#### Synthetisch lid M1' for t in app.markdown)
+    assert any('DVK-beleidscontrole taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
+    assert any('Openstaande uren: 10.' in t.value for t in app.caption)
+    assert any('technisch geslaagd' in t.value for t in app.caption)
     with db.unit_of_work() as uow:
         assert not PlanningApplicationService(IDENTITY, uow=uow).active_planning()
     next(b for b in app.button if b.label == 'Selectie bevestigen').click().run()
@@ -161,6 +163,9 @@ def test_no_exception_input_and_emergency_visible_with_explicit_approval(
     before = snapshot(db)
     pick(app)
     assert snapshot(db)==before
+    captions = ' '.join(c.value for c in app.caption)
+    assert ('andere teamspeeldag' in captions) == other_matchday
+    assert ('al tijdelijk ingepland op dezelfde dag' in captions) == temporary_same_day
     next(b for b in app.button if b.label=='Selectie bevestigen').click().run()
     assert not app.exception
     assert len(snapshot(db)[1])==1
