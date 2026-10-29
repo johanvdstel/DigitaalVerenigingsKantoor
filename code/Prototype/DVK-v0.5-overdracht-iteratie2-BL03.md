@@ -1,6 +1,6 @@
 # DVK v0.5 — Overdracht Iteratie 2: BL-03
 
-**Actueel:** technische implementatie; functionele acceptatie en merge staan open.
+**Actueel (29 oktober 2026):** BL-03 functioneel geaccepteerd op implementatiecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` van PR #55; merge staat nog open.
 
 Deze overdracht vervangt de eerdere Excel-, bronseizoenverificatie- en 1-decemberaannames volgens de expliciete opdracht van Johan. De rolverdeling in AGENTS.md blijft gelden; geen gedeelde chatcontext of automatische toestemming veronderstellen.
 
@@ -18,4 +18,4 @@ Geen aanvullende seizoensmetadata, database, migratie of alternatieve persoonsma
 
 ## Controle en acceptatie
 
-Zie [Iteratie-2-verslag](DVK-v0.5-iteratie2-historische-achterstand.md) voor code-/testherleiding, resultaten en synthetische browserproef. Controleer de exacte opgeleverde commit en CI; daarna afzonderlijke functionele beoordeling, lokale acceptatie en mergetoestemming. BL-03 niet als geaccepteerd markeren vóór Johans besluit. Geen andere backlogitems uitvoeren.
+Zie [Iteratie-2-verslag](DVK-v0.5-iteratie2-historische-achterstand.md) voor code-/testherleiding, resultaten en synthetische browserproef. Controleer de exacte opgeleverde commit en CI; de lokale synthetische acceptatie is op 29 oktober 2026 geslaagd (prioriteit 8/4/0 bij actuele E=10; bronwaarschuwing zonder historische CSV; bevestiging en undo). Zie het bijgewerkte Iteratie-2-verslag. Geen merge zonder afzonderlijke toestemming. Geen andere backlogitems uitvoeren.
