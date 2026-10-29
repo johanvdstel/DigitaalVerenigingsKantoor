@@ -1,27 +1,21 @@
-# DVK v0.5 — Overdracht Iteratie 2: BL-03 achterstallige uren
+# DVK v0.5 — Overdracht Iteratie 2: BL-03
 
-## Rol en startopdracht
+**Actueel (29 oktober 2026):** BL-03 functioneel geaccepteerd op implementatiecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` van PR #55; merge staat nog open.
 
-Deze overdracht is voor de functionele ontwerpchat. Begin met repository- en code-inventarisatie; niet direct bouwen. Johan bepaalt de functionele werkelijkheid, ChatGPT verzorgt functioneel ontwerp/architectuur en gecontroleerde opdracht, Codex technisch ontwerp/bouw/tests, daarna afzonderlijke controle en Johans acceptatie. Vraag akkoord op de concrete implementatieaanpak voordat uitvoering begint.
+Deze overdracht vervangt de eerdere Excel-, bronseizoenverificatie- en 1-decemberaannames volgens de expliciete opdracht van Johan. De rolverdeling in AGENTS.md blijft gelden; geen gedeelde chatcontext of automatische toestemming veronderstellen.
 
-## Uitgangssituatie
+## Baseline
 
-Iteratie 1 (BL-17/20/21) is op 29 oktober 2026 functioneel geaccepteerd; PR #53 is met expliciete toestemming aangeboden voor merge naar prototype-v0.5. Verifieer bij start de definitieve merge en actuele branch-head op GitHub; leg de gekozen baselinecommit vast vóór wijzigingen. De geaccepteerde codecommit van Iteratie 1 is 9016c8a17f631bf015308ce43ba50169c7c1aa21; zie het iteratieverslag voor acceptatie en herstelrondes. Eén weekendrichting en noodkandidaten zijn uitsluitend synthetisch gedekt. Integrale v0.5-acceptatie blijft open; main blijft geaccepteerde v0.4-baseline en PR #5 blijft draft.
+prototype-v0.5 op 881d807138f951a69d651e8ee37b68042fe319a4 (PR #53, Iteratie 1 geaccepteerd). Bij uitvoeringsstart identiek aan GitHub. main blijft geaccepteerde v0.4; integrale v0.5-acceptatie blijft open. Werkbranch codex/iteratie-2-historische-achterstand, werkmap /private/tmp/dvk-iteratie-2. Oorspronkelijke werkmap en twee lokale wijzigingen blijven ongemoeid.
 
-Sportlink bepaalt de kandidatenbasis, niet de DVK-beleidsvrijstelling. Teams-veld Speeldag stuurt weekendselectie; vrijdagteams zijn geldig zonder eigen weekendbeperking. Noodkandidaten van de andere weekenddag zijn uitsluitend beschikbaar bij onvoldoende overige geschikte kandidaten voor het actuele minimum. Kandidaattoelichting verschijnt direct per aangevinkte kandidaat; selectie is geen bevestiging. Behoud dit gedrag.
+## Definitieve afspraken
 
-## BL-03 — Bevestigde scope
+Historische bron: `~/Documents/DVK-Sportlink-exports/Overzicht per periode vorig seizoen.csv`, dezelfde CSV-kolomstructuur als de actuele urenexport. De planner levert het onmiddellijk voorafgaande seizoen; DVK leidt of verifieert dat bronseizoen niet zelfstandig. Koppeling uitsluitend op `Relatiecode`; `Niet ingedeeld` is de bronwaarde, getoetst aan A−B−C−D. Positieve achterstand telt als tweede criterium na actuele E voor diensten in **juli tot en met december** (`7 <= on_date.month <= 12`); januari t/m juni niet. Nul betekent geen achterstand; negatieve waarden blijven als bronfeit behouden en geven geen krediet. Actuele A/B/C/D/E blijven ongewijzigd.
 
-Het planner-Excel met achterstallige uren uit het vorige seizoen is reeds beschikbaar. Er is geen externe aanleverblokkade. Verifieer kolommen, betekenis, seizoen en persoonskoppeling uitsluitend lokaal. Koppeling bij voorkeur op Sportlink-lidnummer; ontbrekende matches, duplicaten en onduidelijke seizoenen niet gokken. Geen persoonsgegevens, bronregels of echte bestanden in chats, GitHub, logs of tests.
+Bij ontbrekend, onleesbaar of structureel ongeldig historisch bestand blijft planning bruikbaar met een zichtbare waarschuwing. Ontbrekende ledenregels, dubbele relatiecodes, ongeldige getallen en formuleverschillen leveren voor de betrokken kandidaat onbekende/onbetrouwbare historische achterstand op; geen uitsluiting of stilzwijgende nul. Voor rangschikking neutraal, in toelichting onderscheiden van bekende nul, ontbrekende bron en maanden buiten toepassing. Andere geldige historische records blijven bruikbaar. Taakplichtcontrole blijft onafhankelijk van deze optionele bron.
 
-Achterstallige uren beïnvloeden kandidaatprioritering tot en met 31 december; vanaf 1 januari tellen zij niet mee. Niet optellen bij Sportlink A van het nieuwe seizoen. Dit is de vastgelegde wijziging van B-13 ten opzichte van de historische grens 1 december. Werk functionele baseline, relevante configuratie en regressies traceerbaar bij; verander historische geaccepteerde cases niet zonder afzonderlijk besluit.
+Geen aanvullende seizoensmetadata, database, migratie of alternatieve persoonsmatching. De historische export is geen algemene verplichte bron. De W09-verwachting op 1 december is na expliciet aanvullend akkoord aangepast, met behoud van testgegevens. Huidige maandenregel en regressies omvatten ook juni/juli en december/januari over meerdere kalenderjaren.
 
-## Verplichte inventarisatie
+## Controle en acceptatie
 
-Lees AGENTS.md, README.md, BACKLOG.md (BL-03), DVK-PROTOTYPE-PLANNING.md, PRODUCTIE-ROADMAP.md en relevante uren-/prioriteitscontracten, plus het Iteratie-1-verslag. Onderzoek onder meer dvk/prioritization.py, kandidaatcontext, bronimport, kandidaatpresentatie en bestaande tests. De operationele planning schakelde vorigeseizoensprioritering uit via apply_previous_season=False; historische code kent de oude decembergrens. Verifieer de actuele toestand in plaats van deze aanwijzingen als actuele feiten over te nemen.
-
-Rapporteer compact wat al bestaat, aantoonbare gaps, bronverificatiepunten, risico's en minimale aanpak. Onderscheid feiten, geaccepteerde eisen en onbewezen aannames. Leg alleen echt ontbrekende functionele keuzes voor. Ontwerp geen productie-infrastructuur, migratie of bewaarplicht zonder grondslag.
-
-## Uitvoering na akkoord
-
-Afzonderlijke werkbranch vanaf expliciete actuele prototype-v0.5-baseline, gerichte synthetische regressies (inclusief 31 december en 1 januari), volledige suite, CI en PR naar prototype-v0.5. Geen merge zonder expliciet akkoord. Geen uitvoering van BL-14, BL-19, BL-22/23/24 of writeback. Behoud oorspronkelijke lokale wijzigingen; hergebruik of verplaats geen echte databases.
+Zie [Iteratie-2-verslag](DVK-v0.5-iteratie2-historische-achterstand.md) voor code-/testherleiding, resultaten en synthetische browserproef. Controleer de exacte opgeleverde commit en CI; de lokale synthetische acceptatie is op 29 oktober 2026 geslaagd (prioriteit 8/4/0 bij actuele E=10; bronwaarschuwing zonder historische CSV; bevestiging en undo). Zie het bijgewerkte Iteratie-2-verslag. Geen merge zonder afzonderlijke toestemming. Geen andere backlogitems uitvoeren.

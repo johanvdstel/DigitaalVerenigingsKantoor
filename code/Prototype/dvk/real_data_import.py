@@ -364,24 +364,27 @@ class SportlinkRealDataAdapter:
             if not self.known_person(pid, person_ids, "vrijwilligers_periode", str(i), signals):
                 continue
             try:
-                a = self.required_whole_number(self.value(row, "Verplichte punten"), "Verplichte punten")
-                b = self.required_whole_number(self.value(row, "Gecorrigeerde punten"), "Gecorrigeerde punten")
-                c = self.required_whole_number(self.value(row, "Voldaan"), "Voldaan")
-                d = self.required_whole_number(self.value(row, "Nog ingedeeld"), "Nog ingedeeld")
-                source_e = self.required_whole_number(self.value(row, "Niet ingedeeld"), "Niet ingedeeld")
+                record = self.parse_duty_record(row)
             except ValueError as exc:
                 signals.append(DataQualitySignal("INVALID_DUTY_VALUE", "ERROR", "vrijwilligers_periode", pid, str(exc)))
                 continue
-            registration = SportlinkDutyRegistration(pid, a, b, c, d)
-            record = DutyImportRecord(registration, source_e, DutyPosition(a, b, c, d))
             duties.append(record)
             if not record.source_formula_matches:
                 signals.append(DataQualitySignal("DUTY_REMAINING_MISMATCH", "ERROR", "vrijwilligers_periode", pid,
-                                                 f"Sportlink E={source_e} maar A-B-C-D={record.position.E}"))
+                                                 f"Sportlink E={record.source_remaining_hours} maar A-B-C-D={record.position.E}"))
 
         return RealDataImportResult(tuple(persons), tuple(memberships), tuple(football), tuple(roles),
                                     tuple(committees), tuple(teams), tuple(duties), tuple(provenance), tuple(signals),
                                     tuple(sorted(source_dates.items())), tuple(membership_as_of), diagnostic_records)
+
+    @classmethod
+    def parse_duty_record(cls, row: dict[str, str]) -> DutyImportRecord:
+        """Shared Sportlink A/B/C/D/E parsing; preserve source E separately."""
+        a, b, c, d, source_e = (cls.required_whole_number(cls.value(row, field), field)
+                              for field in ("Verplichte punten", "Gecorrigeerde punten",
+                                            "Voldaan", "Nog ingedeeld", "Niet ingedeeld"))
+        return DutyImportRecord(SportlinkDutyRegistration(cls.value(row, "Relatiecode"), a, b, c, d),
+                                source_e, DutyPosition(a, b, c, d))
 
     @classmethod
     def read_rows(cls, path: str | Path | None, dataset: str) -> list[dict[str, str]]:
@@ -391,12 +394,12 @@ class SportlinkRealDataAdapter:
         return cls.read_rows_text(text, dataset, name=export_path(dataset, path).name)
 
     @classmethod
-    def read_rows_text(cls, text: str, dataset: str, *, name="CSV") -> list[dict[str, str]]:
+    def read_rows_text(cls, text: str, dataset: str, *, name="CSV", strict=False) -> list[dict[str, str]]:
         try:
             delimiter = csv.Sniffer().sniff(text[:8192], delimiters=";,\t").delimiter
         except csv.Error:
             delimiter = ";"
-        reader = csv.DictReader(text.splitlines(), delimiter=delimiter)
+        reader = csv.DictReader(text.splitlines(), delimiter=delimiter, strict=strict)
         missing = cls.REQUIRED_COLUMNS[dataset] - set(reader.fieldnames or ())
         if missing:
             raise ValueError(f"{name}: missing columns: {', '.join(sorted(missing))}")

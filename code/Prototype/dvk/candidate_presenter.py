@@ -5,10 +5,17 @@ def priority_explanation(proposal) -> str:
     parts = [f"Openstaande uren: {proposal.E}."]
     for rule in proposal.applied_priority_rules:
         if rule.startswith("achterstand vorig seizoen="):
-            parts.append(f"Achterstallige uren uit vorig seizoen: {proposal.previous_season_backlog}. Deze tellen mee in de prioriteit.")
-        elif rule == "achterstand vorig seizoen niet meegewogen vanaf 1 december":
-            parts.append("Achterstallige uren uit vorig seizoen tellen vanaf 1 december niet mee.")
-        elif rule == "achterstand vorig seizoen niet beschikbaar: BL-03":
+            if proposal.previous_season_backlog > 0:
+                parts.append(f"Achterstallige uren uit vorig seizoen: {proposal.previous_season_backlog}. Deze tellen mee in de prioriteit.")
+            else:
+                parts.append("Geen historische achterstand: 0 uur.")
+        elif rule == "achterstand vorig seizoen buiten juli tot en met december":
+            parts.append("Historische achterstand telt voor deze dienst niet mee: dit geldt uitsluitend van juli tot en met december.")
+        elif rule == "historische achterstand onbekend":
+            parts.append("Historische achterstand is onbekend of onbetrouwbaar en telt niet mee; dit is geen vastgestelde nulachterstand.")
+        elif rule == "geen positieve historische achterstand":
+            parts.append("Geen positieve historische achterstand; er wordt geen krediet verrekend.")
+        elif rule == "historische bron niet beschikbaar":
             parts.append("Achterstallige uren uit vorig seizoen zijn nog niet beschikbaar en tellen niet mee.")
         elif rule.startswith("wedstrijdvoorkeur="):
             parts.append({

@@ -120,6 +120,14 @@ en accepteert niet het overige reconstructieconcept.
 
 **Basis:** `real_data_import.py`, `hours_control.py`, herijkte baseline B-08/B-10.
 
+### Afzonderlijke historische urenexport — BL-03
+
+Historische bron: `~/Documents/DVK-Sportlink-exports/Overzicht per periode vorig seizoen.csv`, dezelfde CSV-kolomstructuur als de actuele urenexport. De planner levert het onmiddellijk voorafgaande seizoen; DVK leidt of verifieert dat bronseizoen niet zelfstandig. Koppeling uitsluitend op `Relatiecode`; `Niet ingedeeld` is de bronwaarde, getoetst aan A−B−C−D. Positieve achterstand telt als tweede criterium na actuele E voor diensten in **juli tot en met december** (`7 <= on_date.month <= 12`); januari t/m juni niet. Nul betekent geen achterstand; negatieve waarden blijven als bronfeit behouden en geven geen krediet. Actuele A/B/C/D/E blijven ongewijzigd.
+
+Bij ontbrekend, onleesbaar of structureel ongeldig historisch bestand blijft planning bruikbaar met een zichtbare waarschuwing. Ontbrekende ledenregels, dubbele relatiecodes, ongeldige getallen en formuleverschillen leveren voor de betrokken kandidaat onbekende/onbetrouwbare historische achterstand op; geen uitsluiting of stilzwijgende nul. Voor rangschikking neutraal, in toelichting onderscheiden van bekende nul, ontbrekende bron en maanden buiten toepassing. Andere geldige historische records blijven bruikbaar. Taakplichtcontrole blijft onafhankelijk van deze optionele bron.
+
+Dit specifieke broncontract is expliciet vastgesteld voor BL-03 en accepteert niet het overige reconstructieconcept. De technische parser hergebruikt de bestaande zes verplichte urenexportkolommen (relatiecode en A/B/C/D/E); extra kolommen worden getolereerd, naam wordt niet als sleutel gebruikt.
+
 ## 8. Bron 6 — Vrijwilligers (API)
 
 **Endpoint:** `https://data.sportlink.com/vrijwilligers` (read-only).  

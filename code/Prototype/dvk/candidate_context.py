@@ -20,6 +20,7 @@ from .security import Authorizer, Permission
 from .local_csv_sources import LocalCsvSourceApplicationService
 from .sportlink_exports import EXPORT_FILENAMES
 from .source_diagnostics import source_diagnostics
+from .historical_backlog import HistoricalBacklogSource
 
 
 class CandidateSourceError(ValueError):
@@ -36,6 +37,7 @@ class CandidateContext:
     stats: ProgrammaFetchStats
     error: str | None = None
     source_files: tuple[str, ...] = ()
+    historical_backlog: HistoricalBacklogSource | None = None
 
     @property
     def diagnostic_details(self):
@@ -87,6 +89,8 @@ class CandidateContextApplicationService:
         except TeamMatchdayError as exc:
             raise CandidateSourceError(str(exc)) from None
         now = datetime.now().astimezone()
+        history = LocalCsvSourceApplicationService().historical_backlog(
+            person_ids=(p.person_id for p in source.persons))
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
         client = client_factory(adapter)
         try:
@@ -95,13 +99,13 @@ class CandidateContextApplicationService:
             return CandidateContext(period, source_period, source, None, now, client.stats,
                                     "Programma API niet beschikbaar: de aanvraag is mislukt of de respons is ongeldig. "
                                     "Wedstrijdcontext is onbekend; laad de kandidaatbronnen opnieuw.",
-                                    tuple(EXPORT_FILENAMES.values()))
+                                    tuple(EXPORT_FILENAMES.values()), history)
         program = adapter.import_rows(fetched.rows, retrieved_at=now)
         error = None
         if any(signal.severity == "ERROR" for signal in program.signals):
             error = "Wedstrijdcontext niet bruikbaar: controleer de teamkoppeling en wedstrijdbronmeldingen."
         return CandidateContext(period, source_period, source, program, now, client.stats, error,
-                                tuple(EXPORT_FILENAMES.values()))
+                                tuple(EXPORT_FILENAMES.values()), history)
 
     def propose(self, context, *, service, need, planning_app, proposal_run_id):
         self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
@@ -168,8 +172,10 @@ class CandidateContextApplicationService:
             cases=cases, service=service, team_memberships=context.program.team_memberships,
             matches=matches, today=service.starts_at.date(), duty_qualifications=qualifications,
         )
+        history = context.historical_backlog
         priorities = prioritize_candidates(assessments, cases, service.starts_at.date(),
-                                          apply_previous_season=False)
+                                          history.values if history and history.available else {},
+                                          apply_previous_season=bool(history and history.available))
         by_case = {case.person.person_id: case for case in cases}
         by_assessment = {assessment.person_id: assessment for assessment in assessments}
         proposals = tuple(create_assignment_proposal(

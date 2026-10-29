@@ -348,7 +348,7 @@ def _render_planning():
     candidate_result = None
     with data_sources:
         if not demo:
-            st.caption("Achterstallige uren uit vorig seizoen zijn nog niet beschikbaar en tellen niet mee.")
+            st.caption("Historische urenbron: Overzicht per periode vorig seizoen.csv. Achterstanden tellen uitsluitend mee voor diensten van juli tot en met december.")
             st.caption(export_location_hint())
             with settings:
                 source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
@@ -378,6 +378,19 @@ def _render_planning():
             if st.session_state.get("candidate-load-error"):
                 st.error(st.session_state["candidate-load-error"])
             if candidate_context is not None:
+                history = candidate_context.historical_backlog
+                if history is None:
+                    st.warning("Historische urenbron is niet beschikbaar; historische achterstanden zijn niet meegewogen.")
+                elif not history.available:
+                    st.warning(history.message)
+                else:
+                    st.caption(history.message)
+                    if history.signals:
+                        st.warning("Historische urenbron bevat onbetrouwbare of niet gekoppelde regels. Betrokken kandidaten blijven beschikbaar; hun historische achterstand telt niet mee.")
+                        names = {p.person_id: p.name for p in candidate_context.source.persons}
+                        with st.expander("Aandachtspunten historische urenbron"):
+                            st.table([{"Lid": names.get(s.record_key, "Geen gekoppeld actueel lid"),
+                                       "Melding": s.message} for s in history.signals])
                 st.caption("Ingelezen bestanden: " + ", ".join(candidate_context.source_files))
                 st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen. DVK controleert de map niet op de achtergrond.")
                 stats = candidate_context.stats

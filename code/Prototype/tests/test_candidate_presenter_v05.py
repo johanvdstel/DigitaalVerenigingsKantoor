@@ -12,8 +12,8 @@ from dvk.candidate_presenter import priority_explanation
     ('avoid', 'minder voorkeur bij gelijke urenprioriteit'),
 ])
 @pytest.mark.parametrize('backlog,expected_backlog', [
-    ('achterstand vorig seizoen niet beschikbaar: BL-03', 'zijn nog niet beschikbaar en tellen niet mee'),
-    ('achterstand vorig seizoen niet meegewogen vanaf 1 december', 'tellen vanaf 1 december niet mee'),
+    ('historische bron niet beschikbaar', 'zijn nog niet beschikbaar en tellen niet mee'),
+    ('achterstand vorig seizoen buiten juli tot en met december', 'uitsluitend van juli tot en met december'),
     ('achterstand vorig seizoen=4', 'vorig seizoen: 4. Deze tellen mee'),
 ])
 def test_priority_translation(preference, expected, backlog, expected_backlog):

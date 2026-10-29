@@ -51,7 +51,7 @@ W_CASES = (
         sportlink_duty=SportlinkDutyRegistration("W08P", required_hours=10, correction_hours=0, completed_hours=2, scheduled_hours=1),
     ),
     PrototypeCase(
-        "W09", "Relevante achterstand vorig seizoen wordt vóór 1 december meegewogen",
+        "W09", "Relevante achterstand vorig seizoen wordt van juli tot en met december meegewogen",
         Person("W09P", "Senior Oude Achterstand", date(1986, 9, 1)),
         Membership("W09P", "active", "bondslid", plays_football=True),
         sportlink_duty=SportlinkDutyRegistration("W09P", required_hours=10, correction_hours=0, completed_hours=4, scheduled_hours=3),
