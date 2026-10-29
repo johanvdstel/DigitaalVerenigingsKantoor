@@ -21,6 +21,35 @@ Bij twijfel of tegenstrijdigheid tussen opdracht, functionele afspraak, testcase
 
 Codex introduceert geen nieuwe beleidsregel, functionele interpretatie of architectuurkeuze zonder expliciete opdracht.
 
+## 2a. Strikte scheiding ChatGPT-regie en Codex-uitvoering
+
+**Verplicht voor alle volgende DVK-iteraties.** De opdrachtgever gebruikt **ChatGPT in de browser** voor regie, functionele afstemming en acceptatie, en **Codex in de afzonderlijke Mac-app** voor technische uitvoering. Het zijn twee afzonderlijke werkomgevingen: overdracht gebeurt uitsluitend via een expliciete, door de opdrachtgever overgenomen opdracht en een controleerbare terugrapportage. Veronderstel geen gedeelde chatcontext, werkmap, branch of automatisch overgedragen toestemming.
+
+**ChatGPT (regie):**
+- leest en verifieert de actuele repositorydocumentatie, baseline en PR-status;
+- bewaakt CKC-beleid, scope, ontwerp, afhankelijkheden en acceptatiecriteria;
+- formuleert afzonderlijke, afgebakende Codex-opdrachten voor inventarisatie en, pas na akkoord, implementatie;
+- beoordeelt Codex-resultaten, testbewijs en de exacte commit die lokaal is geaccepteerd;
+- begeleidt de opdrachtgever bij lokale functionele acceptatie;
+- bewaakt documentatie en verzorgt een merge uitsluitend na expliciete toestemming van de opdrachtgever.
+
+**Codex (uitvoering):**
+- onderzoekt lokale code, broncontracten en tests binnen de gegeven opdracht;
+- wijzigt code en synthetische tests uitsluitend na expliciet goedgekeurde implementatieopdracht;
+- voert gerichte en volledige regressietests uit en rapporteert CI voor zover beschikbaar;
+- mag alleen wanneer de opdracht dit toestaat een werkbranch maken, committen, pushen en een PR openen;
+- mag niet zelfstandig mergen, scope uitbreiden of functionele besluiten nemen.
+
+**Verplichte poorten:**
+1. **Inventarisatie is read-only.** Een onderzoeksopdracht geeft geen toestemming om bestanden te wijzigen, commits te maken, te pushen of PR's te openen.
+2. **Geen implementatie zonder voorafgaand akkoord.** ChatGPT legt de aanpak en open functionele keuzes voor; Codex krijgt pas daarna een expliciete implementatieopdracht.
+3. **Oplevering is commit-specifiek.** Codex rapporteert de volledige commit-SHA, branch, PR, gewijzigde bestanden, reden, tests en resterende risico's. 'Uitgevoerd en gepusht' betekent **niet** 'gemerged' of 'geaccepteerd'.
+4. **Exacte acceptatiebasis.** De opdrachtgever test de concrete draaiende commit; vóór merge verifieert ChatGPT dat de PR-head overeenkomt met die geaccepteerde commit. Is de PR-head later gewijzigd, dan wordt het verschil eerst onderzocht en zo nodig opnieuw lokaal getest en expliciet geaccepteerd.
+5. **Geen ongeautoriseerde vervolgwijzigingen.** Na oplevering vereisen aanvullende codewijzigingen een nieuwe afgebakende opdracht en terugrapportage; er worden geen stilzwijgende 'laatste correcties' toegevoegd.
+6. **Merge alleen na expliciet akkoord.** Een groene CI, gepushte branch, open PR of mondelinge mededeling 'afgerond' vervangt nooit de lokale functionele acceptatie én afzonderlijke merge-toestemming.
+
+Bij onduidelijkheid over commit, branch, opdracht of acceptatie: **stoppen en eerst verifiëren**. Deze afspraken verduidelijken en versterken de regels in §§ 4, 6 en 7.
+
 ## 3. Architectuurregels
 
 Respecteer de bestaande richting:
