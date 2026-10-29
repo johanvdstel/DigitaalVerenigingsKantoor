@@ -1,6 +1,6 @@
 # Iteratie 2 — BL-03 historische achterstand
 
-**Status:** technisch geïmplementeerd; geen functionele acceptatie, backlogafsluiting of merge.
+**Status:** functioneel geaccepteerd door de opdrachtgever op 29 oktober 2026 op codecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a`; [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55) blijft open, niet gemerged. Integrale v0.5-acceptatie blijft open.
 **Baseline:** prototype-v0.5 op `881d807138f951a69d651e8ee37b68042fe319a4`; bij start identiek aan actuele GitHub-integratiebranch.
 **Werkbranch:** `codex/iteratie-2-historische-achterstand`.
 **Werkmap:** `/private/tmp/dvk-iteratie-2`.
@@ -61,7 +61,7 @@ Runtime: Python 3.11.16, bestaande omgeving `/private/tmp/dvk-bl18-venv`.
 - De eerste nieuwe UI-proef faalde op tekstzoeken in een door pandas verkorte tabelweergave. De test leest nu de volledige Melding-kolom. Geen functionele verwachting versoepeld.
 - Geen echte CKC-exports, bestaande databases of credentials gelezen. Tests gebruiken synthetische HOME en tijdelijke databases. Geen bank-/persoonsgegevens toegevoegd. Oorspronkelijke lokale wijzigingen blijven ongemoeid.
 
-Commit, PR en CI voor de exacte opgeleverde head worden in de oplevering vermeld; geen functionele acceptatie of merge.
+Geaccepteerde implementatiecommit: `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a`; [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55). [CI #385](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/actions/runs/40912264840) geslaagd op deze commit. Functionele acceptatie is hieronder afzonderlijk vastgelegd; merge blijft open.
 
 ## Praktische lokale acceptatie — uitsluitend synthetisch
 
@@ -87,3 +87,17 @@ Deze proeven omvatten ook vernieuwing van geldige naar ongeldige historie, behou
 ## Resterende beperkingen
 
 De planner is verantwoordelijk voor juiste vervanging van de historische export per seizoen; DVK verifieert het bronseizoen niet. Er is geen automatische achtergrondverversing. Negatieve bronwaarden blijven bewaard maar leveren geen krediet op. Live CKC-data en een handmatige browseracceptatie zijn niet door Codex beproefd. Geen aanvullende technische maatregelen zonder aantoonbare noodzaak.
+
+## Lokale functionele acceptatie — 29 oktober 2026
+
+**Besluit:** de opdrachtgever heeft BL-03 functioneel geaccepteerd na drie geslaagde handmatige browserproeven in de geïsoleerde synthetische acceptatieomgeving. Acceptatie betreft de code van commit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` op PR #55; deze administratieve documentatiecommit verandert de geteste applicatiecode niet.
+
+| Proef | Waarneming opdrachtgever | Resultaat |
+| --- | --- | --- |
+| Historische prioritering | Drie kandidaten met elk 10 actuele openstaande uren verschenen in aflopende historische achterstand **8, 4, 0**; kandidaten waren selecteerbaar en hun toelichting verscheen. | Geslaagd |
+| Ontbrekende historische bron | Zonder `--historical` bleef planning bruikbaar. De melding luidde: `Historische urenbron ontbreekt of is niet leesbaar: Overzicht per periode vorig seizoen.csv. Historische achterstanden zijn niet meegewogen; planning blijft bruikbaar.` De historische achterstanden werden niet als beschikbare uren getoond. | Geslaagd |
+| Bevestiging en undo | De opdrachtgever bevestigde dat zowel het bevestigen als het terugdraaien van de synthetische indeling correct werkte. | Geslaagd |
+
+**Technisch bewijs:** 1251 geautomatiseerde tests geslaagd; CI #385 geslaagd op de geaccepteerde implementatiecommit. Datumgrenzen, bronfouten, relatiecodekoppeling en negatieve E zijn geautomatiseerd getest, niet afzonderlijk handmatig in de browser. Geen echte CKC-bronnen gebruikt bij deze lokale acceptatie.
+
+**Vervolg:** BL-03 functioneel afgesloten; PR #55 niet gemerged. Vóór merge controleren dat de applicatiecode overeenkomt met de geaccepteerde commit en dat uitsluitend deze administratieve wijzigingen zijn toegevoegd; daarna is een afzonderlijk expliciet mergebesluit nodig. De integrale v0.5-acceptatie blijft open.
