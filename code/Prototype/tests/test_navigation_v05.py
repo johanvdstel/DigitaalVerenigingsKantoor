@@ -138,8 +138,9 @@ def test_function_settings_are_directly_under_main_screen_title(tmp_path):
     app.button(key='nav-planning').click().run()
     assert not app.exception
     children = list(app.main.children.values())
-    assert [x.type for x in children[:3]] == ['title', 'subheader', 'flex_container']
-    settings = children[2]
+    assert [x.type for x in children[:4]] == ['title', 'caption', 'subheader', 'flex_container']
+    assert children[1].value.startswith('Actieve codeversie:')
+    settings = children[3]
     assert settings.markdown[0].value == '## 1 — Instellingen'
     assert settings.radio(key='planning-mode').value == 'Week'
     assert not settings.get('expander')
@@ -151,8 +152,8 @@ def test_function_settings_are_directly_under_main_screen_title(tmp_path):
     app.button(key='nav-control').click().run()
     assert not app.exception
     children = list(app.main.children.values())
-    assert [x.type for x in children[:4]] == ['title', 'markdown', 'date_input', 'text_input']
-    assert children[1].value == '### Taakplichtcontrole — read-only'
+    assert [x.type for x in children[:5]] == ['title', 'caption', 'markdown', 'date_input', 'text_input']
+    assert children[2].value == '### Taakplichtcontrole — read-only'
     assert app.main.date_input(key='duty-control-date').value == date.today()
     assert not app.sidebar.date_input and not app.sidebar.text_input
     assert [x.value for x in app.sidebar.header] == ['DVK']

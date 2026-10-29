@@ -40,11 +40,13 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
     assert not app.exception
     assert observed == [PERIOD, PERIOD]
     assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
-    assert any('BL-03' in t.value for t in app.caption)
-    assert any('Taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
-    assert any('Prioriteit: actuele E=10' in t.value for t in app.caption)
-    assert any('technisch geslaagd' in t.value for t in app.caption)
+    assert not any('BL-03' in t.value for t in app.caption)
+    assert not any('DVK-beleidscontrole taakplicht:' in t.value for t in app.caption)
     pick(app)
+    assert any(t.value == '#### Synthetisch lid M1' for t in app.markdown)
+    assert any('DVK-beleidscontrole taakplicht: Geen vrijstellingsgrond gevonden' in t.value for t in app.caption)
+    assert any('Openstaande uren: 10.' in t.value for t in app.caption)
+    assert any('technisch geslaagd' in t.value for t in app.caption)
     with db.unit_of_work() as uow:
         assert not PlanningApplicationService(IDENTITY, uow=uow).active_planning()
     next(b for b in app.button if b.label == 'Selectie bevestigen').click().run()
@@ -118,3 +120,61 @@ def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, 
     assert any('de overige kandidaten worden normaal beoordeeld' in t.value for t in app.info)
     assert any('UNKNOWN_MEMBERSHIP_STATUS: 1' in t.value for t in app.caption)
     assert not any('vernieuw de exports' in t.value for t in app.error)
+
+
+@pytest.mark.parametrize('other_matchday,temporary_same_day', [(True, False), (False, True), (True, True)])
+def test_no_exception_input_and_emergency_visible_with_explicit_approval(
+        operational_page, monkeypatch, other_matchday, temporary_same_day):
+    from test_iteration1_candidates_v05 import team_data
+    from test_candidate_context_v05 import context
+    from test_volunteer_planning_integration_v05 import snapshot
+    app, db, _ = operational_page
+    ctx = replace(context(team_data(['Algemeen/Zondag' if other_matchday else 'Algemeen/Zaterdag'])),period=PERIOD)
+    if temporary_same_day:
+        # Exercise presentation of the stored same-day reason, alone and combined
+        # with the teamspeeldag emergency produced by the domain service.
+        original_propose = CandidateContextApplicationService.propose
+        def propose_with_temporary_reason(self, *args, **kwargs):
+            result = original_propose(self, *args, **kwargs)
+            return replace(result, planned=tuple(replace(item, proposal=replace(
+                item.proposal, suitability='emergency',
+                uncertainties=item.proposal.uncertainties + ('temporary_planning_same_day_emergency',)))
+                for item in result.planned))
+        monkeypatch.setattr(CandidateContextApplicationService, 'propose', propose_with_temporary_reason)
+    monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a, **k: ctx)
+    app.button(key='load-candidate-sources').click().run()
+    # Select Saturday, while the only player has Sunday as team matchday.
+    saturday = next(b.service for b in load_shift_catalog().bindings(PERIOD)
+                    if b.service.starts_at.weekday()==5)
+    app.session_state['selected_service_id'] = saturday.service_id
+    app.run()
+    assert not app.exception
+    if other_matchday:
+        assert 'Noodkandidaat' in table(app).value.iloc[0]['Doel']
+    remarks = table(app).value.iloc[0]['Opmerkingen']
+    assert ('andere teamspeeldag' in remarks) == other_matchday
+    assert ('al tijdelijk ingepland op dezelfde dag' in remarks) == temporary_same_day
+    captions = ' '.join(c.value for c in app.caption)
+    assert 'secundaire actie' not in captions
+    assert 'uitzonderingen worden alleen expliciet vastgelegd' not in captions
+    assert 'Niet selecteren is geen afwijzing' in captions
+    assert not any('Uitzondering' in b.label for b in app.button)
+    assert not any(w.label in {'Reden','Toelichting'} for w in app.text_input)
+    before = snapshot(db)
+    pick(app)
+    assert snapshot(db)==before
+    captions = ' '.join(c.value for c in app.caption)
+    assert ('andere teamspeeldag' in captions) == other_matchday
+    assert ('al tijdelijk ingepland op dezelfde dag' in captions) == temporary_same_day
+    next(b for b in app.button if b.label=='Selectie bevestigen').click().run()
+    assert not app.exception
+    assert len(snapshot(db)[1])==1
+    # A failed Teams refresh hides the earlier proposal but preserves planning.
+    before = snapshot(db)
+    def broken(*a,**k):
+        raise CandidateSourceError('Teams-bronfout: Speeldag ontbreekt of is onbekend.')
+    monkeypatch.setattr(CandidateContextApplicationService,'load',broken)
+    app.button(key='load-candidate-sources').click().run()
+    assert any('Speeldag' in e.value for e in app.error)
+    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
+    assert snapshot(db)==before

@@ -5,6 +5,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from .candidate_selection import assess_candidate
+from .team_matchday import validate_emergency_selection
 from .planning_workqueue import TemporaryPlanning, planning_conflict, planning_staffing, validate_planning_selection
 from .dashboard_actions import DashboardActionResult, approve_from_dashboard, reject_from_dashboard
 from .import_management import ImportBatch, SnapshotDifference, SnapshotRecord, SourceSnapshot
@@ -332,6 +333,8 @@ class ProposalDecisionApplicationService:
         try:
             active = self.uow.temporary_planning.all()
             validate_planning_selection(tuple(p.person_id for p, _, _ in selections), service, staffing_need, active)
+            validate_emergency_selection(tuple(p for p, _, _ in selections),
+                                         planning_staffing(service, staffing_need, active))
             for proposal, _, _ in selections:
                 if planning_conflict(proposal.person_id, service, active) == "same_day" and proposal.suitability != "emergency":
                     raise ValueError("Beoordeel deze kandidaat opnieuw als nood-/uitwijkkandidaat.")

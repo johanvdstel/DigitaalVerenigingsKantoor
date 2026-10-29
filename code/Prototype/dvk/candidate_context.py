@@ -1,4 +1,4 @@
-"""Connect existing v0.5 sources and domain services; no new selection policy."""
+"""Operational Sportlink candidate basis and confirmed Iteration 1 filters."""
 from __future__ import annotations
 
 from collections import Counter
@@ -12,7 +12,8 @@ from .planning import PlanningPeriod
 from .prioritization import prioritize_candidates
 from .programma_client import ProgrammaFetchError, ProgrammaFetchStats, SportlinkProgrammaClient
 from .programma_team_adapter import CkcProgrammaAdapter, LinkedProgramImportResult
-from .proposal_planning import plan_proposals
+from .team_matchday import (TeamMatchdayError, validate_source_team_matchdays,
+                            other_weekend_persons, plan_matchday_proposals)
 from .proposals import create_assignment_proposal
 from .real_data_import import RealDataImportResult
 from .security import Authorizer, Permission
@@ -81,6 +82,10 @@ class CandidateContextApplicationService:
                 "Kandidaatbronnen niet geladen. Controleer de vijf lokale CSV-bestanden, "
                 f"hun verplichte kolommen, leesbaarheid en geldige bronwaarden. {exc}"
             ) from None
+        try:
+            validate_source_team_matchdays(source)
+        except TeamMatchdayError as exc:
+            raise CandidateSourceError(str(exc)) from None
         now = datetime.now().astimezone()
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
         client = client_factory(adapter)
@@ -117,11 +122,36 @@ class CandidateContextApplicationService:
         controls = assessment_source.compare_required_hours(service.starts_at.date())
         members = {member.person_id: member for member in source.memberships}
         persons = {person.person_id: person for person in source.persons}
-        # Exclusions and uncertainty come from the accepted v0.5 source derivation.
-        usable = tuple(control for control in controls
-                       if control.status != "niet betrouwbaar beoordeelbaar"
-                       and control.expectation.status == "taakplichtig"
-                       and members[control.person_id].status.strip().casefold() == "definitief")
+        # Planning trusts Sportlink A, not the policy comparison or household evidence.
+        # Keep policy-only date errors in controls without overruling Sportlink A.
+        # All other source-error checks continue to protect reliable planning.
+        def usable_for_planning(control):
+            pid = control.person_id
+            member = members[pid]
+            if (member.status.strip().casefold() != "definitief"
+                    or (member.end_date is not None and member.end_date <= service.starts_at.date())
+                    or persons[pid].birth_date is None
+                    or len(control.duty_records) != 1):
+                return False
+            if any(((signal.severity == "ERROR" and signal.code not in {
+                       "INVALID_FUNCTION_DATE", "INVALID_COMMITTEE_START_DATE",
+                       "INVALID_COMMITTEE_END_DATE"}) or signal.code in {
+                       "UNKNOWN_PLAYING_MEMBER_VALUE", "MISSING_TEAM_TYPE",
+                       "UNKNOWN_TEAM_TYPE", "UNMATCHED_TEAM_REFERENCE"})
+                   and (signal.record_key is None or signal.record_key.split(":", 1)[0] == pid)
+                   for signal in assessment_source.signals):
+                return False
+            record = control.duty_records[0]
+            return (record.source_formula_matches
+                    and record.registration.required_hours is not None
+                    and record.registration.required_hours > 0)
+
+        usable = tuple(control for control in controls if usable_for_planning(control))
+        try:
+            other_weekend = other_weekend_persons(source.team_memberships, service)
+        except TeamMatchdayError as exc:
+            raise CandidateSourceError(str(exc)) from None
+        need, = planning_app.staffing_needs(services=(service,), source_needs=(need,))
         cases = tuple(PrototypeCase(
             f"CKC-{control.person_id}", "Actuele CKC-bronnen", persons[control.person_id],
             members[control.person_id], persons=source.persons, memberships=source.memberships,
@@ -130,7 +160,7 @@ class CandidateContextApplicationService:
             context={"duty_expectation": control.expectation, "hours_control": control},
         ) for control in usable)
         qualifications = {control.person_id: DutyQualification(
-            control.person_id, True, ", ".join(ground.code for ground in control.expectation.grounds),
+            control.person_id, True, "Sportlink geregistreerde taakplicht",
             control.person_id,
         ) for control in usable}
         matches = context.program.matches
@@ -146,5 +176,5 @@ class CandidateContextApplicationService:
             f"CKC-{service.service_id}-{priority.person_id}-{proposal_run_id}", service,
             by_case[priority.person_id], by_assessment[priority.person_id], priority, matches,
         ) for priority in priorities)
-        return CandidateProposals(cases, plan_proposals(proposals, need, offer_all=True), controls, assessments, priorities,
+        return CandidateProposals(cases, plan_matchday_proposals(proposals, need, other_weekend), controls, assessments, priorities,
                                   present_controls(source, controls).rows)

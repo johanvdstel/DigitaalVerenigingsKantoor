@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** backlog integraal functioneel herbeoordeeld t/m BL-24 op 27 oktober 2026; afgesloten, vervallen en open uitvoerwerk onderscheiden. Integrale acceptatie prototype v0.5 blijft open  
+**Status:** BL-17, BL-20 en BL-21 functioneel geaccepteerd op 29 oktober 2026 via PR #53; overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -29,11 +29,11 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 
 ## BL-17 — Uitzonderingsregistratie verwijderen uit Kandidaten (26 oktober 2026)
 
-**Status (functionele afbakening bevestigd 27 oktober 2026):** open uitvoeractie voor prototype v0.5, nog niet geïmplementeerd. Verwijder uitzonderingsregistratie uit Kandidaten en haar invloed op kandidaatselectie en indelingsvoorstellen, zonder overige kandidaatfunctionaliteit te wijzigen of relevante historie onnodig te wissen. **Opnemen in de prototypeplanning en uitvoering bij voorkeur combineren met BL-20**; gezamenlijk regressietesten. Geen herintroductie van DVK-taakplichtuitzonderingen (zie BL-05).
+**Status:** afgerond en functioneel geaccepteerd door Johan op 29 oktober 2026 via [PR #53](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/53), Iteratie 1. Sportlink bepaalt de kandidatenbasis; uitzonderingsinvoer verwijderd, historie behouden. Kandidaattoelichting verschijnt begrijpelijk per aangevinkte kandidaat. Zie [acceptatieverslag](code/Prototype/DVK-v0.5-iteratie1-kandidaten-versiebeheer.md).
 
 **Functioneel uitgangspunt:** in Ledendienst Planning is de in Sportlink geregistreerde taakplicht leidend voor de kandidatenbasis, ongeacht of die registratie volgens de CKC-beleidsregels juist is. De afzonderlijke taakplichtcontrole signaleert beleidsafwijkingen; de planner beoordeelt deze en corrigeert zo nodig Sportlink. DVK legt geen taakplichtuitzonderingen vast.
 
-**Uit te voeren:**
+**Gerealiseerd (BL-17):**
 - Verwijder de mogelijkheid om in de sectie **Kandidaten** van Ledendienst Planning uitzonderingen op de taakplicht te registreren.
 - Verwijder de bijbehorende invloed van deze uitzonderingen op kandidaatselectie en voorstellen. Behoud de overige bestaande selectie-, geschiktheids- en prioriteitsregels.
 - Ruim uitsluitend hiervoor gebruikte programmatuur en eventuele opslag zorgvuldig op; behoud relevante historie en voorkom onbedoeld gegevensverlies.
@@ -88,19 +88,21 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 **Acceptatie:** de twee functies zijn herkenbaar gescheiden; grensdagen van het 14-dagenvenster worden correct behandeld; aanmelden buiten het venster wordt ook bij directe acties geweigerd; alleen werkelijk ingeroosterde personen/diensten komen in aanmerking; intrekking blijft ongeacht leeftijd van registratie mogelijk; actuele en historische overzichten behouden actieve én ingetrokken historie; de bestaande planning blijft onaangetast; ongeldige of mislukte bronophaalacties wijzigen geen bestaande toestand. Geen Sportlink-writeback.
 
-## BL-20 — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen (26 oktober 2026)
+## BL-20 — Weekendfilter op teamspeeldag bij vrijwilligersvoorstellen
 
-**Status (functionele afbakening bevestigd 27 oktober 2026):** open voor implementatie binnen prototype v0.5, bij voorkeur samen met BL-17. Nog niet geïmplementeerd.
+**Status:** afgerond en functioneel geaccepteerd door Johan op 29 oktober 2026 via [PR #53](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/53), Iteratie 1.
 
-**Doel:** gebruik de speeldag van het team in de Teams-export om kandidaten/voorstellen voor ledendiensten in het weekend te filteren. **Spelers van zondagteams niet aanbieden op zaterdag; spelers van zaterdagteams niet aanbieden op zondag.** Op de eigen weekenddag is deze specifieke filter geen belemmering. Voor diensten op maandag t/m vrijdag geldt deze restrictie niet.
+**Geaccepteerde werking:** het daadwerkelijke teamattribuut `Speeldag` uit Teams.csv bepaalt de weekendfilter voor spelers. Zaterdagspelers worden normaal niet op zondag aangeboden en zondagspelers normaal niet op zaterdag. Op de eigen speeldag en doordeweeks geldt deze beperking niet. Niet-spelende leden worden er niet door beperkt. Alle relevante spelerteamkoppelingen tellen: een speler van zowel een zaterdag- als zondagteam is op beide weekenddagen toegestaan. Bestaande wedstrijd- en overige geschiktheidsregels blijven gelden.
 
-**Afbakening (verduidelijkt 27 oktober 2026):** ieder CKC-team heeft per definitie de toevoeging **zaterdag** of **zondag**; leid de teamspeeldag uit die teamaanduiding af. Pas de filter toe bij het samenstellen van vrijwilligerskandidaten en voorstellen; overige bestaande geschiktheids-, prioriteits- en capaciteitsregels blijven behouden. Verifieer vóór implementatie het feitelijke Teams-exportveld en de koppeling van personen aan teams. **Niet-spelende leden** worden niet door deze teamspeeldagfilter uitgesloten. Ontbreekt de verwachte zaterdag-/zondagaanduiding toch in de brongegevens, behandel dit als een zichtbaar datakwaliteitsprobleem en verzin geen speeldag of nieuwe beleidsuitzondering. Een speler hoort volgens het CKC-uitgangspunt niet in twee teams voor te komen. Als een speler toch zowel aan een zaterdagteam als een zondagteam gekoppeld is, wordt die speler door deze speeldagfilter op **beide weekenddagen toegestaan** (niet uitgesloten); dit is een expliciete uitzondering, geen stilzwijgende datacorrectie.
+**Nooduitzondering (bevestigd in Iteratie 1):** uitsluitend wanneer overige geschikte kandidaten onvoldoende zijn voor de actuele minimumbezetting mogen spelers van de andere weekenddag herkenbaar als noodkandidaat worden aangeboden. Tijdelijke indelingen tellen mee; bevestiging begrenst noodselectie tot het minimum. Alle andere geschiktheidsregels en expliciete menselijke bevestiging blijven gelden.
 
-**Acceptatie:** zondagteamspelers ontbreken in zaterdagvoorstellen, zaterdagteamspelers ontbreken in zondagvoorstellen; de omgekeerde eigen-speeldagcombinaties worden door deze filter niet uitgesloten; doordeweekse voorstellen blijven ongewijzigd. Tests dekken expliciet ook de dubbele teamkoppeling (zaterdag én zondag: op beide dagen toegestaan), niet-spelende leden en de signalering van onverwacht ontbrekende teamaanduidingen.
+**Bronwaarden (lokaal verduidelijkt):** `Algemeen/Vrijdag` is geldig voor recreatieve bondsteams en veroorzaakt geen weekendbeperking. Bij toch geregistreerde Sportlink-taakplicht en positieve open uren kan een vrijdagteamspeler op beide weekenddagen gewone kandidaat zijn. Een vrijdagkoppeling wijzigt beperkingen uit eventuele andere weekendteamkoppelingen niet. Recreatieve vrijstelling blijft onderdeel van Taakplichtcontrole; Sportlink blijft leidend voor planning. Ontbrekende, onbekende en tegenstrijdige speeldagen blokkeren kandidaten/voorstellen met een zichtbare bronfout, zonder planning of historie te wissen. De geaccepteerde afzonderlijke identiteiten van zaterdagteam 2 en zondagteam 2 blijven behouden.
+
+**Acceptatiegrens:** Eén richting van de weekendfilter is lokaal waargenomen; de andere richting en noodkandidaten zijn uitsluitend synthetisch getoetst. Dubbele teamkoppelingen en ongeldige bronwaarden zijn synthetisch gedekt. Integrale v0.5-acceptatie blijft open. Een tijdens acceptatie ontbrekende zondagteamkandidaat bleek terecht uitgesloten door een overlappende wedstrijd; zonder die wedstrijd verscheen de kandidaat wel. Zie [verslag](code/Prototype/DVK-v0.5-iteratie1-kandidaten-versiebeheer.md).
 
 ## BL-21 — Versieaanduiding op het DVK-hoofdscherm (26 oktober 2026)
 
-**Status (bevestigd 27 oktober 2026):** open voor uitvoering binnen prototype v0.5, **gelijktijdig met een andere ontwikkelopdracht** (bijvoorbeeld de gecombineerde BL-17/BL-20-iteratie). Geen afzonderlijke ontwikkelronde voor BL-21. Afsluiten na zichtbare versieaanduiding en lokale verificatie.
+**Status:** afgerond en lokaal functioneel geaccepteerd door Johan op 29 oktober 2026 via PR #53, Iteratie 1. De actieve branch, commit, worktree en eventuele lokale wijzigingen staan onder de hoofdtitel; ontbrekende Git-informatie krijgt een eerlijke melding.
 
 **Wens:** toon direct onder de titel `CKC Digitaal Verenigingskantoor (DVK)` een kleine, subtiele aanduiding van de daadwerkelijk actieve applicatieversie, bijvoorbeeld `PR #46 (BL-18)` tijdens de acceptatie van die versie. Zo is bij lokaal testen direct zichtbaar welke codeversie draait.
 

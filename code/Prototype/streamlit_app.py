@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dvk.candidate_presenter import priority_explanation
+
 from datetime import date, datetime, time, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -13,6 +15,8 @@ import streamlit as st
 
 from dvk.application_services import NoShowApplicationService, PlanningApplicationService, ProposalDecisionApplicationService
 from dvk.local_csv_sources import LocalCsvSourceApplicationService
+from dvk.team_matchday import EMERGENCY_MATCHDAY_REASON
+from dvk.application_version import active_application_version
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
@@ -37,7 +41,6 @@ from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard, su
 import os
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
-REJECTION_LABELS = {"Persoonlijke omstandigheid": "personal_circumstance", "Niet geschikt voor deze dienst": "unsuitable_for_service", "Brongegevens kloppen niet": "source_data_incorrect", "Andere bijzonderheid": "other"}
 MATCH_LABELS = {"no_match_context": "Geen wedstrijd", "no_match_that_day": "Geen wedstrijd", "home_match_overlaps_service": "Thuiswedstrijd overlapt", "home_match_same_day": "Thuiswedstrijd", "away_match_overlaps_service": "Uitwedstrijd overlapt", "away_match_same_day": "Uitwedstrijd"}
 RULE_LABELS = {"previous_season_backlog_before_december": "Openstaande uren uit vorig seizoen meegewogen", "home_match_overlap": "Thuiswedstrijd sluit aan op dienst", "home_match_same_day": "Thuiswedstrijd op dezelfde dag", "away_match_emergency": "Uitwedstrijd meegewogen als noodoptie"}
 
@@ -72,7 +75,7 @@ def _vriendelijke_wedstrijdcontext(value: str) -> str:
 
 def _vriendelijke_waarom(proposal) -> str:
     details: list[str] = []
-    if proposal.suitability == "emergency":
+    if "temporary_planning_same_day_emergency" in proposal.uncertainties:
         details.append("Alleen nood-/uitwijkkandidaat: al tijdelijk ingepland op dezelfde dag")
     if proposal.previous_season_backlog > 0 and proposal.previous_season_considered:
         details.append(f"Nog {proposal.previous_season_backlog} openstaande uren uit vorig seizoen")
@@ -99,7 +102,8 @@ def _demo_proposals(service: DutyService, need: StaffingNeed, matches: tuple[Mat
     return cases, plan_proposals(proposals, need, offer_all=True)
 
 st.set_page_config(page_title="DVK — Digitaal Verenigingskantoor", page_icon="📋", layout="wide")
-st.title("CKC Digitaal Verenigings Kantoor (DVK)")
+st.title("CKC Digitaal Verenigingskantoor (DVK)")
+st.caption(active_application_version(__file__))
 
 
 def _cancel_period_change():
@@ -344,7 +348,7 @@ def _render_planning():
     candidate_result = None
     with data_sources:
         if not demo:
-            st.caption("Prioritering op achterstanden uit vorig seizoen is pas beschikbaar na BL-03; er worden geen fictieve achterstanden gebruikt.")
+            st.caption("Achterstallige uren uit vorig seizoen zijn nog niet beschikbaar en tellen niet mee.")
             st.caption(export_location_hint())
             with settings:
                 source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
@@ -423,7 +427,7 @@ def _render_planning():
             if candidate_result is not None:
                 uncertain = sum(control.status == "niet betrouwbaar beoordeelbaar" for control in candidate_result.controls)
                 if uncertain:
-                    st.warning(f"{uncertain} leden niet betrouwbaar beoordeelbaar; deze leveren geen kandidaatvoorstel op. Bekijk de Taakplichtcontrole voor toelichting.")
+                    st.warning(f"{uncertain} leden beleidsmatig of op brongegevens niet betrouwbaar beoordeelbaar. Betrouwbare Sportlink-taakplicht blijft voor planning leidend; bekijk de Taakplichtcontrole voor toelichting.")
                 if any(control.status == "afwijking" for control in candidate_result.controls):
                     st.warning("Bij leden wijkt de Sportlink-urenverplichting af van de DVK-afleiding. De actuele Sportlink-urenpositie blijft leidend; bekijk de Taakplichtcontrole voor herbeoordeling.")
             case_by_person = {c.person.person_id: c for c in cases}
@@ -438,9 +442,10 @@ def _render_planning():
                                    "Rang": item.proposal.priority_rank,
                                    "Kandidaat": case_by_person[item.proposal.person_id].person.name,
                                    "Team": item.proposal.team_id or "—", "Openstaande uren": item.proposal.E,
-                                   "Doel": "Min bezetting" if item.staffing_purpose == "minimum_coverage" else "Aanvulling tot Max",
+                                   "Doel": {"minimum_coverage": "Min bezetting", "emergency_minimum_coverage": "Noodkandidaat — Min bezetting",
+                                            "optional_capacity": "Aanvulling tot Max"}[item.staffing_purpose],
                                    "Wedstrijdcontext": _vriendelijke_wedstrijdcontext(item.proposal.match_relation),
-                                   "Opmerkingen": _vriendelijke_waarom(item.proposal)} for item in planned]
+                                   "Opmerkingen": "; ".join(filter(None, (_vriendelijke_waarom(item.proposal), *(reason for reason in item.proposal.uncertainties if reason == EMERGENCY_MATCHDAY_REASON))))} for item in planned]
                 row_identity = sha256("\0".join(row["proposal_id"] for row in candidate_rows).encode()).hexdigest()
                 candidate_table = st.data_editor(pd.DataFrame(candidate_rows), hide_index=True, height=330, row_height=32,
                     **_table_width_options(), disabled=[name for name in candidate_rows[0] if name != "Kies"],
@@ -451,27 +456,19 @@ def _render_planning():
                                    "Kandidaat": st.column_config.TextColumn(width=190)},
                     key=f"candidate-table-{selected_service_id}-{row_identity}")
                 selected_proposal_ids = candidate_table.loc[candidate_table["Kies"], "proposal_id"].tolist()
-                # One shared detail form instead of a hidden form for every candidate.
-                with st.expander("Kandidaattoelichting en uitzondering"):
-                    proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
-                    detail_id = st.selectbox("Kandidaat voor toelichting", tuple(proposals_by_id),
-                        format_func=lambda pid: f"{proposals_by_id[pid].priority_rank}. {case_by_person[proposals_by_id[pid].person_id].person.name}",
-                        key=f"candidate-detail-{selected_service_id}-{st.session_state[proposal_run_key]}")
+                proposals_by_id = {item.proposal.proposal_id: item.proposal for item in planned}
+                for detail_id in selected_proposal_ids:
                     p = proposals_by_id[detail_id]
+                    st.markdown("#### " + case_by_person[p.person_id].person.name)
                     if candidate_result is not None:
                         detail = next(row for row in candidate_result.explanations if row.person_id == p.person_id)
-                        st.caption("Taakplicht: " + detail.why)
-                        st.caption("Prioriteit: " + "; ".join(p.applied_priority_rules))
-                    st.caption("Alleen gebruiken als er een bijzondere reden is om deze kandidaat niet te gebruiken.")
-                    with st.form(f"exception-{p.proposal_id}"):
-                        label = st.selectbox("Reden", tuple(REJECTION_LABELS), key=f"reasoncat-{p.proposal_id}"); reason = st.text_input("Toelichting", key=f"reason-{p.proposal_id}"); submitted = st.form_submit_button("Uitzondering vastleggen")
-                        if submitted:
-                            if not reason.strip(): st.error("Een toelichting is verplicht.")
-                            else:
-                                with database.unit_of_work() as uow:
-                                    result = ProposalDecisionApplicationService(identity, uow=uow).reject(p, case_by_person[p.person_id], reason_category=REJECTION_LABELS[label], reason=reason)
-                                st.session_state[f"exception-result-{p.proposal_id}"] = result
-                    if st.session_state.get(f"exception-result-{p.proposal_id}"): st.warning("Uitzondering vastgelegd. De urenpositie blijft ongewijzigd; deze persoon kan bij een volgende planning opnieuw worden voorgesteld.")
+                        st.caption("DVK-beleidscontrole taakplicht: " + detail.why)
+                        st.caption("Geregistreerde Sportlink-taakplicht is leidend voor planning.")
+                    st.caption(priority_explanation(p))
+                    st.caption("Wedstrijdcontext: " + _vriendelijke_wedstrijdcontext(p.match_relation))
+                    remarks = "; ".join(filter(None, (_vriendelijke_waarom(p), *(reason for reason in p.uncertainties if reason == EMERGENCY_MATCHDAY_REASON))))
+                    if remarks != "—":
+                        st.caption(remarks)
                 st.write("De DVK stelt geschikte kandidaten voor. Selecteer wie je wilt inroosteren en bevestig je keuze.")
                 with database.unit_of_work() as uow:
                     selection_problem = PlanningApplicationService(identity, uow=uow).selection_problem(
@@ -689,7 +686,7 @@ def _render_planning():
         st.markdown("### Datakwaliteit")
         if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
         else: st.success("Geen datakwaliteitssignalen voor deze planning.")
-        st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing; uitzonderingen worden alleen expliciet vastgelegd via de secundaire actie.")
+        st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing.")
 
 
 def _render_planning_screen():
