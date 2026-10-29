@@ -101,3 +101,18 @@ De planner is verantwoordelijk voor juiste vervanging van de historische export 
 **Technisch bewijs:** 1251 geautomatiseerde tests geslaagd; CI #385 geslaagd op de geaccepteerde implementatiecommit. Datumgrenzen, bronfouten, relatiecodekoppeling en negatieve E zijn geautomatiseerd getest, niet afzonderlijk handmatig in de browser. Geen echte CKC-bronnen gebruikt bij deze lokale acceptatie.
 
 **Vervolg:** BL-03 functioneel afgesloten; PR #55 niet gemerged. Vóór merge controleren dat de applicatiecode overeenkomt met de geaccepteerde commit en dat uitsluitend deze administratieve wijzigingen zijn toegevoegd; daarna is een afzonderlijk expliciet mergebesluit nodig. De integrale v0.5-acceptatie blijft open.
+
+## Aanvullende live-data-verificatie — 29 oktober 2026
+
+De opdrachtgever controleerde de geïntegreerde Iteratie 2-versie op `prototype-v0.5`, commit `d8b405a3f2888652efcb42c1a7e832ccc6292ef8`, in de aparte lokale werkmap `~/Documents/DVK-Iteratie2`.
+
+- Versieaanduiding bevestigde branch, commit en werkmap.
+- De vijf actuele CKC-bronnen werden automatisch ingelezen: Leden.csv, Functies.csv, Commissies.csv, Teams.csv en Overzicht per periode.csv.
+- De historische urenbron was geladen. De planner blijft verantwoordelijk voor het juiste vorige seizoen.
+- Programma API: één aanvraag, geen herhalingen of definitieve fouten; technisch geslaagd, zonder bevestiging dat wedstrijden zijn aangeleverd.
+- Secties stonden ingeklapt bij een nieuwe planningssessie.
+- De opdrachtgever bevestigde dat historische achterstanden meetellen in de kandidaatprioriteit.
+
+De aanvankelijke afwijkingen (ontbrekende versieaanduiding, open secties, handmatige uploadvraag) ontstonden bij starten vanaf de oudere lokale branch `codex/vrijwilligers-planning-integratie` op `455200b`; ze zijn niet vastgesteld op de juiste Iteratie 2-baseline. De oorspronkelijke lokale wijzigingen bleven ongemoeid.
+
+**Conclusie:** alle hierboven uitgevoerde live-data-controles geslaagd; geen nieuwe codecorrecties vastgesteld. Dit is een aanvullende visuele en functionele controle, geen volledige herhaling van de synthetische acceptatiesuite. Geen echte CKC-data in GitHub opgenomen. BL-03 blijft functioneel afgesloten; de integrale v0.5-acceptatie blijft open. PR #55 is inmiddels gemerged als `d8b405a`; eerdere vermeldingen van een open PR zijn historisch.
