@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** BL-17, BL-20 en BL-21 functioneel geaccepteerd op 29 oktober 2026 via PR #53; overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
+**Status:** BL-17, BL-20, BL-21 en BL-03 functioneel geaccepteerd op 29 oktober 2026 (respectievelijk PR #53 en PR #55); overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -10,6 +10,7 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 
 | ID | Onderwerp | Status / bewijs |
 | --- | --- | --- |
+| BL-03 | Achterstallige uren vorig seizoen | **Functioneel geaccepteerd op 29 oktober 2026**, op de synthetische implementatiecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` van [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55) (nog niet gemerged). Lokale proeven: prioritering 8/4/0 bij actuele E=10, ontbrekende historische bron met zichtbare waarschuwing en bruikbare planning, bevestiging en undo. 1251 tests en CI #385 groen op geaccepteerde codecommit. Zie [acceptatieverslag](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). | 
 | BL-01 | Adresgebaseerde huishoud- en minderjarigenregels B-05/B-06/B-07 | **Afgerond en functioneel geaccepteerd** in Stap 2 ronde 4; uitsluitend volledig geregistreerd adres als automatische huishoudsleutel; relevante leden op peildatum; geen ouder-/achternaamheuristiek. |
 | BL-02 | Read-only taakplichtcontroledashboard | **Afgerond en functioneel geaccepteerd.** Lokale CKC-acceptatie: 650 relevante leden, 563 overeenkomsten, 87 afwijkingen, 0 niet betrouwbaar beoordeelbaar. Bron- en controlediagnose behouden. [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged naar `prototype-v0.5`. |
 | BL-04 | DVK-frontend, hoofdmenu, licht portaal | **Afgerond en functioneel geaccepteerd op 19 oktober 2026.** Startscherm met acht functies in drie groepen, één per regel; zijbalk uitsluitend navigatie; instellingen op eigen scherm. Rooster Generator als uitgeschakelde knop. Correcties BL-04-01/03/04 verwerkt; BL-04-02 vervallen. 62 gerichte tests, 636 regressietests en CI groen. [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged naar `prototype-v0.5` (`68ae25fa`). CSV-uploads moeten na schermwisseling opnieuw worden geselecteerd. |
@@ -18,7 +19,7 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 
 | ID | Onderwerp | Afspraak en eerstvolgende stap | Afhankelijkheid |
 | --- | --- | --- | --- |
-| BL-03 | Achterstallige uren vorig seizoen | **Geïmplementeerd in Iteratie 2; nog niet functioneel geaccepteerd.** Historische Sportlink-CSV `Overzicht per periode vorig seizoen.csv`; `Niet ingedeeld` via relatiecode als tweede prioriteitscriterium na actuele E, uitsluitend juli t/m december. Planner borgt voorafgaand seizoen; geen Excel of automatische seizoenscontrole. Onbekende/onbetrouwbare achterstand sluit geen kandidaat uit; bronwaarden en actuele urenbalans blijven gescheiden. Zie [contract en acceptatieprotocol](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). | Lokale functionele acceptatie en expliciet mergebesluit |
+
 | BL-05 | Duurzame plannerbeslissingen bij taakplichtafwijkingen | **Vervallen als ontwikkelopdracht (besluit 26 oktober 2026).** DVK blijft afwijkingen tussen de Sportlink-taakplichtregistratie en CKC-beleidsregels signaleren via de bestaande taakplichtcontrole. De planner beoordeelt deze en corrigeert zo nodig Sportlink. Geen aparte DVK-registratie van besluiten, redenen of taakplichtuitzonderingen. De 87 eerder geconstateerde afwijkingen hoeven niet eerst door de planner te zijn beoordeeld om BL-05 af te sluiten. | Geen DVK-ontwikkeling; bestaande taakplichtcontrole behouden |
 | BL-06 | Urenoverdracht bij 18 jaar | **Vervallen als afzonderlijke DVK-ontwikkelopdracht (besluit 26 oktober 2026).** Bij meerderjarigheid kan de gezinsgebonden taakplicht naar een jonger minderjarig lid verschuiven; reeds gewerkte uren blijven bij het lid dat ze heeft verricht. DVK signaleert eventuele afwijkingen in verwachte taakplicht via de bestaande read-only taakplichtcontrole. Eventuele handmatige urenoverdracht of -correctie in Sportlink blijft mogelijk, maar valt volledig buiten DVK: geen signalering, goedkeuring, ondersteuning of verificatie van die overdracht. | Herziene beleidsafspraak B-08; bestaande taakplichtcontrole |
 | BL-07 | Sportlink-urenbron en seizoensgegevens | **Functioneel gevalideerd en afgesloten (27 oktober 2026); geen aanvullend ontwikkelwerk.** Bron *Overzicht per periode*: A = Verplichte punten, B = Gecorrigeerde punten, C = Voldaan, D = Nog ingedeeld, E = Niet ingedeeld; E = A − B − C − D. Bronbestand bevat per definitie uitsluitend het huidige seizoen. Praktijksteekproef: openstaande uren en prioritering in Kandidaten en Voorstellen stemmen overeen met Sportlink-CSV. Geen afzonderlijke DVK-verificatie van handmatige urenoverdracht (BL-06). Dit is functionele acceptatie op basis van steekproef, geen volledige technische regressietest. | Afgesloten; B-13 en bronverificatie bijgewerkt |
@@ -33,7 +34,7 @@ Historische bron: `~/Documents/DVK-Sportlink-exports/Overzicht per periode vorig
 
 Bij ontbrekend, onleesbaar of structureel ongeldig historisch bestand blijft planning bruikbaar met een zichtbare waarschuwing. Ontbrekende ledenregels, dubbele relatiecodes, ongeldige getallen en formuleverschillen leveren voor de betrokken kandidaat onbekende/onbetrouwbare historische achterstand op; geen uitsluiting of stilzwijgende nul. Voor rangschikking neutraal, in toelichting onderscheiden van bekende nul, ontbrekende bron en maanden buiten toepassing. Andere geldige historische records blijven bruikbaar. Taakplichtcontrole blijft onafhankelijk van deze optionele bron.
 
-De oude Excel-/seizoensidentificatie-aannames zijn door Johan vervangen. De gerichte wijziging van de W09-datumverwachting is afzonderlijk goedgekeurd; de testgegevens blijven behouden. Geen functionele acceptatie vastgelegd.
+De oude Excel-/seizoensidentificatie-aannames zijn door Johan vervangen. De gerichte wijziging van de W09-datumverwachting is afzonderlijk goedgekeurd; de testgegevens blijven behouden. BL-03 is op 29 oktober 2026 functioneel geaccepteerd op de geteste codecommit; PR #55 staat nog open en een merge vereist afzonderlijk akkoord.
 
 ## BL-17 — Uitzonderingsregistratie verwijderen uit Kandidaten (26 oktober 2026)
 
