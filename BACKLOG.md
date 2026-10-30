@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** BL-17, BL-20, BL-21 en BL-03 functioneel geaccepteerd op 29 oktober 2026 (respectievelijk PR #53 en PR #55); overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
+**Status:** BL-17, BL-20, BL-21 en BL-03 functioneel geaccepteerd op 29 oktober 2026 (respectievelijk PR #53 en PR #55); BL-23 en BL-24 functioneel geaccepteerd op 30 oktober 2026 en via PR #56 gemerged; overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -137,7 +137,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-23 — In- en uitklapbare rubrieken Ledendienst Planning (27 oktober 2026)
 
-**Status:** technisch geïmplementeerd in Iteratie 3; functioneel geaccepteerd op 30 oktober 2026 op commit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; merge van PR #56 afzonderlijk toegestaan. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
+**Status:** technisch geïmplementeerd in Iteratie 3; functioneel geaccepteerd op 30 oktober 2026 op commit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; PR #56 op 30 oktober 2026 gemerged naar `prototype-v0.5` (mergecommit `d9942c328e75a7235803319807504fbd36c522d4`). Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
 **Wens:** maak de vijf bestaande rubrieken **Instellingen, Databronnen, Diensten, Kandidaten en Wedstrijden** afzonderlijk in- en uitklapbaar. Bij het openen van het scherm Ledendienst Planning zijn alle vijf standaard **ingeklapt**: alleen de rubrieknamen zijn zichtbaar. De planner kan één of meerdere rubrieken naar keuze openklappen, zonder dat het openen van de ene rubriek andere automatisch sluit.
 
@@ -147,7 +147,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-24 — Compleet overzicht Bronstatus en actualiteit (27 oktober 2026)
 
-**Status:** onderzocht en technisch geïmplementeerd in Iteratie 3; functionele acceptatie en merge staan open. Overzicht omvat zes CSV-bronnen (historie optioneel) en twee API-bronnen. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
+**Status:** geïmplementeerd en functioneel geaccepteerd op 30 oktober 2026 op commit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; PR #56 op 30 oktober 2026 gemerged naar `prototype-v0.5` (mergecommit `d9942c328e75a7235803319807504fbd36c522d4`). Overzicht omvat zes CSV-bronnen (historie optioneel) en twee API-bronnen. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
 **Aanleiding:** in de sectie **Databronnen** toont de tabel **Bronstatus en actualiteit** momenteel alleen `Sportlink Vrijwilligers`. Dat is onlogisch bij een overzicht dat bronstatus en actualiteit pretendeert te tonen: **alle relevante bronnen, of geen onvolledig overzicht**.
 
