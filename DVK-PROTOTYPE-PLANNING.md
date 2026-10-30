@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** Iteratie 1 (BL-17/20/21) functioneel geaccepteerd op 29 oktober 2026 via PR #53; Iteratie 2 (BL-03) is lokaal functioneel geaccepteerd op 29 oktober 2026; PR #55 is op 29 oktober 2026 gemerged. Integrale v0.5-acceptatie blijft open.
+**Status:** Iteratie 1 (BL-17/20/21) functioneel geaccepteerd op 29 oktober 2026 via PR #53; Iteratie 2 (BL-03) is lokaal functioneel geaccepteerd op 29 oktober 2026; PR #55 is op 29 oktober 2026 gemerged; Iteratie 3 (BL-23/24) functioneel geaccepteerd op 30 oktober 2026 en PR #56 gemerged. Integrale v0.5-acceptatie blijft open.
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -20,7 +20,7 @@
 | Afgerond | BL-17, BL-20, BL-21 — Iteratie 1 | Sportlink-kandidatenbasis, verwijderde uitzonderingsinvoer, teamspeeldagfilter/noodselectie, directe begrijpelijke toelichting en actieve versie. | **Functioneel geaccepteerd op 29 oktober 2026 via PR #53; zie acceptatieverslag** |
 | Open | BL-14 (incl. BL-15), BL-19 | Catalogus dynamisch inlezen; zelfstandig No-showmanagement. | **Nog te implementeren en accepteren** |
 | Open | BL-22 | Centraal leesbaar Python-regelbestand (na inventarisatie). | **Nog te implementeren en accepteren** |
-| Iteratie 3 | BL-23, BL-24 | Inklapbare rubrieken en acht bronnen in bronstatusoverzicht. | **Functioneel geaccepteerd op 30 oktober 2026 op `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; merge van PR #56 afzonderlijk toegestaan.** Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md). |
+| Iteratie 3 | BL-23, BL-24 | Inklapbare rubrieken en acht bronnen in bronstatusoverzicht. | **Functioneel geaccepteerd op 30 oktober 2026 op `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; PR #56 op 30 oktober 2026 gemerged naar `prototype-v0.5` (mergecommit `d9942c328e75a7235803319807504fbd36c522d4`); aanvullende lokale visuele controle geslaagd.** Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md). |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 ## Vastgestelde resterende uitvoeringsvolgorde prototype v0.5 (28 oktober 2026)
@@ -31,7 +31,7 @@ De opdrachtgever heeft onderstaande **werkplanning** bevestigd. De volgorde is l
 | --- | --- | --- | --- |
 | 1 — afgerond | Kandidaten en versiebeheer | BL-17, BL-20, BL-21 | Functioneel geaccepteerd door Johan op 29 oktober 2026 via PR #53; codeversie `9016c8a`. 1209 regressietests en CI #381 groen. Eén weekendrichting en noodkandidaten uitsluitend synthetisch gedekt; zie acceptatieverslag. |
 | 2 — functioneel geaccepteerd | Achterstallige uren | BL-03 | Historische CSV gekoppeld via relatiecode; tweede prioriteitscriterium uitsluitend juli t/m december op dienstdatum, geen actuele urenmutatie. Planner borgt het vorige seizoen. Foutafhandeling houdt planning bruikbaar. **Lokaal functioneel geaccepteerd op 29 oktober 2026**, PR #55 gemerged; zie Iteratie-2-acceptatieverslag. |
-| 3 — functioneel geaccepteerd | Bedieningsgemak en bronstatus | BL-23, BL-24 | Vijf rubrieken onafhankelijk inklapbaar (bij openen allemaal ingeklapt); compleet en eerlijk overzicht van gebruikte API- en CSV-bronnen met status en import-/ophaalmomenten. |
+| 3 — afgerond en functioneel geaccepteerd | Bedieningsgemak en bronstatus | BL-23, BL-24 | Vijf rubrieken onafhankelijk inklapbaar (bij openen allemaal ingeklapt); compleet en eerlijk overzicht van gebruikte API- en CSV-bronnen met status en import-/ophaalmomenten. |
 | 4 | Dynamische dienstencatalogus | BL-14 (inclusief voormalig BL-15) | Eerst bestaande code en cataloguscontract inventariseren; vervolgens lokale `Shift Catalog.xlsx` dynamisch gebruiken voor relevante taakcodes, dienstmomenten en bezettingsnormen. Geen afzonderlijk beheerscherm. |
 | 5 | Zelfstandig No-showmanagement | BL-19 | No-showbediening uit Ledendienst Planning verplaatsen; aanmelden voor werkelijk ingeroosterde diensten binnen de laatste 14 kalenderdagen inclusief vandaag; seizoensoverzicht met historie en intrekking van oudere actieve registraties. Geen gegevensverlies of Sportlink-writeback. |
 | 6 | Onderhoudbaarheid beleidsregels | BL-22 | Bestaande regels en tests inventariseren; CKC-regels bij voorkeur in één goed leesbaar en reviewbaar Python-bestand centraliseren zonder beleidsuitkomsten te veranderen. Geen Rules-tool of beheerinterface. |
