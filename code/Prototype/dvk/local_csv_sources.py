@@ -1,5 +1,5 @@
 """One local source input boundary for prototype functions; no background polling."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from .sportlink_exports import EXPORT_FILENAMES, read_export_text, default_export_directory, ExportFileError
 from .real_data_import import SportlinkRealDataAdapter
@@ -26,7 +26,8 @@ class LocalCsvSourceApplicationService:
             text = read_export_text("vrijwilligers_periode", default_export_directory() / HISTORICAL_FILENAME)
         except ExportFileError:
             return unavailable_history("Historische urenbron ontbreekt of is niet leesbaar: " + HISTORICAL_FILENAME + ".")
-        return import_historical_backlog(text, person_ids)
+        return replace(import_historical_backlog(text, person_ids),
+                       loaded_at=datetime.now().astimezone())
 
     def load(self):
         exports = {dataset: read_export_text(dataset).encode("utf-8") for dataset in EXPORT_FILENAMES}

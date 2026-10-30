@@ -137,7 +137,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-23 — In- en uitklapbare rubrieken Ledendienst Planning (27 oktober 2026)
 
-**Status:** nieuwe UI-wens voor prototype v0.5; nog niet geïmplementeerd.
+**Status:** technisch geïmplementeerd in Iteratie 3; functionele acceptatie en merge staan open. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
 **Wens:** maak de vijf bestaande rubrieken **Instellingen, Databronnen, Diensten, Kandidaten en Wedstrijden** afzonderlijk in- en uitklapbaar. Bij het openen van het scherm Ledendienst Planning zijn alle vijf standaard **ingeklapt**: alleen de rubrieknamen zijn zichtbaar. De planner kan één of meerdere rubrieken naar keuze openklappen, zonder dat het openen van de ene rubriek andere automatisch sluit.
 
@@ -147,7 +147,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-24 — Compleet overzicht Bronstatus en actualiteit (27 oktober 2026)
 
-**Status:** nieuwe UI-wens voor prototype v0.5; nog niet onderzocht of geïmplementeerd. Voorlopig opgenomen in de open documentatie-PR #52, die pas na gezamenlijke backlogreview wordt gemerged.
+**Status:** onderzocht en technisch geïmplementeerd in Iteratie 3; functionele acceptatie en merge staan open. Overzicht omvat zes CSV-bronnen (historie optioneel) en twee API-bronnen. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
 **Aanleiding:** in de sectie **Databronnen** toont de tabel **Bronstatus en actualiteit** momenteel alleen `Sportlink Vrijwilligers`. Dat is onlogisch bij een overzicht dat bronstatus en actualiteit pretendeert te tonen: **alle relevante bronnen, of geen onvolledig overzicht**.
 

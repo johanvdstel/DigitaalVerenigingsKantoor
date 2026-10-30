@@ -14,7 +14,7 @@ HEADINGS = [f"## {i} — {name}" for i, name in enumerate(
 
 def sections(app):
     return [block for block in app.main.children.values()
-            if block.type == "flex_container" and block.markdown and block.markdown[0].value in HEADINGS]
+            if block.type == "expander" and block.markdown and block.markdown[0].value in HEADINGS]
 
 
 def test_five_sections_and_controls_in_agreed_order(operational_page):
@@ -24,7 +24,7 @@ def test_five_sections_and_controls_in_agreed_order(operational_page):
     assert settings.radio(key="planning-mode")
     assert settings.date_input(key="planning-from")
     assert settings.text_input(key="candidate-season")
-    assert not settings.get("expander")
+    assert all(block.proto.expanded is False for block in sections(app))
     assert sources.radio(key="planning-source-mode")
     assert sources.button(key="load-candidate-sources")
     assert any(m.value == "### Datakwaliteit" for m in sources.markdown)
@@ -36,9 +36,8 @@ def test_five_sections_and_controls_in_agreed_order(operational_page):
     assert candidates.get("divider")
     assert any(m.value == "### No-shows" for m in candidates.markdown)
     assert not fixtures.button
-    expander, = fixtures.expander
-    assert expander.label == "Wedstrijdoverzicht voor de gekozen periode"
-    assert expander.proto.expanded is True
+    assert fixtures.label == "Wedstrijden"
+    assert fixtures.proto.expanded is False
 
 
 def test_source_warning_stays_visible_while_detail_is_collapsed(operational_page, monkeypatch):
@@ -77,12 +76,12 @@ def test_service_context_and_widget_identity_survive_actions(operational_page):
     assert not app.exception
 
 
-def test_matches_table_is_visible_in_expanded_overview(operational_page):
+def test_matches_table_remains_available_in_collapsed_section(operational_page):
     app, _, _ = operational_page
     app.radio(key="planning-source-mode").set_value("Demonstratie").run()
     assert not app.exception
     fixtures = sections(app)[4]
-    expander, = fixtures.expander
-    assert expander.proto.expanded is True
+    expander = fixtures
+    assert expander.proto.expanded is False
     assert set(expander.dataframe[0].value.columns) == {"Datum", "Tijd", "Team", "Thuis/uit"}
     assert len(expander.dataframe[0].value) > 0

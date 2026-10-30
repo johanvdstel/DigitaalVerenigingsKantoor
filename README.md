@@ -30,6 +30,8 @@ Kort samengevat:
 
 - **BL-03 — Iteratie 2 functioneel geaccepteerd (29 oktober 2026):** optionele historische Sportlink-CSV `Overzicht per periode vorig seizoen.csv`, gekoppeld op relatiecode. Positieve bronachterstand beïnvloedt uitsluitend prioriteit voor diensten in juli–december; actuele uren blijven gelijk. Planner borgt het vorige seizoen. Onbeschikbare/onbetrouwbare historie sluit geen kandidaat uit. [Verslag en acceptatieprotocol](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). Lokale synthetische acceptatie (prioriteit 8/4/0 bij E=10, waarschuwing bij ontbrekende historie, bevestiging/undo) geslaagd op `e3b17fc`; 1251 regressietests en CI #385 groen. [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55) blijft open; geen merge zonder afzonderlijke toestemming.
 
+**Iteratie 3 — BL-23/BL-24:** vijf onafhankelijk inklapbare rubrieken en bronstatus van alle acht bronnen technisch geïmplementeerd; nog niet functioneel geaccepteerd of gemerged. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
+
 De ontwikkeling is baseline-gedreven. Code, functioneel contract, bron-/integratiecontracten, relevante configuratie en geaccepteerde regressies vormen samen de releasebaseline. Nieuwe requirements of correcties van eerdere ontwerpen wijzigen die baseline niet impliciet.
 
 Zie [`docs/ontwikkelworkflow-codex.md`](docs/ontwikkelworkflow-codex.md) en [`AGENTS.md`](AGENTS.md) voor de afgesproken ontwikkel-, change-control- en Codex-werkwijze.

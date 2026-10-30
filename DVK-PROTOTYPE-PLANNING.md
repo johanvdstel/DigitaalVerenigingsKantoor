@@ -19,7 +19,8 @@
 | PR #44 geaccepteerd en gemerged; vóór integrale v0.5-acceptatie | BL-18 — Herstructurering Ledendienst Planning | Vijf gescheiden secties: Instellingen, Databronnen, Diensten, Kandidaten, Wedstrijden; behoud bestaande functionaliteit en afzonderlijke lokale UI-acceptatie. | **Afgerond en lokaal functioneel geaccepteerd op 26 oktober 2026; nieuwe inklapwens valt onder BL-23; [verslag](code/Prototype/DVK-v0.5-BL18-schermindeling.md)** |
 | Afgerond | BL-17, BL-20, BL-21 — Iteratie 1 | Sportlink-kandidatenbasis, verwijderde uitzonderingsinvoer, teamspeeldagfilter/noodselectie, directe begrijpelijke toelichting en actieve versie. | **Functioneel geaccepteerd op 29 oktober 2026 via PR #53; zie acceptatieverslag** |
 | Open | BL-14 (incl. BL-15), BL-19 | Catalogus dynamisch inlezen; zelfstandig No-showmanagement. | **Nog te implementeren en accepteren** |
-| Open | BL-22 t/m BL-24 | Centraal leesbaar Python-regelbestand (na inventarisatie); inklapbare rubrieken; volledig bronstatusoverzicht. | **Nog te implementeren en accepteren** |
+| Open | BL-22 | Centraal leesbaar Python-regelbestand (na inventarisatie). | **Nog te implementeren en accepteren** |
+| Iteratie 3 | BL-23, BL-24 | Inklapbare rubrieken en acht bronnen in bronstatusoverzicht. | **Technisch geïmplementeerd; functionele acceptatie en merge open.** Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md). |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 ## Vastgestelde resterende uitvoeringsvolgorde prototype v0.5 (28 oktober 2026)
