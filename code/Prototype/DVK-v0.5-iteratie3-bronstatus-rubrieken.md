@@ -1,6 +1,6 @@
 # Iteratie 3 — BL-23 en BL-24
 
-Status: BL-23 en BL-24 functioneel geaccepteerd op 30 oktober 2026 op oplevercommit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`. De opdrachtgever gaf daarna afzonderlijk akkoord voor merge van PR #56, mits de acceptatie eerst is gedocumenteerd. Geen integrale v0.5-acceptatie.
+Status: BL-23 en BL-24 functioneel geaccepteerd op 30 oktober 2026 op oplevercommit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`. Na vastlegging van de acceptatie gaf de opdrachtgever afzonderlijk merge-toestemming. PR #56 is op 30 oktober 2026 gemerged naar `prototype-v0.5` (mergecommit `d9942c328e75a7235803319807504fbd36c522d4`); de opdrachtgever heeft de gemergede UI lokaal geopend en de aanvullende visuele controle geslaagd verklaard. Geen integrale v0.5-acceptatie.
 
 Baselinebranch: `prototype-v0.5`, geverifieerde GitHub-HEAD `240aeaec5958a84d6bd9a02a699065513e98115d`. Deze bevat Iteratie 2-codebaseline `d8b405a3f2888652efcb42c1a7e832ccc6292ef8` plus de aanvullende live-verificatie. De lokale integratiebranch liep alleen deze documentatiecommit achter.
 Werkbranch: `codex/iteratie-3-bronstatus-rubrieken`. Werkmap: `/private/tmp/dvk-iteratie-3`. De oplevercommit en PR worden in de terugrapportage vastgelegd; dit verslag behoort tot diezelfde commit.
@@ -67,4 +67,4 @@ cd /private/tmp/dvk-iteratie-3/code/Prototype
 /private/tmp/dvk-bl18-venv/bin/python -m pytest -q tests/test_planning_source_status_v05.py tests/test_planning_sections_bl18.py tests/test_candidate_context_ui_v05.py tests/test_historical_backlog_ui_v05.py
 ```
 
-De tijdelijke launcher heeft bewust geen Git-versiecaption; de gecontroleerde root en vooraf gecontroleerde Git-SHA bepalen de codeversie. Functionele acceptatie van deze exacte commit is op 30 oktober 2026 door de opdrachtgever bevestigd: BL-23 vijf lokale controles geslaagd; BL-24 vier aangepaste lokale controles geslaagd, overige uitzonderingssituaties gedekt door synthetische regressietests. Afzonderlijke merge-toestemming voor PR #56 is daarna verleend, onder voorwaarde van voorafgaande documentatie. Geen integrale v0.5-acceptatie.
+De tijdelijke launcher heeft bewust geen Git-versiecaption; de gecontroleerde root en vooraf gecontroleerde Git-SHA bepalen de codeversie. Functionele acceptatie van deze exacte commit is op 30 oktober 2026 door de opdrachtgever bevestigd: BL-23 vijf lokale controles geslaagd; BL-24 vier aangepaste lokale controles geslaagd, overige uitzonderingssituaties gedekt door synthetische regressietests. Afzonderlijke merge-toestemming voor PR #56 is daarna verleend, na vastlegging van acceptatie. PR #56 is vervolgens gemerged op `d9942c328e75a7235803319807504fbd36c522d4` en de aanvullende lokale visuele controle is geslaagd. Geen integrale v0.5-acceptatie.
