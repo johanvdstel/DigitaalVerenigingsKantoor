@@ -10,7 +10,7 @@ De backlog bevat openstaande functionaliteit, beleidsbesluiten en bronafhankelij
 
 | ID | Onderwerp | Status / bewijs |
 | --- | --- | --- |
-| BL-03 | Achterstallige uren vorig seizoen | **Functioneel geaccepteerd op 29 oktober 2026**, op de synthetische implementatiecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` van [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55) (nog niet gemerged). Lokale proeven: prioritering 8/4/0 bij actuele E=10, ontbrekende historische bron met zichtbare waarschuwing en bruikbare planning, bevestiging en undo. 1251 tests en CI #385 groen op geaccepteerde codecommit. Zie [acceptatieverslag](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). | 
+| BL-03 | Achterstallige uren vorig seizoen | **Functioneel geaccepteerd op 29 oktober 2026**, op de synthetische implementatiecommit `e3b17fc83e88d9640bc011afc69a666b8b8dbe1a` van [PR #55](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/55) (gemerged op 29 oktober 2026). Lokale proeven: prioritering 8/4/0 bij actuele E=10, ontbrekende historische bron met zichtbare waarschuwing en bruikbare planning, bevestiging en undo. 1251 tests en CI #385 groen op geaccepteerde codecommit. Zie [acceptatieverslag](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). | 
 | BL-01 | Adresgebaseerde huishoud- en minderjarigenregels B-05/B-06/B-07 | **Afgerond en functioneel geaccepteerd** in Stap 2 ronde 4; uitsluitend volledig geregistreerd adres als automatische huishoudsleutel; relevante leden op peildatum; geen ouder-/achternaamheuristiek. |
 | BL-02 | Read-only taakplichtcontroledashboard | **Afgerond en functioneel geaccepteerd.** Lokale CKC-acceptatie: 650 relevante leden, 563 overeenkomsten, 87 afwijkingen, 0 niet betrouwbaar beoordeelbaar. Bron- en controlediagnose behouden. [PR #28](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/28) gemerged naar `prototype-v0.5`. |
 | BL-04 | DVK-frontend, hoofdmenu, licht portaal | **Afgerond en functioneel geaccepteerd op 19 oktober 2026.** Startscherm met acht functies in drie groepen, één per regel; zijbalk uitsluitend navigatie; instellingen op eigen scherm. Rooster Generator als uitgeschakelde knop. Correcties BL-04-01/03/04 verwerkt; BL-04-02 vervallen. 62 gerichte tests, 636 regressietests en CI groen. [PR #32](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/32) gemerged naar `prototype-v0.5` (`68ae25fa`). CSV-uploads moeten na schermwisseling opnieuw worden geselecteerd. |
@@ -34,7 +34,7 @@ Historische bron: `~/Documents/DVK-Sportlink-exports/Overzicht per periode vorig
 
 Bij ontbrekend, onleesbaar of structureel ongeldig historisch bestand blijft planning bruikbaar met een zichtbare waarschuwing. Ontbrekende ledenregels, dubbele relatiecodes, ongeldige getallen en formuleverschillen leveren voor de betrokken kandidaat onbekende/onbetrouwbare historische achterstand op; geen uitsluiting of stilzwijgende nul. Voor rangschikking neutraal, in toelichting onderscheiden van bekende nul, ontbrekende bron en maanden buiten toepassing. Andere geldige historische records blijven bruikbaar. Taakplichtcontrole blijft onafhankelijk van deze optionele bron.
 
-De oude Excel-/seizoensidentificatie-aannames zijn door Johan vervangen. De gerichte wijziging van de W09-datumverwachting is afzonderlijk goedgekeurd; de testgegevens blijven behouden. BL-03 is op 29 oktober 2026 functioneel geaccepteerd op de geteste codecommit; PR #55 staat nog open en een merge vereist afzonderlijk akkoord.
+De oude Excel-/seizoensidentificatie-aannames zijn door Johan vervangen. De gerichte wijziging van de W09-datumverwachting is afzonderlijk goedgekeurd; de testgegevens blijven behouden. BL-03 is op 29 oktober 2026 functioneel geaccepteerd op de geteste codecommit; PR #55 is op 29 oktober 2026 gemerged.
 
 ## BL-17 — Uitzonderingsregistratie verwijderen uit Kandidaten (26 oktober 2026)
 
@@ -137,7 +137,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-23 — In- en uitklapbare rubrieken Ledendienst Planning (27 oktober 2026)
 
-**Status:** technisch geïmplementeerd in Iteratie 3; functionele acceptatie en merge staan open. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
+**Status:** technisch geïmplementeerd in Iteratie 3; functioneel geaccepteerd op 30 oktober 2026 op commit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; merge van PR #56 afzonderlijk toegestaan. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
 **Wens:** maak de vijf bestaande rubrieken **Instellingen, Databronnen, Diensten, Kandidaten en Wedstrijden** afzonderlijk in- en uitklapbaar. Bij het openen van het scherm Ledendienst Planning zijn alle vijf standaard **ingeklapt**: alleen de rubrieknamen zijn zichtbaar. De planner kan één of meerdere rubrieken naar keuze openklappen, zonder dat het openen van de ene rubriek andere automatisch sluit.
 
