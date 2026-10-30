@@ -17,7 +17,7 @@ def _remaining_hours(case: PrototypeCase) -> int:
 
 
 def _previous_backlog_is_relevant(on_date: date) -> bool:
-    return (on_date.month, on_date.day) < (12, 1)
+    return 7 <= on_date.month <= 12
 
 
 def prioritize_candidates(
@@ -25,15 +25,17 @@ def prioritize_candidates(
     cases: tuple[PrototypeCase, ...],
     on_date: date,
     previous_season_backlog: dict[str, int] | None = None,
+    *, apply_previous_season: bool = True,
 ) -> tuple[CandidatePriority, ...]:
-    """Rank candidates transparently: E, previous backlog before Dec 1, context.
+    """Rank candidates: current E, positive backlog in July–December, context.
 
     No weighted score is invented. The sort is lexicographic so each ordering
     decision remains directly explainable from the policy rules.
     """
     cases_by_person = {case.person.person_id: case for case in cases}
     backlog = previous_season_backlog or {}
-    consider_previous = _previous_backlog_is_relevant(on_date)
+    in_season_window = _previous_backlog_is_relevant(on_date)
+    consider_previous = apply_previous_season and in_season_window
 
     rows = []
     for assessment in assessments:
@@ -53,10 +55,17 @@ def prioritize_candidates(
     result = []
     for rank, (assessment, remaining, previous, _) in enumerate(rows, start=1):
         explanation = [f"actuele E={remaining}"]
-        if consider_previous:
-            explanation.append(f"achterstand vorig seizoen={previous}")
+        known = assessment.person_id in backlog
+        if not in_season_window:
+            explanation.append("achterstand vorig seizoen buiten juli tot en met december")
+        elif not apply_previous_season:
+            explanation.append("historische bron niet beschikbaar")
+        elif not known:
+            explanation.append("historische achterstand onbekend")
+        elif backlog.get(assessment.person_id, 0) < 0:
+            explanation.append("geen positieve historische achterstand")
         else:
-            explanation.append("achterstand vorig seizoen niet meegewogen vanaf 1 december")
+            explanation.append(f"achterstand vorig seizoen={previous}")
         explanation.append(f"wedstrijdvoorkeur={assessment.preference}")
         result.append(
             CandidatePriority(
@@ -65,7 +74,7 @@ def prioritize_candidates(
                 rank,
                 remaining,
                 previous,
-                consider_previous,
+                consider_previous and known,
                 assessment.preference,
                 tuple(explanation),
             )
