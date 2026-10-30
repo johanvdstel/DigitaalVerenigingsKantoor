@@ -1,6 +1,6 @@
 # DVK — Prototypeplanning v0.5
 
-**Status:** Iteratie 1 (BL-17/20/21) functioneel geaccepteerd op 29 oktober 2026 via PR #53; Iteratie 2 (BL-03) is lokaal functioneel geaccepteerd op 29 oktober 2026; PR #55 staat nog open en is niet gemerged. Integrale v0.5-acceptatie blijft open.
+**Status:** Iteratie 1 (BL-17/20/21) functioneel geaccepteerd op 29 oktober 2026 via PR #53; Iteratie 2 (BL-03) is lokaal functioneel geaccepteerd op 29 oktober 2026; PR #55 is op 29 oktober 2026 gemerged. Integrale v0.5-acceptatie blijft open.
 **Doel:** van geaccepteerde taakplichtcontrole naar bruikbare CKC-ledendienstplanning met echte brongegevens.  
 **Gerelateerd:** [Backlog](BACKLOG.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md).
 
@@ -13,14 +13,14 @@
 | Voorbereiding afgerond | Vrijwilligers API-responsvalidatie (PR #34) en tijdelijke planning (PR #35) | Ongeldige bronresponsen worden vóór publicatie geweigerd; tijdelijke planning bleef volgens de toen geaccepteerde afspraak behouden bij navigatie en verviel bij procesherstart; deze laatste afspraak is vervangen door het op 22 oktober 2026 geaccepteerde [ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssessies.md). | **Afgerond en lokaal geaccepteerd waar van toepassing; geen volledige live API-integratie** |
 | Afgerond | Integratie Vrijwilligers API en BL-16 — duurzame planningssessies | Actuele Sportlink-inroosteringen en bezetting; bronrevisie, sessiehervatting, bevestigde vervanging, No-Show-selectie en registratie met historie. [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38). | **Lokaal functioneel geaccepteerd (23 oktober 2026); 917 regressietests, CI #332 groen** |
 | 3 | Integratie Programma API | Wedstrijden en relevante team-/wedstrijdcontext betrouwbaar ophalen/vertalen voor kandidaatbeoordeling; bronstatus en foutafhandeling testen. | **Afgerond en lokaal functioneel geaccepteerd via PR #41 en BL-18/PR #46; kandidaatfilter BL-20 geaccepteerd in Iteratie 1/PR #53** |
-| 4 | BL-03 — Achterstallige uren | Optionele historische Sportlink-CSV via relatiecode; dienstmaanden juli t/m december; geen wijziging actuele urenbalans. | **Functioneel geaccepteerd op 29 oktober 2026; PR #55 open, merge nog niet toegestaan** |
+| 4 | BL-03 — Achterstallige uren | Optionele historische Sportlink-CSV via relatiecode; dienstmaanden juli t/m december; geen wijziging actuele urenbalans. | **Functioneel geaccepteerd op 29 oktober 2026; PR #55 gemerged op 29 oktober 2026** |
 | 5 | Stap 3 — Ledendienst Planning | Taakplicht + Vrijwilligers + Programma + achterstanden combineren voor zinvolle kandidaten, prioriteit, bezetting en tijdelijke planning. | **Na bronacceptaties** |
 | Afgesloten/vervallen | BL-05 t/m BL-11 | BL-05 en BL-06 vervallen als afzonderlijke DVK-functies; BL-07 t/m BL-11 functioneel afgesloten volgens backlog. | **Geen afzonderlijk uitvoerwerk** |
 | PR #44 geaccepteerd en gemerged; vóór integrale v0.5-acceptatie | BL-18 — Herstructurering Ledendienst Planning | Vijf gescheiden secties: Instellingen, Databronnen, Diensten, Kandidaten, Wedstrijden; behoud bestaande functionaliteit en afzonderlijke lokale UI-acceptatie. | **Afgerond en lokaal functioneel geaccepteerd op 26 oktober 2026; nieuwe inklapwens valt onder BL-23; [verslag](code/Prototype/DVK-v0.5-BL18-schermindeling.md)** |
 | Afgerond | BL-17, BL-20, BL-21 — Iteratie 1 | Sportlink-kandidatenbasis, verwijderde uitzonderingsinvoer, teamspeeldagfilter/noodselectie, directe begrijpelijke toelichting en actieve versie. | **Functioneel geaccepteerd op 29 oktober 2026 via PR #53; zie acceptatieverslag** |
 | Open | BL-14 (incl. BL-15), BL-19 | Catalogus dynamisch inlezen; zelfstandig No-showmanagement. | **Nog te implementeren en accepteren** |
 | Open | BL-22 | Centraal leesbaar Python-regelbestand (na inventarisatie). | **Nog te implementeren en accepteren** |
-| Iteratie 3 | BL-23, BL-24 | Inklapbare rubrieken en acht bronnen in bronstatusoverzicht. | **Technisch geïmplementeerd; functionele acceptatie en merge open.** Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md). |
+| Iteratie 3 | BL-23, BL-24 | Inklapbare rubrieken en acht bronnen in bronstatusoverzicht. | **Functioneel geaccepteerd op 30 oktober 2026 op `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; merge van PR #56 afzonderlijk toegestaan.** Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md). |
 | Mijlpaal | Integrale functionele acceptatie v0.5 | Echte CKC-bronnen lokaal, samenhang tussen taakplicht, bronnen, planning, sync, no-shows, portaal; afwijkingen expliciet beoordeeld. | **Nog open** |
 
 ## Vastgestelde resterende uitvoeringsvolgorde prototype v0.5 (28 oktober 2026)
@@ -30,8 +30,8 @@ De opdrachtgever heeft onderstaande **werkplanning** bevestigd. De volgorde is l
 | Volgorde | Iteratie | Backlog | Uitvoering en acceptatie |
 | --- | --- | --- | --- |
 | 1 — afgerond | Kandidaten en versiebeheer | BL-17, BL-20, BL-21 | Functioneel geaccepteerd door Johan op 29 oktober 2026 via PR #53; codeversie `9016c8a`. 1209 regressietests en CI #381 groen. Eén weekendrichting en noodkandidaten uitsluitend synthetisch gedekt; zie acceptatieverslag. |
-| 2 — functioneel geaccepteerd | Achterstallige uren | BL-03 | Historische CSV gekoppeld via relatiecode; tweede prioriteitscriterium uitsluitend juli t/m december op dienstdatum, geen actuele urenmutatie. Planner borgt het vorige seizoen. Foutafhandeling houdt planning bruikbaar. **Lokaal functioneel geaccepteerd op 29 oktober 2026**, PR #55 nog open; zie Iteratie-2-acceptatieverslag. |
-| 3 | Bedieningsgemak en bronstatus | BL-23, BL-24 | Vijf rubrieken onafhankelijk inklapbaar (bij openen allemaal ingeklapt); compleet en eerlijk overzicht van gebruikte API- en CSV-bronnen met status en import-/ophaalmomenten. |
+| 2 — functioneel geaccepteerd | Achterstallige uren | BL-03 | Historische CSV gekoppeld via relatiecode; tweede prioriteitscriterium uitsluitend juli t/m december op dienstdatum, geen actuele urenmutatie. Planner borgt het vorige seizoen. Foutafhandeling houdt planning bruikbaar. **Lokaal functioneel geaccepteerd op 29 oktober 2026**, PR #55 gemerged; zie Iteratie-2-acceptatieverslag. |
+| 3 — functioneel geaccepteerd | Bedieningsgemak en bronstatus | BL-23, BL-24 | Vijf rubrieken onafhankelijk inklapbaar (bij openen allemaal ingeklapt); compleet en eerlijk overzicht van gebruikte API- en CSV-bronnen met status en import-/ophaalmomenten. |
 | 4 | Dynamische dienstencatalogus | BL-14 (inclusief voormalig BL-15) | Eerst bestaande code en cataloguscontract inventariseren; vervolgens lokale `Shift Catalog.xlsx` dynamisch gebruiken voor relevante taakcodes, dienstmomenten en bezettingsnormen. Geen afzonderlijk beheerscherm. |
 | 5 | Zelfstandig No-showmanagement | BL-19 | No-showbediening uit Ledendienst Planning verplaatsen; aanmelden voor werkelijk ingeroosterde diensten binnen de laatste 14 kalenderdagen inclusief vandaag; seizoensoverzicht met historie en intrekking van oudere actieve registraties. Geen gegevensverlies of Sportlink-writeback. |
 | 6 | Onderhoudbaarheid beleidsregels | BL-22 | Bestaande regels en tests inventariseren; CKC-regels bij voorkeur in één goed leesbaar en reviewbaar Python-bestand centraliseren zonder beleidsuitkomsten te veranderen. Geen Rules-tool of beheerinterface. |
@@ -86,7 +86,7 @@ Historische bron: `~/Documents/DVK-Sportlink-exports/Overzicht per periode vorig
 
 Bij ontbrekend, onleesbaar of structureel ongeldig historisch bestand blijft planning bruikbaar met een zichtbare waarschuwing. Ontbrekende ledenregels, dubbele relatiecodes, ongeldige getallen en formuleverschillen leveren voor de betrokken kandidaat onbekende/onbetrouwbare historische achterstand op; geen uitsluiting of stilzwijgende nul. Voor rangschikking neutraal, in toelichting onderscheiden van bekende nul, ontbrekende bron en maanden buiten toepassing. Andere geldige historische records blijven bruikbaar. Taakplichtcontrole blijft onafhankelijk van deze optionele bron.
 
-De goedgekeurde W09-datumcorrectie en B-13 zijn traceerbaar bijgewerkt. [Uitvoering en acceptatieverslag](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). **Functioneel geaccepteerd op 29 oktober 2026 op codecommit `e3b17fc`; PR #55 nog niet gemerged.**
+De goedgekeurde W09-datumcorrectie en B-13 zijn traceerbaar bijgewerkt. [Uitvoering en acceptatieverslag](code/Prototype/DVK-v0.5-iteratie2-historische-achterstand.md). **Functioneel geaccepteerd op 29 oktober 2026 op codecommit `e3b17fc`; PR #55 gemerged.**
 
 ### Stap 3 — Planning
 Controleer de volledige keten: beschikbare diensten, feitelijke Sportlink-bezetting, actuele taakplicht, kandidaatgeschiktheid op basis van wedstrijdcontext, prioriteit en achterstand, tijdelijke DVK-planning, undo, handmatige Sportlink-verwerking en correcte synchronisatie. Houd no-shows gekoppeld aan feitelijke Sportlink-inroosteringen.
