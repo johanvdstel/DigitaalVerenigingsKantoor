@@ -17,6 +17,7 @@ from dvk.application_services import NoShowApplicationService, PlanningApplicati
 from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.team_matchday import EMERGENCY_MATCHDAY_REASON
 from dvk.application_version import active_application_version
+from dvk.planning_source_presenter import planning_source_rows
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
@@ -165,21 +166,21 @@ def _choose_service(service_ids, click_key):
 @trace_planning
 def _render_planning():
     st.subheader("Ledendienst Planning")
-    settings = st.container()
+    settings = st.expander("Instellingen", expanded=False)
     with settings:
         st.markdown("## 1 — Instellingen")
-    data_sources = st.container()
+    data_sources = st.expander("Databronnen", expanded=False)
     with data_sources:
         st.markdown("## 2 — Databronnen")
-    duties = st.container()
+    duties = st.expander("Diensten", expanded=False)
     with duties:
         st.markdown("## 3 — Diensten")
         sportlink_source = st.container()
         duty_table = st.container()
-    candidates = st.container()
+    candidates = st.expander("Kandidaten", expanded=False)
     with candidates:
         st.markdown("## 4 — Kandidaten")
-    fixtures = st.container()
+    fixtures = st.expander("Wedstrijden", expanded=False)
     with fixtures:
         st.markdown("## 5 — Wedstrijden")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
@@ -618,7 +619,7 @@ def _render_planning():
         if revocation_result:
             st.success(revocation_result)
 
-    with fixtures, st.expander("Wedstrijdoverzicht voor de gekozen periode", expanded=True):
+    with fixtures:
         if not demo and (candidate_context is None or candidate_context.error):
             st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
         elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
@@ -695,7 +696,11 @@ def _render_planning():
                     for row in attempt["tasks"]))
     with data_sources:
         with st.expander("Bronstatus en actualiteit", expanded=False):
-            st.dataframe([{"Databron": s.source, "Laatst opgehaald": s.fetched_at.strftime("%d-%m-%Y %H:%M") if s.fetched_at else "onbekend", "Status": s.status} for s in overview.source_statuses], use_container_width=True, hide_index=True, height=360)
+            st.dataframe(planning_source_rows(
+                context=candidate_context, load_error=st.session_state.get("candidate-load-error"),
+                volunteer_success=success, volunteer_attempt=attempt,
+                volunteer_matching=source_matches, demo=demo),
+                use_container_width=True, hide_index=True, height=360)
         st.markdown("### Datakwaliteit")
         if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
         else: st.success("Geen datakwaliteitssignalen voor deze planning.")

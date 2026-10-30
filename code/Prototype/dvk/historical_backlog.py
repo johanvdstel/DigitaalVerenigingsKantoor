@@ -2,6 +2,7 @@
 import csv
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 
 from .real_data_import import DataQualitySignal, DutyImportRecord, SportlinkRealDataAdapter
 
@@ -15,6 +16,7 @@ class HistoricalBacklogSource:
     records: tuple[DutyImportRecord, ...] = ()
     signals: tuple[DataQualitySignal, ...] = ()
     message: str = ""
+    loaded_at: datetime | None = None
 
     @property
     def values(self) -> dict[str, int]:
