@@ -66,7 +66,7 @@ GitHub is de gezaghebbende projectadministratie. Een geaccepteerde releasebaseli
 
 Zie voor technische details en uitvoerinstructies ook de [README van het prototype](code/Prototype/README.md).
 
-**Iteratie 4 — BL-14 (implementatie ter lokale acceptatie):** Ledendienst Planning
+**Iteratie 4 — BL-14 (functioneel geaccepteerd op 31 oktober 2026; PR #58 gemerged):** Ledendienst Planning
 gebruikt twee lokale CSV-bestanden (`shift_definitions.csv` en
 `shift_week_pattern.csv`) in `~/Documents/DVK-Sportlink-exports/`, in plaats van
 rechtstreeks `Shift Catalog.xlsx`. Reguliere en incidentele catalogusdiensten
@@ -74,4 +74,4 @@ worden aangevuld met feitelijke Sportlink-diensttijdvakken. `Reload catalog`
 vereist bevestiging en begint altijd een nieuwe planningssessie. Geen
 Sportlink-writeback. Zie het [formaat en de bediening](code/Prototype/README.md#bl-14--lokale-dienstencatalogus)
 en het [implementatie- en acceptatieverslag](code/Prototype/DVK-v0.5-iteratie4-BL14.md).
-BL-14 is nog niet functioneel geaccepteerd.
+CKC heeft BL-14 inclusief voormalig BL-15 lokaal functioneel geaccepteerd op codecommit `be1cd1d52ae1dad7a10d35d7e89c3874e285e7ad`; [PR #58](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/58) is gemerged naar `prototype-v0.5` (mergecommit `267c94779a04`). De lokaal onderhouden CKC-weekcatalogus toont na reload **23 reguliere diensten**; aanvullende Sportlink-dienstmomenten, validatie, kandidaten en undo zijn gecontroleerd. De drie periodekeuzes Dag, Week en Aangepast tonen de correcte roosterperiode. 55 gerichte en 1307 regressietests geslaagd; CI #397 groen. Lokale CKC-configuratie is niet opgenomen in GitHub. **Volgende iteratie: BL-19 — zelfstandig No-showmanagement.** Integrale v0.5-acceptatie blijft open.
