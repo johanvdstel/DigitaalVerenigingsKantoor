@@ -214,3 +214,31 @@ Dit besluit accepteert niet het overige conceptcontract of de volledige v0.5.
 Dit document is een **reconstructieconcept**, geen stilzwijgende nieuwe functionele baseline. De opdrachtgever beoordeelt de veldlijsten en open punten. Pas na expliciet akkoord en zo nodig correcties mergen naar `prototype-v0.5`. Technische strengere importvalidatie volgt later in afzonderlijke, geteste ontwikkelstappen; **geen codewijzigingen in deze documentatie-PR**.
 
 **Referenties:** `code/Prototype/dvk/real_data_import.py`, `dvk/vrijwilligers_adapter.py`, `dvk/programma_adapter.py`, `tests/test_real_data_import_v04.py`, `DVK-v0.5-herijkte-functionele-baseline-Ledendiensten.md`, `BASELINE-v0.4.md`, `BACKLOG.md`.
+
+
+## BL-14 — Goedgekeurde aanvulling Iteratie 4
+
+Deze specifieke aanvulling volgt de CKC-goedgekeurde BL-14-implementatieopdracht;
+zij accepteert niet de overige open punten van dit reconstructieconcept.
+De catalogus bestaat uit twee lokale CKC-configuratiebestanden:
+`shift_definitions.csv` en `shift_week_pattern.csv` onder
+`~/Documents/DVK-Sportlink-exports/`, in plaats van rechtstreeks
+`Shift Catalog.xlsx`. Zie [volledig CSV- en sessiecontract](code/Prototype/README.md#bl-14--lokale-dienstencatalogus).
+
+Alle gebruikte rooster-taakcodes worden periode-onafhankelijk uitgevraagd;
+ongebruikte definities niet. De catalogus biedt ook volledig onbezet gebleven
+momenten. Sportlink biedt feitelijke inroosteringen. Ledendienst Planning
+accepteert ieder geldig broninterval met een opgevraagde bekende taakcode,
+ook zonder rooster-overlap. Identiteit is taakcode plus UTC-begin/einde;
+exacte overeenkomsten worden eenmaal getoond, afwijkende of overlappende
+intervallen blijven aparte momenten. Locatie blijft broncontext. Bezettingsnormen
+volgen de taakcode en begindatum; duur volgt de concrete tijden.
+De bestaande bargroep en bezettingsprojectie, booking-ID's, provenance,
+persoonskoppeling en atomaire bronpublicatie blijven behouden.
+
+`Reload catalog` vervangt na validatie en expliciete bevestiging altijd de
+sessie, zonder inhoudsvergelijking. Oude bronbezetting is daarna niet geldig;
+een nieuwe geslaagde API-uitvraag is nodig. Ongeldige configuratie/annuleren
+behoudt de oude sessie. Duurzame no-showfeiten blijven zelfstandig bewaard.
+Rooster Generator behoudt zijn bestaande tijdvakinterpretatie.
+Implementatie is nog niet functioneel geaccepteerd; zie [Iteratie 4](code/Prototype/DVK-v0.5-iteratie4-BL14.md).

@@ -39,7 +39,13 @@ from test_historical_backlog_v05 import history_text, history_row
 from dvk.sportlink_exports import ExportFileError
 from dvk.persistence import SQLiteDatabase
 from dvk.planning_session import PlanningSessionApplicationService
-from dvk.shift_catalog import load_shift_catalog
+from dvk.shift_catalog import load_shift_catalog as _load_catalog_file
+from inspect import signature as _signature
+def _probe_catalog():
+    if 'folder' in _signature(_load_catalog_file).parameters:
+        return _load_catalog_file(Path({str(root)!r})/'dvk'/'configuration')
+    return _load_catalog_file()
+load_shift_catalog = _probe_catalog
 from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from test_volunteer_planning_integration_v05 import sync, PERIOD, IDENTITY
@@ -70,7 +76,7 @@ _probe_start=probe_time.perf_counter()
 _probe_outcome='rerun-or-error'
 """
         body = body.replace("from __future__ import annotations", "", 1)
-        wrapper = """with patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
+        wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
     try:
 """
         footer = r"""

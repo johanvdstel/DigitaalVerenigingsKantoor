@@ -249,7 +249,7 @@ De enige definitie voor standaardmap en bestandsnamen staat in
 | Streamlit Taakplichtcontrole | In PR #44: automatisch lezen bij functiegebruik; Brongegevens vernieuwen herleest de map. Bestanden en laadtijd zijn zichtbaar; geen vijf uploads meer. |
 | Streamlit Databronnen / persoonskoppeling | In PR #44: Leden.csv wordt opnieuw uit dezelfde map gelezen bij expliciete synchronisatie. Persoonskoppeling en synchronisatiegevolgen blijven behouden. |
 | Historische `SportlinkCsvImportAdapter.load_directory(...)` en `run_import_cases.py` | Ongewijzigd: v0.3 gebruikt geaccepteerde Engelstalige fixtures met **andere kolommen**, waaronder `members.csv`, `duty_hours.csv` en `teams.csv`. Dit zijn niet de vijf werkelijke Sportlink-exports. |
-| Configuratie-CSV's (functiemapping, dienstencatalogus) | Ongewijzigd: dit zijn versiebeheerde configuratiebestanden, geen lokale exports. |
+| Configuratie-CSV's | Functiemapping blijft versiebeheerd. BL-14-dienstencatalogus: twee lokaal onderhouden bestanden; meegeleverde bestanden zijn uitsluitend uitgangsvoorbeelden, geen runtime-terugval. |
 | Tests en voorbeelden | Historische geaccepteerde namen/fixtures blijven intact. Nieuwe padtests gebruiken uitsluitend synthetische exports in tijdelijke mappen. |
 
 Er waren geen vaste Downloads-paden of andere hardgecodeerde persoonlijke
@@ -328,3 +328,91 @@ gemeten lookup-optimalisatie en optionele privacyveilige tijdmeting) zie het
 [praktijkverslag en lokale heracceptatie](DVK-v0.5-vervolgacceptatie-ABC-DE.md#praktijkvervolg-selectie-scrollpositie-en-vertraging-25-oktober-2026).
 Alleen de synthetische browserproef starten: `python -B tests/serve_synthetic_planning.py`.
 Deze vervolgstap is technisch getest en wacht op lokale functionele heracceptatie.
+
+
+## BL-14 — Lokale dienstencatalogus
+
+Status: geïmplementeerd ter lokale functionele acceptatie; nog niet geaccepteerd.
+De twee CSV-bestanden vervangen het rechtstreeks lezen van `Shift Catalog.xlsx`.
+Er is geen catalogusbeheerscherm en geen Excel-parser nodig.
+
+Plaats beide bestanden in `~/Documents/DVK-Sportlink-exports/`. Gebruik UTF-8
+(eventueel met BOM), **komma** als scheidingsteken en één kopregel. CSV met
+puntkomma wordt niet automatisch geraden. Excel mag als editor worden gebruikt;
+controleer bij opslaan dat de komma en UTF-8 behouden blijven. Komma's in waarden
+vereisen normale CSV-aanhalingstekens. De meegeleverde `dvk/configuration/shift_*`
+bestanden zijn een uitgangsvoorbeeld; DVK valt er nooit automatisch op terug.
+Er worden geen bestanden in de lokale exportmap aangemaakt door DVK.
+
+`shift_definitions.csv`:
+
+```csv
+task_code,service_type,duration_hours,minimum_staff,maximum_staff,friday_minimum,friday_maximum
+EXAMPLE,Voorbeelddienst,2.5,1,3,,
+```
+
+Taakcodes zijn unieke niet-lege identifiers (letters, cijfers, `_` of `-`),
+zonder spaties. Standaardduur is een positief eindig getal, geen eis aan de duur
+van een concreet tijdvak. Bezetting vereist `0 <= minimum <= maximum`.
+Vrijdagvelden zijn beide leeg of beide gevuld; zij gelden op de begindatum.
+
+`shift_week_pattern.csv`:
+
+```csv
+weekday,starts_at,ends_at,task_code,date_from,date_to
+4,18:00,20:30,EXAMPLE,,
+4,23:00,02:00,EXAMPLE,2026-11-06,2026-11-06
+```
+
+Weekdag: maandag `0` tot zondag `6`. Lokale tijden: `HH:MM` (eventueel seconden),
+zonder offset. Datums: `YYYY-MM-DD`. Beide datums leeg betekent wekelijks;
+beide gevuld betekent aanvullend op die weekdag binnen de inclusieve periode.
+Eén datum ontbreekt, omgekeerde perioden, onbekende taakcodes, gelijke tijden
+en dubbele concrete momenten zijn fouten. Een eenmalige regel vereist de
+juiste weekdag. Een vroegere eindtijd betekent de volgende kalenderdag.
+De dienst hoort bij de begindatum, ook aan een periodegrens.
+Ambigue/niet-bestaande lokale tijden worden bij het concretiseren voor de
+gekozen periode geweigerd. Duur is werkelijk verstreken tijd, ook bij een
+zomer-/wintertijdwisseling met geldige tijdgrenzen.
+
+Alle taakcodes die ergens in een reguliere of incidentele regel worden gebruikt,
+worden opgevraagd, ook buiten de geselecteerde datumperiode. Een definitie zonder
+roosterregel wordt niet opgevraagd. Ten minste één roosterregel is vereist.
+
+### Diensten en bezetting
+
+Ledendienst Planning toont catalogusdiensten (ook volledig onbezet) plus ieder
+feitelijk Sportlink-tijdvak met een opgevraagde bekende taakcode. Dienstidentiteit
+is taakcode plus werkelijk begin/einde als UTC-instants; locatie is broncontext,
+geen extra identiteit. Exacte overeenkomsten worden eenmaal getoond. Andere
+begin-/eindtijden blijven afzonderlijk zichtbaar, ook bij volledige overlap.
+Verschillende taakcodes blijven afzonderlijke dienstcontexten. Dat een lange
+inroostering daardoor een extra dienst kan opleveren is bewust geaccepteerd.
+
+Bezettingsprojectie behoudt de bargroep 701/741/761, positieve overlap op dezelfde
+lokale begindatum en één telling per gekoppelde persoon per dienst. Niet-gekoppelde
+bookings worden op booking-identiteit onderscheiden, nooit alleen op bronnaam.
+Een broninroostering kan meerdere diensten bezetten; opgetelde dienstbezetting
+is daarom geen aantal unieke Sportlink-inroosteringen. Bronbookings, hun IDs en
+no-showreferenties worden niet gesplitst of herschreven.
+
+Rooster Generator blijft gericht op vooraf bepaalde tijdvakken. Zijn bestaande
+exacte/overlapadapterpaden zijn ongewijzigd; de aanvullende dienstinterpretatie
+wordt uitsluitend in de Ledendienst Planning-keten geactiveerd.
+
+### Reload catalog
+
+De geladen catalogus hoort bij de duurzame planningssessie en blijft bij
+navigatie of procesherstart behouden. Bewerken van de bestanden wijzigt die
+sessie niet. Kies in **Instellingen** `Reload catalog`: DVK leest/valideert beide
+bestanden, toont de waarschuwing en wacht op **Reload catalog bevestigen**.
+Die bevestiging beëindigt de huidige sessie en tijdelijke indelingen en start
+altijd een nieuwe sessie, ook bij ongewijzigde bestanden. Daarna is de
+Sportlink-bezetting onbekend totdat handmatig succesvol opnieuw is opgehaald.
+Annuleren of ongeldige configuratie behoudt de oude sessie. Duurzame no-shows,
+intrekkingen en sanctiehistorie blijven behouden. Er is geen inhoudsvergelijking,
+vingerafdruk of catalogusversiebeheer; alleen de actieve sessie bewaart haar
+configuratie in de bestaande sessieopslag, zonder schemawijziging of migratie.
+Een oude gevalideerde sessie zonder catalogus vraagt voor planning om een
+bevestigde reload; bestaande werkgegevens worden niet automatisch verwijderd.
+No-showbediening op de bewaarde broncontext blijft beschikbaar.

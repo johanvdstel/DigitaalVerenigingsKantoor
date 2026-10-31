@@ -183,8 +183,16 @@ def test_invalid_identity_or_service_never_publishes(db,catalog,mode):
         value["datumvanaf"] = service.ends_at.isoformat()  # Boundary contact has no positive overlap.
         value["datumtot"] = (service.ends_at + timedelta(hours=1)).isoformat()
     if mode == "interval": value["datumtot"] = service.starts_at.isoformat()
-    assert sync(db,catalog,{"A":[value]},ps)[0]
-    assert snapshot(db) == before
+    error = sync(db,catalog,{"A":[value]},ps)[0]
+    if mode == "interval":
+        assert error and snapshot(db) == before
+    else:
+        # BL-14 AC-08: a valid adjacent source interval is an additional service.
+        assert error is None
+        with db.unit_of_work() as uow:
+            services = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)[0]
+            assert len(services) == 3
+        assert snapshot(db)[1] == ()
 
 
 def test_no_show_and_revocation_survive_refresh_and_timezone_match(db,catalog):
@@ -288,6 +296,8 @@ def test_wednesday_booking_spans_both_catalog_codes_without_splitting_source(db,
         assert original.provenance.source_value == str(source_row)
         assert original.service.starts_at == original.starts_at and original.service.ends_at == original.ends_at
         services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+        assert len(services) == 30  # BL-14: actual long interval remains independently visible.
+        services, needs = catalog_projection(catalog, services, needs)
         occupied = [(s.starts_at.hour,s.ends_at.hour) for s,n in zip(services,needs) if n.confirmed_occupancy]
         assert occupied == [(19,20),(20,22)]
         assert len(services) == 29
@@ -309,6 +319,9 @@ def test_saturday_parallel_bar_and_commissiekamer_never_mix(db,source_code):
     assert sync(db,catalog,{source_code:[row(slot,people()[0])]})[0] is None
     with db.unit_of_work() as uow:
         services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+    extra = len(services) - 29
+    assert extra == (source_code in {"701", "761"})
+    services, needs = catalog_projection(catalog, services, needs)
     expected = "Commissiekamer" if source_code=="442" else "Bar weekend"
     assert [s.service_type for s,n in zip(services,needs) if n.confirmed_occupancy] == [expected]
 
@@ -326,6 +339,8 @@ def test_one_person_counts_once_despite_multiple_original_bookings_and_codes(db)
     with db.unit_of_work() as uow:
         assert len(uow.sportlink_bookings.all()) == 5
         services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+        assert len(services) == 33  # Three long barcode contexts and one partial interval.
+        services, needs = catalog_projection(catalog, services, needs)
         assert [n.confirmed_occupancy for n in needs if n.confirmed_occupancy] == [2,2]
         assert sum(r["bookings"] for r in uow.sportlink_bookings.refresh_state()["tasks"]) == 5
         assert len(services) == 29
@@ -338,13 +353,12 @@ def test_adjacent_slots_and_boundary_contact_in_published_source(db,start,end,ex
     slot = catalog.bindings(PERIOD)[0].service
     booking_service = replace(slot, starts_at=slot.starts_at.replace(hour=start),ends_at=slot.ends_at.replace(hour=end))
     error,_ = sync(db,catalog,{"701":[row(booking_service,people()[0])]})
-    if expected == [0,0]:
-        assert error  # No real positive match: no fabricated service/publication.
-    else:
-        assert error is None
-        with db.unit_of_work() as uow:
-            _,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
-        assert [n.confirmed_occupancy for n in needs] == expected
+    assert error is None
+    with db.unit_of_work() as uow:
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow,IDENTITY,catalog).planning_data(PERIOD)
+    assert len(services) == (3 if (start,end) in {(18,20),(20,21)} else 2)
+    services,needs = catalog_projection(catalog,services,needs)
+    assert [n.confirmed_occupancy for n in needs] == expected
 
 
 def test_partial_overlap_with_later_failure_preserves_bookings_work_and_success(db):
@@ -374,17 +388,18 @@ def test_empty_prefix_person_links_in_real_planning_route(db,catalog):
 def test_confirmed_task_groups_through_refresh_and_planning(db, source_code, catalog_code):
     grouped = ShiftCatalog(tuple(ShiftDefinition(code, "Synthetic", 1, 1, 2)
                                 for code in ("701", "741", "761", "442")),
-                           (WeeklySlot(2, time(19), time(20), catalog_code),))
+                           (WeeklySlot(2, time(19), time(20), catalog_code),) + tuple(
+                               WeeklySlot(4,time(12),time(13),code,date(2027,1,1),date(2027,1,1))
+                               for code in ("701","741","761","442") if code != catalog_code))
     service = grouped.bindings(PERIOD)[0].service
     error, _ = sync(db, grouped, {source_code: [row(service, people()[0])]})
     same_group = (source_code == "442") == (catalog_code == "442")
-    if not same_group:
-        assert error and not snapshot(db)[0] and snapshot(db)[2] is None
-        return
-    assert error is None
+    assert error is None  # BL-14 accepts a separate context even outside the catalog group.
     with db.unit_of_work() as uow:
-        needs = VolunteerPlanningApplicationService(uow, IDENTITY, grouped).planning_data(PERIOD)[1]
-        assert needs[0].confirmed_occupancy == 1
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow, IDENTITY, grouped).planning_data(PERIOD)
+        assert len(services) == (1 if source_code == catalog_code else 2)
+        assert needs[0].confirmed_occupancy == int(same_group)
+        assert needs[-1].confirmed_occupancy == 1
         assert uow.sportlink_bookings.all()[0].task_code == source_code
 
 
@@ -406,7 +421,9 @@ def test_long_booking_occupies_two_catalog_slots_without_splitting_source(db, so
     assert booking.provenance.kind == "SOURCE_FACT"
     assert value["datumtot"] in booking.provenance.source_value
     with db.unit_of_work() as uow:
-        needs = VolunteerPlanningApplicationService(uow, IDENTITY, catalog).planning_data(PERIOD)[1]
+        services,needs,_,_ = VolunteerPlanningApplicationService(uow, IDENTITY, catalog).planning_data(PERIOD)
+        assert len(services) == 30
+        services,needs = catalog_projection(catalog,services,needs)
         assert {n.service_id for n in needs if n.confirmed_occupancy} == {first.service_id, second.service_id}
         assert all(n.confirmed_occupancy == 1 for n in needs if n.confirmed_occupancy)
     assert snapshot(db)[0] == before
@@ -432,3 +449,9 @@ def test_multiple_source_codes_and_intervals_count_each_person_once_per_slot(db)
                     .planning_data(PERIOD)[1] if n.service_id == service.service_id)
         assert (need.confirmed_occupancy, need.open_need, need.remaining_capacity) == (2, 0, 0)
     assert snapshot(db)[0] == before
+
+
+def catalog_projection(catalog, services, needs):
+    """Keep historical slot assertions while separately asserting BL-14 additions."""
+    ids = {b.service.service_id for b in catalog.bindings(PERIOD)}
+    return (tuple(s for s in services if s.service_id in ids), tuple(n for n in needs if n.service_id in ids))

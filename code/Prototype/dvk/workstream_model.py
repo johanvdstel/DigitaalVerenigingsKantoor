@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,10 @@ class DutyService:
 
     @property
     def duration_hours(self) -> float:
-        return (self.ends_at - self.starts_at).total_seconds() / 3600
+        start, end = self.starts_at, self.ends_at
+        if start.tzinfo is not None and end.tzinfo is not None:
+            start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+        return (end - start).total_seconds() / 3600
 
 
 @dataclass(frozen=True)
