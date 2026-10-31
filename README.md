@@ -65,3 +65,13 @@ Belangrijke principes zijn dat bronfeiten, configuratie en DVK-afleidingen onder
 GitHub is de gezaghebbende projectadministratie. Een geaccepteerde releasebaseline is het contract voor volgende ontwikkeling. Een chat, overdracht of technische implementatie kan daarnaar verwijzen, maar vervangt de baseline niet.
 
 Zie voor technische details en uitvoerinstructies ook de [README van het prototype](code/Prototype/README.md).
+
+**Iteratie 4 — BL-14 (implementatie ter lokale acceptatie):** Ledendienst Planning
+gebruikt twee lokale CSV-bestanden (`shift_definitions.csv` en
+`shift_week_pattern.csv`) in `~/Documents/DVK-Sportlink-exports/`, in plaats van
+rechtstreeks `Shift Catalog.xlsx`. Reguliere en incidentele catalogusdiensten
+worden aangevuld met feitelijke Sportlink-diensttijdvakken. `Reload catalog`
+vereist bevestiging en begint altijd een nieuwe planningssessie. Geen
+Sportlink-writeback. Zie het [formaat en de bediening](code/Prototype/README.md#bl-14--lokale-dienstencatalogus)
+en het [implementatie- en acceptatieverslag](code/Prototype/DVK-v0.5-iteratie4-BL14.md).
+BL-14 is nog niet functioneel geaccepteerd.

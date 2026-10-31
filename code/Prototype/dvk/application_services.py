@@ -81,7 +81,7 @@ class NoShowApplicationService:
         return tuple(AssignmentContext(a, a.service, a.person_name, session.source_revision) for a in assignments)
 
     def synchronize(self, *, client, client_id, bindings, persons, imported_at, days=60, weekoffset=-1,
-                    task_codes=None, period=None, refresh_state=None, catalog_overlap=False, confirmed=False, source_revision=None):
+                    task_codes=None, period=None, refresh_state=None, catalog_overlap=False, confirmed=False, source_revision=None, planning_definitions=(), planning_catalog=None):
         """Fetch through the accepted client/adapter; publish only a valid full refresh."""
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         session = self.uow.planning_sessions.get()
@@ -100,7 +100,7 @@ class NoShowApplicationService:
         for task_code in codes:
             fetched = client.fetch_rows(client_id=client_id, task_code=task_code, days=days, weekoffset=weekoffset)
             result = SportlinkVrijwilligersAdapter().import_rows(task_code=task_code, rows=fetched.rows,
-                services=bindings, imported_at=imported_at, persons=persons, period=period, catalog_overlap=catalog_overlap)
+                services=bindings, imported_at=imported_at, persons=persons, period=period, catalog_overlap=catalog_overlap, planning_definitions=planning_definitions)
             bookings.extend(result.bookings)
             signals.extend(result.signals)
         if any(s.severity == "ERROR" for s in signals):
@@ -130,7 +130,7 @@ class NoShowApplicationService:
                     start=refresh_state["start"], end=refresh_state["end"], at=refresh_state["fetched_at"],
                     status=refresh_state["status"], message="", codes=refresh_state["codes"],
                     tasks=refresh_state["tasks"], session_id=session.session_id), "attempt")
-            self.uow.planning_sessions.save(replace(session, source_revision=revision))
+            self.uow.planning_sessions.save(replace(session, source_revision=revision, catalog=session.catalog or planning_catalog))
             self.uow.commit()
         except BaseException:
             self.uow.rollback()

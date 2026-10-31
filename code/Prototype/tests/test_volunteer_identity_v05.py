@@ -169,7 +169,7 @@ def test_unlinked_overlap_on_combined_bar_slots(db):
     with db.unit_of_work() as u:
         services, needs, _, _ = VolunteerPlanningApplicationService(u, IDENTITY, catalog).planning_data(PERIOD)
         occupied = [(s, n) for s, n in zip(services, needs) if n.confirmed_occupancy]
-        assert len(occupied) == 2
+        assert len(occupied) == 3  # BL-14: two catalog slots plus the actual long source interval.
         assert all(n.confirmed_occupancy == 1 for _, n in occupied)
         assert len(u.sportlink_bookings.all()) == 1
 

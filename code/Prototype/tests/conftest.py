@@ -1,5 +1,7 @@
 """Default UI sources are synthetic; no test reads the user's CKC home exports."""
 import io
+from pathlib import Path
+import shutil
 import pytest
 
 
@@ -14,6 +16,8 @@ def synthetic_home(tmp_path, monkeypatch):
     monkeypatch.setenv("SPORTLINK_CLIENT_ID", "synthetic-test-only")
     folder = home / "Documents" / "DVK-Sportlink-exports"
     folder.mkdir(parents=True)
+    for filename in ("shift_definitions.csv", "shift_week_pattern.csv"):
+        shutil.copyfile(Path(__file__).parents[1] / "dvk" / "configuration" / filename, folder / filename)
     for dataset, filename in EXPORT_FILENAMES.items():
         fields = sorted(SportlinkRealDataAdapter.REQUIRED_COLUMNS[dataset])
         if dataset == "leden":

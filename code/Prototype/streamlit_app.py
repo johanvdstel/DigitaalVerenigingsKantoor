@@ -236,6 +236,48 @@ def _render_planning():
             until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
         inputs = {key: st.session_state[key] for key in
                   ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
+        try:
+            with database.unit_of_work() as uow:
+                catalog = PlanningSessionApplicationService(uow, identity).catalog()
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        if st.button("Reload catalog", key="reload-catalog"):
+            try:
+                pending_catalog = load_shift_catalog()
+                pending_catalog.bindings(period)
+                st.session_state["catalog-reload-request"] = (pending_catalog, period,
+                    active_session.session_id if active_session else None)
+            except ValueError as exc:
+                st.error(str(exc))
+        pending_reload = st.session_state.get("catalog-reload-request")
+        if pending_reload:
+            st.warning("Reload catalog beëindigt de huidige planningssessie en verwijdert alle tijdelijke indelingen. "
+                       "Bevestig dat deze niet langer nodig zijn en noodzakelijke handmatige verwerking in Sportlink is afgehandeld. "
+                       "Sportlink-bezetting moet daarna opnieuw worden opgehaald.")
+            if st.button("Reload catalog bevestigen", key="confirm-reload-catalog"):
+                try:
+                    with database.unit_of_work() as uow:
+                        session = PlanningSessionApplicationService(uow, identity).reload_catalog(
+                            pending_reload[1], confirmed=True, expected_session_id=pending_reload[2], catalog=pending_reload[0])
+                except ValueError as exc:
+                    st.error(str(exc))
+                    return
+                st.session_state.pop("catalog-reload-request", None)
+                st.session_state["planning-resumed"] = session.session_id
+                _clear_period_widgets()
+                st.rerun()
+            if st.button("Annuleren", key="cancel-reload-catalog"):
+                st.session_state.pop("catalog-reload-request", None)
+                st.rerun()
+            return
+        try:
+            catalog.bindings(period)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        if active_session and active_session.source_revision and active_session.catalog is None:
+            st.warning("Deze bewaarde sessie heeft nog geen ingelezen lokale catalogus. Kies Reload catalog om met BL-14 te beginnen; bestaande gegevens en no-showbediening blijven tot bevestiging behouden.")
         if active_session is not None and active_period != period:
             st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
             st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
@@ -243,7 +285,7 @@ def _render_planning():
             if st.button("Periode wijzigen en tijdelijke indelingen verwijderen", key="confirm-period-change"):
                 with database.unit_of_work() as uow:
                     session = PlanningSessionApplicationService(uow, identity).start(
-                        period, confirmed=True, expected_session_id=active_session.session_id)
+                        period, confirmed=True, expected_session_id=active_session.session_id, catalog=catalog)
                 st.session_state["planning-resumed"] = session.session_id
                 st.session_state["planning-accepted-inputs"] = inputs
                 _clear_period_widgets()
@@ -259,7 +301,7 @@ def _render_planning():
             st.session_state["planning-resumed"] = active_session.session_id
         elif st.button("Start nieuwe planning", key="activate-planning"):
             with database.unit_of_work() as uow:
-                session = PlanningSessionApplicationService(uow, identity).start(period)
+                session = PlanningSessionApplicationService(uow, identity).start(period, catalog=catalog)
             st.session_state["planning-resumed"] = session.session_id
             st.rerun()
         st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
@@ -277,12 +319,12 @@ def _render_planning():
     if candidate_context is not None and candidate_context.period != period:
         st.session_state.pop("candidate-context", None)
         candidate_context = None
-    catalog = load_shift_catalog()
     with database.unit_of_work() as uow:
         source_app = VolunteerPlanningApplicationService(uow, identity, catalog)
         success, attempt, source_matches = source_app.source(period)
         source_bookings = source_app.bookings(period) if not demo else ()
         services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
+        names_by_service = source_app.service_names(period) if not demo else {}
     with data_sources:
         if demo:
             st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
@@ -308,9 +350,8 @@ def _render_planning():
         else:
             previous_service = st.session_state.get("selected_service_id")
             row_actions = hasattr(st.column_config, "ButtonColumn")
-            bindings = catalog.bindings(period)
-            names_by_service = {s.service_id: _sportlink_names(s, bindings, source_bookings)
-                                for s in services} if not demo else {s.service_id: "Onbekend" for s in services}
+            if demo:
+                names_by_service = {s.service_id: "Onbekend" for s in services}
             rows = [{"Kies": ("☑" if r.service_id == previous_service else "☐") if row_actions else r.service_id == previous_service, "service_id": r.service_id, "Datum": _datum_met_dag(r.starts_at), "Tijd": f"{r.starts_at:%H:%M}–{r.ends_at:%H:%M}", "Dienst": r.service_type, "Min": r.minimum_staff, "Max": r.maximum_staff, "Sportlink": names_by_service[r.service_id], "Tijdelijk DVK": r.temporary_occupancy, "DVK-bezetting": r.confirmed_occupancy, "Open minimum": r.open_need, "Vrije capaciteit": r.remaining_capacity} for r in overview.services]
             if not known:
                 for row in rows:
@@ -639,7 +680,7 @@ def _render_planning():
                     persons = LocalCsvSourceApplicationService().volunteer_persons()
                     with database.unit_of_work() as uow:
                         if active_session is None:
-                            active_session = PlanningSessionApplicationService(uow, identity).start(period)
+                            active_session = PlanningSessionApplicationService(uow, identity).start(period, catalog=catalog)
                             st.session_state["planning-resumed"] = active_session.session_id
                         error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
                             period=period,
@@ -684,6 +725,7 @@ def _render_planning():
                                    "Dienst": b.service.service_type if b.service else "Dienst onbekend",
                                    "No-showregistratie mogelijk": "Ja" if b.can_register_no_show else "Nee"}
                                   for b in source_bookings])
+                st.caption("Aantal geplande diensten hieronder betreft catalogusmomenten bij het ophalen; aanvullende Sportlink-tijdvakken staan ook in de dienstentabel.")
                 st.dataframe([{"Sportlink-taakcode": row["task_code"], "Taakomschrijving": row["description"],
                                "Aantal geplande diensten": row["services"], "Aantal Sportlink-inroosteringen": row["bookings"],
                                "Uitvraagstatus": row["status"]} for row in success["tasks"]], hide_index=True, height=190)

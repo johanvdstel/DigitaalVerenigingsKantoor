@@ -180,6 +180,7 @@ class SportlinkVrijwilligersAdapter:
         persons: Iterable[Person] | None = None,
         period=None,
         catalog_overlap: bool = False,
+        planning_definitions=(),
     ) -> VolunteerImportResult:
         bindings = tuple(binding for binding in services if
                          (same_task_group(task_code, binding.task_code) if catalog_overlap else binding.task_code == task_code))
@@ -218,7 +219,20 @@ class SportlinkVrijwilligersAdapter:
             if period is not None and not period.contains(starts_at.astimezone(TZ)):
                 continue
 
-            matches = [binding.service for binding in bindings if
+            if planning_definitions:
+                from .shift_catalog import concrete_service
+                definition = next((d for d in planning_definitions if d.task_code == task_code), None)
+                if definition is None:
+                    signals.append(DataQualitySignal("UNKNOWN_VOLUNTEER_TASK_CODE", "ERROR", "sportlink_vrijwilligers", key, "Onbekende Sportlink-taakcode"))
+                    continue
+                if ends_at.astimezone(timezone.utc) <= starts_at.astimezone(timezone.utc):
+                    signals.append(DataQualitySignal("INVALID_VOLUNTEER_INTERVAL", "ERROR", "sportlink_vrijwilligers", key, "Feitelijke inroostering vereist einde na begin"))
+                    continue
+                # Planning accepts every actual interval; legacy exact/overlap paths stay intact.
+                actual_service = concrete_service(definition, starts_at, ends_at, location)
+                matches = [actual_service]
+            else:
+                matches = [binding.service for binding in bindings if
                        (overlaps_service_date(starts_at, ends_at, binding.service) if catalog_overlap
                         else self._same_service_time(binding.service, starts_at, ends_at))]
             if len(matches) == 0:
@@ -259,7 +273,7 @@ class SportlinkVrijwilligersAdapter:
                 for issue in issues:
                     signals.append(DataQualitySignal(issue, "WARNING", "sportlink_vrijwilligers", key,
                                                      IDENTITY_MESSAGES[issue]))
-                if ends_at <= starts_at:
+                if not planning_definitions and ends_at <= starts_at:
                     signals.append(DataQualitySignal("INVALID_VOLUNTEER_INTERVAL", "ERROR", "sportlink_vrijwilligers", key,
                                                      "Feitelijke inroostering vereist volledige begin- en eindtijd"))
                     continue
