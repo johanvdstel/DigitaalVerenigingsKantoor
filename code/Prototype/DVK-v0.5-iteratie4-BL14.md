@@ -153,3 +153,43 @@ Begindatum blijft bepalend voor selectie en overlapprojectie. Alleen concrete
 lokale tijdgrenzen voor de gekozen periode worden op DST-eenduidigheid getoetst.
 Rooster Generator wordt niet gewijzigd of uniform gemaakt met Ledendienst
 Planning. BL-19 en overige backlogfunctionaliteit blijven buiten scope.
+
+## UI-correctie periodekeuze — vervolg op lokale acceptatie
+
+Uitgangscommit `6dd02a79de37f94f481c08c6b00416586a0d39da`, dezelfde werkbranch
+`codex/iteratie-4-bl14` en draft-PR #58. CKC heeft de precisering bevestigd:
+Dag/Week/Aangepast blijven bestaan. Alleen bij Week heet het datumveld nu
+**Week waarin datum valt**. Dag en Aangepast behouden **Vanaf**; Aangepast
+behoudt **Tot en met**. Direct bij de keuze staat **Roosterperiode: dd-mm-jjjj
+t/m dd-mm-jjjj**, rechtstreeks uit het reeds berekende `PlanningPeriod`.
+Er is geen veld Aantal weken toegevoegd en geen periode-, bron-, kandidaat-,
+sessie- of reloadlogica gewijzigd.
+
+Gewijzigd: `streamlit_app.py` (uitsluitend label en weergave),
+`tests/test_planning_period_labels_v05.py` (drie synthetische UI-cases, inclusief
+controle dat de getoonde periode overeenkomt met de opgeslagen sessie vóór een
+Sportlink-uitvraag) en dit verslag. De nieuwe test dekt Dag 31-10-2026, Week
+26-10-2026 t/m 01-11-2026 en een aangepaste periode 31-10-2026 t/m 15-11-2026.
+
+**Lokale CKC-acceptatiebevinding, door CKC gerapporteerd:** de lokaal onderhouden
+weekcatalogus is van 29 naar **23 diensten per week** aangepast. DVK toont na
+bevestigde Reload catalog correct 23 diensten. Het lokale configuratiebestand
+is niet door Codex gelezen of overgenomen. Meegeleverde configuratie en
+synthetische 29-diensten-regressies blijven ongewijzigd. Deze bevinding markeert
+BL-14 niet als definitief functioneel geaccepteerd.
+
+Korte heracceptatie op de nieuwe volledige oplever-SHA uit de terugrapportage:
+kies Week met datum 31-10-2026; verwacht het nieuwe label en direct
+**Roosterperiode: 26-10-2026 t/m 01-11-2026**. Kies Dag: label Vanaf en beide
+periodegrenzen 31-10-2026. Kies Aangepast met einde 15-11-2026: bestaande labels
+en exact 31-10-2026 t/m 15-11-2026. Controleer dit vóór bronophaling; bestaande
+sessiegrenzen en bevestigingsvragen blijven van kracht. Niet mergen zonder
+afzonderlijke toestemming; definitieve functionele acceptatie blijft open.
+
+Technische verificatie van deze UI-correctie: **55 gerichte tests geslaagd**
+(nieuwe periode-UI-tests, bestaande sessie/runtime-tests en BL-14-ketentests);
+**1307 tests in de volledige regressiesuite geslaagd**, 0 fouten, 0 overgeslagen
+(82,08 seconden). `git diff --check` geslaagd. De eerste gerichte aanroep vanuit
+de repositoryroot vond de relatieve testpaden niet; vanuit `code/Prototype`
+slaagde de selectie zonder aanpassing van verwachtingen. De nieuwe commit en
+CI-status staan in de terugrapportage en dezelfde draft-PR #58.

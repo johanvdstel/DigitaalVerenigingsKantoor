@@ -226,7 +226,7 @@ def _render_planning():
             st.session_state["planning-from"] = active_period.start
             st.session_state["planning-until"] = active_period.end
         mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
-        selected = st.date_input("Vanaf", value=date.today(), key="planning-from")
+        selected = st.date_input("Week waarin datum valt" if mode == "Week" else "Vanaf", value=date.today(), key="planning-from")
         if mode == "Dag": period = PlanningPeriod(selected, selected)
         elif mode == "Week":
             monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
@@ -234,6 +234,7 @@ def _render_planning():
             if st.session_state.get("planning-until", selected) < selected:
                 st.session_state["planning-until"] = selected + timedelta(days=6)
             until = st.date_input("Tot en met", value=selected + timedelta(days=6), min_value=selected, key="planning-until"); period = PlanningPeriod(selected, until)
+        st.markdown(f"**Roosterperiode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}**")
         inputs = {key: st.session_state[key] for key in
                   ("planning-mode", "planning-from", "planning-until") if key in st.session_state}
         try:
