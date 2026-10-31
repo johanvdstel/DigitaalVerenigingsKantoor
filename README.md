@@ -32,6 +32,8 @@ Kort samengevat:
 
 **Iteratie 3 — BL-23/BL-24:** vijf onafhankelijk inklapbare rubrieken en bronstatus van alle acht bronnen functioneel geaccepteerd op 30 oktober 2026 op commit `0aa8445d9f70d2f099f2599e117035f00d05e0a1`; [PR #56](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/56) op 30 oktober 2026 gemerged naar `prototype-v0.5` (mergecommit `d9942c328e75a7235803319807504fbd36c522d4`); aanvullende lokale visuele controle op de gemergede versie geslaagd. Zie [Iteratie 3-verslag](code/Prototype/DVK-v0.5-iteratie3-bronstatus-rubrieken.md).
 
+**Iteratie 4 — BL-14 (inclusief voormalig BL-15) functioneel geaccepteerd op 31 oktober 2026:** dynamische lokale CSV-dienstencatalogus met bevestigde reload, aanvullende Sportlink-dienstmomenten en correcte bezetting. CKC heeft de eigen weekcatalogus van 29 naar **23 reguliere diensten** aangepast en succesvol lokaal getest; geen lokale CKC-bestanden in GitHub. De directe roosterperiode bij Dag/Week/Aangepast is op de geaccepteerde commit `be1cd1d52ae1dad7a10d35d7e89c3874e285e7ad` herbeproefd. 1307 regressietests en CI #397 groen. [Draft-PR #58](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/58) is **nog niet gemerged**; integrale v0.5-acceptatie blijft open. Volgende iteratie: **BL-19 — zelfstandig No-showmanagement**.
+
 De ontwikkeling is baseline-gedreven. Code, functioneel contract, bron-/integratiecontracten, relevante configuratie en geaccepteerde regressies vormen samen de releasebaseline. Nieuwe requirements of correcties van eerdere ontwerpen wijzigen die baseline niet impliciet.
 
 Zie [`docs/ontwikkelworkflow-codex.md`](docs/ontwikkelworkflow-codex.md) en [`AGENTS.md`](AGENTS.md) voor de afgesproken ontwikkel-, change-control- en Codex-werkwijze.
