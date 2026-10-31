@@ -1,0 +1,315 @@
+from dataclasses import replace
+from datetime import datetime, timedelta
+from io import BytesIO
+import json
+from urllib.error import HTTPError, URLError
+
+import pytest
+
+from dvk.application_services import NoShowApplicationService
+from dvk.model import Person
+from dvk.no_show import NoShowEvent
+from dvk.persistence import SQLiteDatabase
+from dvk.planning_workqueue import TemporaryPlanning
+from dvk.real_data_import import SportlinkRealDataAdapter
+from dvk.security import Identity, Permission
+from dvk.vrijwilligers_adapter import ServiceBinding, SportlinkVrijwilligersAdapter
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
+from dvk.workstream_model import DutyAssignment
+from sportlink_fixtures import source_revision, booking, seed_bookings
+
+IDENTITY = Identity("planner", "Planner", frozenset({Permission.MANAGE_NO_SHOWS}))
+SOURCE = booking("TEST001", name="Alex de Voorbeeld")
+NAME_PARTS = {"Rel. code": "TEST001", "Achternaam": "Voorbeeld", "Voorletter(s)": "A.B.",
+              "Tussenvoegsel(s)": "de", "Roepnaam": "Alex"}
+
+
+def rows(name="Voorbeeld, A.B. de (Alex)"):
+    return [{"naam": name, "datumvanaf": SOURCE.starts_at.isoformat(),
+             "datumtot": SOURCE.ends_at.isoformat(), "lokatie": "CKC"}]
+
+
+def import_rows(values, persons):
+    return SportlinkVrijwilligersAdapter().import_rows(task_code="741", rows=values,
+        persons=persons, services=(ServiceBinding("741", SOURCE.service),), imported_at=SOURCE.starts_at)
+
+
+def event(source=SOURCE, identifier="N1"):
+    return NoShowEvent(identifier, source.assignment_id, source.person_id, source.starts_at,
+                       source.starts_at, "planner", "2026/2027")
+
+
+@pytest.mark.parametrize("date_value, start_value, end_value, offset", [
+    ("2026-10-10T00:00:00+0200", "2026-10-10T10:00:00+02:00", "2026-10-10T12:30:00+02:00", 2),
+    ("2026-11-07T00:00:00+0100", "2026-11-07T10:00:00+01:00", "2026-11-07T12:30:00+01:00", 1),
+])
+def test_actual_sportlink_date_and_separate_time_reach_durable_no_show(
+        tmp_path, date_value, start_value, end_value, offset):
+    start, end = datetime.fromisoformat(start_value), datetime.fromisoformat(end_value)
+    concrete = replace(SOURCE.service, starts_at=start, ends_at=end)
+    raw = {"naam": "Voorbeeld, A.B. de (Alex)", "datumvanaf": date_value,
+           "tijdvanaf": "10:00", "datumtot": date_value, "tijdtot": "12:30", "lokatie": "CKC"}
+    result = SportlinkVrijwilligersAdapter().import_rows(task_code="741", rows=[raw],
+        services=[ServiceBinding("741", concrete)], imported_at=start,
+        persons=[Person("TEST001", "Alex", sportlink_name=raw["naam"])])
+    assert not result.signals
+    source, = result.bookings
+    assert source.starts_at.isoformat() == start_value
+    assert source.ends_at.isoformat() == end_value
+    assert source.starts_at.utcoffset() == source.ends_at.utcoffset() == timedelta(hours=offset)
+    assert source.assignment_id == replace(SOURCE, starts_at=start, ends_at=end).assignment_id
+    db = SQLiteDatabase(tmp_path / "actual-source.sqlite"); db.initialize()
+    with db.unit_of_work() as uow:
+        seed_bookings(uow, [source])
+        service = NoShowApplicationService(uow, IDENTITY)
+        service.register(event(source), source_revision=source_revision(uow))
+        stored = uow.no_shows.get("N1")
+        assert stored.occurred_at == start
+        assert stored.booking.starts_at.isoformat() == start_value
+        assert stored.booking.ends_at.isoformat() == end_value
+
+
+@pytest.mark.parametrize("date_value, time_value, expected", [
+    ("2026-10-10", "10:00", "2026-10-10T10:00:00+02:00"),
+    ("10-10-2026", "10:00:30", "2026-10-10T10:00:30+02:00"),
+    ("10/10/2026", "", "2026-10-10T00:00:00+02:00"),
+    ("2026-10-10T10:00:00+0200", "", "2026-10-10T10:00:00+02:00"),
+    ("2026-11-07T10:00:00+0100", "", "2026-11-07T10:00:00+01:00"),
+    ("2026-10-10T08:00:00Z", "", "2026-10-10T10:00:00+02:00"),
+    ("2026-10-10T10:00:00", "", "2026-10-10T10:00:00+02:00"),
+])
+def test_existing_volunteer_datetime_forms_keep_their_behavior(date_value, time_value, expected):
+    assert SportlinkVrijwilligersAdapter._parse_datetime(date_value, time_value).isoformat() == expected
+
+
+def test_exact_confirmed_name_build_and_members_csv_route(tmp_path):
+    assert SportlinkRealDataAdapter.sportlink_name(NAME_PARTS) == "Voorbeeld, A.B. de (Alex)"
+    row = NAME_PARTS | {"Naam": "Alex de Voorbeeld", "Geb.dat.": "01-01-2000", "Lidstatus": "Definitief",
+                        "Lidsoort": "Verenigingslid", "Status lidmaatschap": "spelend lid"}
+    text = ";".join(row) + "\n" + ";".join(row.values())
+    persons = SportlinkRealDataAdapter.read_volunteer_persons(text)
+    imported = import_rows(rows(), persons)
+    assert not imported.signals
+    assert imported.bookings[0].person_id == "TEST001"
+    assert imported.bookings[0].person_name == "Alex de Voorbeeld"
+    assert imported.bookings[0].volunteer_name == "Voorbeeld, A.B. de (Alex)"
+
+
+@pytest.mark.parametrize("missing", ["Achternaam", "Voorletter(s)", "Roepnaam"])
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_missing_name_part_is_not_formatted_by_an_unapproved_rule(missing, blank):
+    name = SportlinkRealDataAdapter.sportlink_name(NAME_PARTS | {missing: blank})
+    assert name is None
+    result = import_rows(rows(), [Person("TEST001", "Alex", sportlink_name=name)])
+    assert len(result.bookings) == 1 and result.bookings[0].person_id is None
+    assert result.signals[0].code == "VOLUNTEER_PERSON_NOT_FOUND"
+
+
+@pytest.mark.parametrize("prefix,expected", [(" de ", "Voorbeeld, A.B. de (Alex)"),
+                                          ("", "Voorbeeld, A.B. (Alex)"),
+                                          ("   ", "Voorbeeld, A.B. (Alex)")])
+def test_confirmed_optional_prefix_exact_csv_identity(prefix, expected):
+    values = NAME_PARTS | {"Tussenvoegsel(s)": prefix, "Naam": "Synthetic member",
+                          "Geb.dat.": "01-01-2000", "Lidstatus": "Definitief",
+                          "Lidsoort": "Verenigingslid", "Status lidmaatschap": "spelend lid"}
+    text = ";".join(values) + "\n" + ";".join(values.values())
+    persons = SportlinkRealDataAdapter.read_volunteer_persons(text)
+    assert persons[0].sportlink_name == expected
+    result = import_rows([rows()[0] | {"naam": expected}], persons)
+    assert not result.signals and result.bookings[0].person_id == "TEST001"
+    ambiguous = import_rows([rows()[0] | {"naam": expected}],
+                            (*persons, replace(persons[0], person_id="OTHER")))
+    assert len(ambiguous.bookings) == 1 and ambiguous.bookings[0].person_id is None
+    assert ambiguous.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
+
+
+def test_missing_prefix_column_is_not_an_empty_prefix_value():
+    assert SportlinkRealDataAdapter.sportlink_name({k:v for k,v in NAME_PARTS.items() if k != "Tussenvoegsel(s)"}) is None
+
+
+def test_ambiguous_name_never_selects_a_person():
+    result = import_rows(rows(), [Person(pid, "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)") for pid in ("A", "B")])
+    assert len(result.bookings) == 1 and result.bookings[0].person_id is None
+    assert result.signals[0].code == "VOLUNTEER_PERSON_AMBIGUOUS"
+
+
+def test_logical_key_and_source_provenance_survive_api_reordering():
+    people = [Person("TEST001", "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)"),
+              Person("TEST002", "Bob", sportlink_name="Voorbeeld, C.D. de (Bob)")]
+    forward = import_rows(rows() + rows("Voorbeeld, C.D. de (Bob)"), people)
+    reverse = import_rows(list(reversed(rows() + rows("Voorbeeld, C.D. de (Bob)"))), people)
+    assert {b.assignment_id for b in forward.bookings} == {b.assignment_id for b in reverse.bookings}
+    for source in forward.bookings:
+        assert source.provenance.source_record_key == source.assignment_id
+        assert source.provenance.source_system == "Sportlink"
+        assert source.provenance.source_value
+    assert replace(SOURCE, location="Andere locatie", volunteer_name="Andere weergave").assignment_id == SOURCE.assignment_id
+    for changed in (replace(SOURCE, person_id="OTHER"), replace(SOURCE, task_code="742"),
+                    replace(SOURCE, starts_at=SOURCE.starts_at+timedelta(minutes=1)),
+                    replace(SOURCE, ends_at=SOURCE.ends_at+timedelta(minutes=1))):
+        assert changed.assignment_id != SOURCE.assignment_id
+
+
+def test_duplicate_source_is_signalled_without_second_booking():
+    result = import_rows(rows()*2, [Person("TEST001", "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)")])
+    assert len(result.bookings) == 1
+    assert result.signals[0].code == "DUPLICATE_VOLUNTEER_BOOKING"
+
+
+def test_no_show_on_only_temporary_dvk_planning_is_rejected(tmp_path):
+    db = SQLiteDatabase(tmp_path / "temporary.sqlite"); db.initialize()
+    assignment = DutyAssignment(SOURCE.assignment_id, "P1", SOURCE.service_id, SOURCE.person_id, "member", 4, "planner")
+    with db.unit_of_work() as uow:
+        uow.temporary_planning.add(TemporaryPlanning(assignment, SOURCE.service)); uow.commit()
+        service = NoShowApplicationService(uow, IDENTITY)
+        assert service.available_assignments() == ()
+        with pytest.raises(ValueError, match="actieve gevalideerde bron"):
+            service.register(event(), source_revision=source_revision(uow))
+        assert uow.no_shows.all() == ()
+
+
+def test_legacy_dvk_assignment_and_snapshotless_durable_fact_are_rejected(tmp_path):
+    from dvk.workstream_model import AssignmentProposal
+    db = SQLiteDatabase(tmp_path / "legacy.sqlite"); db.initialize()
+    with db.unit_of_work() as uow:
+        uow.proposals.add(AssignmentProposal("P1", SOURCE.service_id, SOURCE.person_id, "member", 10, 0, 0, 0,
+                          10, 0, False, None, None, None, "no_match_context", "normal", 1, ()))
+        uow.assignments.add(DutyAssignment(SOURCE.assignment_id, "P1", SOURCE.service_id, SOURCE.person_id, "member", 4, "planner"))
+        uow.commit()
+        with pytest.raises(ValueError, match="actieve gevalideerde bron"):
+            NoShowApplicationService(uow, IDENTITY).register(event(), source_revision=source_revision(uow))
+        with pytest.raises(ValueError, match="snapshot"):
+            uow.no_shows.add(event())
+
+
+def test_logical_key_requires_explicit_timezones():
+    with pytest.raises(ValueError, match="timezones"):
+        replace(SOURCE, starts_at=SOURCE.starts_at.replace(tzinfo=None)).assignment_id
+
+
+def test_ui_never_offers_only_temporary_planning(tmp_path):
+    from streamlit.testing.v1 import AppTest
+    from pathlib import Path
+    source_path = Path(__file__).parents[1] / "streamlit_app.py"
+    script = tmp_path / "streamlit_app.py"
+    script.write_text(source_path.read_text())
+    db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite"); db.initialize()
+    with db.unit_of_work() as uow:
+        assignment = DutyAssignment("TEMP", "P1", SOURCE.service_id, SOURCE.person_id, "member", 4, "planner")
+        uow.temporary_planning.add(TemporaryPlanning(assignment, SOURCE.service)); uow.commit()
+    app = AppTest.from_file(str(script)).run()
+    assert not app.exception
+    assert not any(widget.label == "Inroostering" for widget in app.selectbox)
+
+
+def test_snapshot_revocation_and_sanction_survive_source_refresh_and_reopen(tmp_path):
+    db = SQLiteDatabase(tmp_path / "snapshot.sqlite"); db.initialize()
+    with db.unit_of_work() as uow:
+        seed_bookings(uow, [SOURCE])
+        service = NoShowApplicationService(uow, IDENTITY)
+        service.register(event(), source_revision=source_revision(uow))
+        original = uow.no_shows.get("N1")
+        assert original.booking == SOURCE
+        uow.sportlink_bookings.replace_all([]); uow.commit()
+        contexts = service.revocable_no_shows()
+        assert contexts[0].assignment.service == SOURCE.service
+        assert contexts[0].assignment.person_name == SOURCE.person_name
+        service.revoke("N1", reason="Expliciet besluit", revoked_at=SOURCE.ends_at)
+        assert service.current_state("TEST001", "2026/2027").counter == 0
+    with db.unit_of_work() as uow:
+        assert uow.no_shows.get("N1") == original
+        assert uow.no_show_revocations.for_no_show("N1").reason == "Expliciet besluit"
+        assert uow.sanctions.get("N1") is None
+        seed_bookings(uow, [replace(SOURCE, volunteer_name="gewijzigde presentatie")])
+        assert NoShowApplicationService(uow, IDENTITY).register(
+            event(identifier="N2"), source_revision=source_revision(uow)).counter == 1
+        assert uow.no_shows.get("N1") == original
+        assert uow.no_show_revocations.for_no_show("N1").reason == "Expliciet besluit"
+        assert len(uow.no_shows.history_for_assignment(SOURCE.assignment_id)) == 2
+
+
+def client(payload):
+    return SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=lambda request, timeout: BytesIO(json.dumps(payload).encode()))
+
+
+@pytest.mark.parametrize("mode", ["success", "unknown", "transport"])
+def test_synchronization_uses_existing_client_and_is_atomic(tmp_path, mode):
+    db = SQLiteDatabase(tmp_path / "sync.sqlite"); db.initialize()
+    assignment = DutyAssignment("TEMP", "P1", SOURCE.service_id, "OTHER", "member", 4, "planner")
+    with db.unit_of_work() as uow:
+        seed_bookings(uow, [SOURCE])
+        uow.temporary_planning.add(TemporaryPlanning(assignment, SOURCE.service)); uow.commit()
+        instance = client(rows("unknown") if mode == "unknown" else rows())
+        if mode == "transport":
+            def fail(request, timeout):
+                raise TimeoutError("synthetic")
+            instance = SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=fail)
+        app = NoShowApplicationService(uow, IDENTITY)
+        kwargs = dict(client=instance, client_id="synthetic", bindings=[ServiceBinding("741", SOURCE.service)],
+                      persons=[Person("TEST001", "Alex", sportlink_name="Voorbeeld, A.B. de (Alex)")], imported_at=SOURCE.ends_at, confirmed=True, source_revision=source_revision(uow))
+        if mode == "transport":
+            with pytest.raises(VrijwilligersFetchError):
+                app.synchronize(**kwargs)
+        else:
+            signals = app.synchronize(**kwargs)
+            assert bool(signals) is (mode == "unknown")
+        assert len(uow.temporary_planning.all()) == (1 if mode == "transport" else 0)
+        assert len(uow.sportlink_bookings.recent()) == 1
+
+
+# VRIJ-01: invalid responses must never publish even a valid earlier task code.
+@pytest.mark.parametrize("failed_task", ["741", "761"])
+@pytest.mark.parametrize("bad_payload", [
+    b'{"error":"synthetic"}', b'{}', b'{"items":null}',
+    b'{"items":"wrong"}', b'', b'not-json', b'[null]',
+    b'{"items":[{"naam":"valid object"},1]}',
+    HTTPError("https://example.invalid", 401, "synthetic", None, None),
+    HTTPError("https://example.invalid", 403, "synthetic", None, None),
+    URLError("synthetic offline"), TimeoutError("synthetic timeout"),
+])
+def test_vrij01_invalid_response_preserves_complete_persisted_state(
+        tmp_path, monkeypatch, failed_task, bad_payload):
+    from urllib.parse import parse_qs, urlparse
+
+    db = SQLiteDatabase(tmp_path / "invalid-response.sqlite")
+    db.initialize()
+    second = booking("TEST002", task="761", service=replace(SOURCE.service, service_id="S2"))
+    originals = (SOURCE, second)
+    temporary = tuple(TemporaryPlanning(
+        DutyAssignment(f"TEMP-{i}", f"P{i}", source.service_id, f"OTHER-{i}", "member", 4, "planner"),
+        source.service) for i, source in enumerate(originals))
+    seen = []
+
+    def opener(request, timeout):
+        task = parse_qs(urlparse(request.full_url).query)["vrijwilligerstaakcode"][0]
+        seen.append(task)
+        if task == failed_task:
+            if isinstance(bad_payload, Exception):
+                raise bad_payload
+            return BytesIO(bad_payload)
+        # This differs from persisted SOURCE, so partial publication is observable.
+        return BytesIO(json.dumps([rows()[0] | {"lokatie": "Changed synthetic location"}]).encode())
+
+    def forbidden_publication(*args, **kwargs):
+        pytest.fail("An invalid response must not attempt source publication or planning removal")
+
+    with db.unit_of_work() as uow:
+        seed_bookings(uow, originals)
+        for entry in temporary:
+            uow.temporary_planning.add(entry)
+        uow.commit()
+        monkeypatch.setattr(uow.sportlink_bookings, "replace_all", forbidden_publication)
+        monkeypatch.setattr(uow.temporary_planning, "remove", forbidden_publication)
+        with pytest.raises(VrijwilligersFetchError):
+            NoShowApplicationService(uow, IDENTITY).synchronize(
+                client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=opener),
+                client_id="synthetic", bindings=[ServiceBinding(s.task_code, s.service) for s in originals],
+                persons=[Person("TEST001", "Alex", sportlink_name=SOURCE.volunteer_name)],
+                imported_at=SOURCE.ends_at, confirmed=True, source_revision=source_revision(uow))
+        assert seen == (["741"] if failed_task == "741" else ["741", "761"])
+        # Catching the error and committing must not expose staged partial changes.
+        uow.commit()
+    with db.unit_of_work() as uow:
+        assert {b.assignment_id: b for b in uow.sportlink_bookings.recent()} == {
+            b.assignment_id: b for b in originals}
+        assert uow.temporary_planning.all() == temporary

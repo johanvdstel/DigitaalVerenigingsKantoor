@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,10 @@ class DutyService:
 
     @property
     def duration_hours(self) -> float:
-        return (self.ends_at - self.starts_at).total_seconds() / 3600
+        start, end = self.starts_at, self.ends_at
+        if start.tzinfo is not None and end.tzinfo is not None:
+            start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+        return (end - start).total_seconds() / 3600
 
 
 @dataclass(frozen=True)
@@ -45,6 +48,7 @@ class CandidateAssessment:
     match_relation: str
     preference: str
     exclusion_reason: str | None = None
+    planning_relation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +85,11 @@ class AssignmentProposal:
     applied_priority_rules: tuple[str, ...]
     uncertainties: tuple[str, ...] = ()
     status: str = "proposed"
+    engine_run_id: str | None = None
+    snapshot_ids: tuple[str, ...] = ()
+    policy_version: str | None = None
+    config_version: str | None = None
+    software_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -90,18 +99,30 @@ class HumanDecision:
     decided_by: str
     reason_category: str | None = None
     reason: str | None = None
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)
 class DutyAssignment:
+    """Confirmed local planning; creation does not change Sportlink facts.
+
+    Historical records in duty_assignments remain legacy no-show references.
+    New active planning lives in the temporary planning repository.
+    """
     assignment_id: str
     proposal_id: str
     service_id: str
     person_id: str
     executor_category: str | None
-    scheduled_hours: int
+    scheduled_hours: float
     approved_by: str
     status: str = "scheduled"
+    engine_run_id: str | None = None
+    snapshot_ids: tuple[str, ...] = ()
+    policy_version: str | None = None
+    config_version: str | None = None
+    software_version: str | None = None
+    decided_at: datetime | None = None
 
 
 @dataclass(frozen=True)
