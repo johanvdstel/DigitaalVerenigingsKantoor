@@ -576,91 +576,6 @@ def _render_planning():
         if undo_result:
             st.success(undo_result)
 
-        st.divider()
-        st.markdown("### No-shows")
-        st.caption("Registreer een no-show uitsluitend op een feitelijke Sportlink-inroostering. Tijdelijke DVK-planning is hiervoor niet beschikbaar.")
-        with database.unit_of_work() as uow:
-            assignment_rows = NoShowApplicationService(uow, identity).assignment_contexts(
-                services=services, persons=tuple(c.person for c in demo_candidate_cases()), period=period,
-            )
-        if not assignment_rows:
-            st.info("Geen betrouwbaar aan een persoon gekoppelde inroosteringen beschikbaar voor no-showregistratie.")
-        else:
-            assignment_by_id = {c.assignment.assignment_id: c for c in assignment_rows}
-            assignment_options = {key: _assignment_label(c, source_name=True) for key, c in assignment_by_id.items()}
-            with st.form("no-show-form"):
-                assignment_id = st.selectbox("Inroostering", tuple(assignment_options), format_func=assignment_options.get)
-                submitted_no_show = st.form_submit_button("No-show bevestigen", type="primary")
-            if submitted_no_show:
-                with database.unit_of_work() as uow:
-                    context = assignment_by_id[assignment_id]
-                    assignment = context.assignment
-                    service_info = context.service
-                    if service_info is None:
-                        st.error("De datum/tijd van deze inroostering is niet beschikbaar in de huidige planning.")
-                        st.stop()
-                    occurred_at = service_info.starts_at
-                    event = NoShowEvent(
-                        f"NS-{uuid4()}", assignment.assignment_id, assignment.person_id,
-                        occurred_at, datetime.now().astimezone(), identity.subject_id,
-                        season_id(occurred_at.date()),
-                    )
-                    try:
-                        assessment = NoShowApplicationService(uow, identity).register(event, period=period,
-                            source_revision=st.session_state.get("no-show-selection-revision"))
-                    except ValueError as exc:
-                        st.error(str(exc))
-                    else:
-                        st.session_state["last-no-show"] = assessment
-            assessment = st.session_state.pop("last-no-show", None)
-            if assessment:
-                if assessment.counter == 1:
-                    st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
-                else:
-                    card = "gele kaart" if assessment.card == "yellow" else "rode kaart"
-                    follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
-                    st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
-                st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
-
-        st.session_state["no-show-selection-revision"] = assignment_rows[0].source_revision if assignment_rows else None
-
-        with database.unit_of_work() as uow:
-            revocable_rows = NoShowApplicationService(uow, identity).revocable_no_shows(
-                services=services, persons=tuple(c.person for c in demo_candidate_cases()),
-            )
-
-        if st.session_state.pop("clear-no-show-revocation-reason", False):
-            st.session_state["no-show-revocation-reason"] = ""
-
-        if revocable_rows:
-            no_show_labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
-            with st.form("no-show-revocation-form"):
-                revoke_no_show_id = st.selectbox("No-show intrekken", tuple(no_show_labels), format_func=no_show_labels.get,
-                                              key="no-show-revocation-id")
-                revocation_reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
-                revoke_submitted = st.form_submit_button("Intrekking bevestigen", type="primary")
-            if revoke_submitted:
-                try:
-                    with database.unit_of_work() as uow:
-                        app = NoShowApplicationService(uow, identity)
-                        app.revoke(revoke_no_show_id, reason=revocation_reason, revoked_at=datetime.now().astimezone())
-                        selected_row = next(row for row in revocable_rows if row.no_show.no_show_id == revoke_no_show_id)
-                        selected_no_show = selected_row.no_show
-                        state = app.current_state(selected_no_show.person_id, selected_no_show.season)
-                    person_label = selected_row.assignment.person_name or "dit lid (naam onbekend)"
-                    st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
-                    st.session_state["clear-no-show-revocation-reason"] = True
-                    st.session_state.pop("last-no-show", None)
-                    st.rerun()
-                except ValueError as exc:
-                    st.error(str(exc))
-        else:
-            st.info("Geen geregistreerde no-shows beschikbaar voor intrekking.")
-
-        revocation_result = st.session_state.pop("no-show-revocation-result", None)
-        if revocation_result:
-            st.success(revocation_result)
-
     with fixtures:
         if not demo and (candidate_context is None or candidate_context.error):
             st.info("Wedstrijdcontext onbekend: laad de kandidaatbronnen en beoordeel eventuele bronmeldingen.")
@@ -750,9 +665,192 @@ def _render_planning():
         st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing.")
 
 
-def _render_planning_screen():
+def _render_no_show_management():
+    from dvk.no_show import TZ, MANUAL_DECLARATION
+    from dvk.no_show_source import NoShowSourceApplicationService
+    st.markdown("### No-showmanagement")
+    database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
+    database.initialize()
+    identity = Identity("demo-planner", "Demo planner", frozenset({Permission.MANAGE_NO_SHOWS}))
+    now = datetime.now(TZ)
+    mode = st.radio("Registratievorm", ("Sportlink", "Handmatig"), horizontal=True)
+    persons, catalog = (), None
     try:
-        _render_planning()
+        persons = LocalCsvSourceApplicationService().volunteer_persons()
+    except ValueError as exc:
+        st.error(str(exc))
+    try:
+        catalog = load_shift_catalog()
+    except ValueError as exc:
+        st.error(str(exc))
+    source = None
+    if catalog is not None:
+        source = NoShowSourceApplicationService(identity,
+            SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
+            os.environ.get("SPORTLINK_CLIENT_ID", ""), catalog, persons)
+    context, selected, inputs = None, None, None
+    if mode == "Sportlink":
+        st.caption("Feitelijke Sportlink-inroosteringen; deze raadpleging verandert geen planning.")
+        if st.button("Sportlink-diensten raadplegen", disabled=source is None or not persons):
+            st.session_state.pop("ns-source", None)
+            try:
+                st.session_state["ns-source"] = source.consult(datetime.now(TZ))
+            except (ValueError, VrijwilligersFetchError) as exc:
+                st.error(str(exc))
+        consulted = st.session_state.get("ns-source")
+        if consulted:
+            st.caption(f"Bron geraadpleegd: {consulted.fetched_at:%d-%m-%Y %H:%M}. Bij bevestiging wordt de gekozen taak opnieuw gecontroleerd.")
+            with database.unit_of_work() as uow:
+                choices = NoShowApplicationService(uow, identity).registration_choices(consulted.bookings)
+            for signal in consulted.signals:
+                st.warning(signal.message)
+            if choices:
+                labels = {b.assignment_id: f"{b.starts_at:%d-%m-%Y %H:%M}–{b.ends_at:%d-%m %H:%M} — {b.service.service_type} — {b.volunteer_name}" for b in choices}
+                chosen = st.selectbox("Inroostering", tuple(labels), format_func=labels.get)
+                selected = next(b for b in choices if b.assignment_id == chosen)
+                context = selected
+            else:
+                st.info("Geen betrouwbare inroosteringen binnen de registratietermijn en vanaf dienstaanvang.")
+    else:
+        st.caption("Voor een oorspronkelijke Sportlink-indeling die inmiddels is verwijderd. Geen actuele boeking vereist.")
+        members = {p.person_id: p for p in persons}
+        names = [p.name for p in members.values()]
+        if members:
+            person_id = st.selectbox("Persoon", tuple(members), format_func=lambda pid:
+                members[pid].name + (f" (relatie {pid})" if names.count(members[pid].name) > 1 else ""))
+            definitions = {d.task_code: d for d in catalog.definitions} if catalog else {}
+            task = st.selectbox("Oorspronkelijke dienst", (*definitions, "Andere dienst"),
+                format_func=lambda code: definitions[code].service_type if code in definitions else code)
+            other = task == "Andere dienst"
+            description = st.text_input("Dienstomschrijving (verplicht)") if other else ""
+            historical_code = st.text_input("Oorspronkelijke taakcode (optioneel, onbevestigd)") if other else task
+            start_day = st.date_input("Begindatum", value=now.date())
+            start_time = st.time_input("Begintijd", value=time(10))
+            end_day = st.date_input("Einddatum", value=now.date())
+            end_time = st.time_input("Eindtijd", value=time(12))
+            location = st.text_input("Locatie (optioneel)")
+            explanation = st.text_area("Toelichting (optioneel)")
+            confirmed = st.checkbox(MANUAL_DECLARATION)
+            inputs = dict(person_id=person_id, persons=persons, catalog=catalog,
+                          task_code=historical_code, description=description,
+                          start_day=start_day, start_time=start_time, end_day=end_day, end_time=end_time,
+                          other=other, location=location, explanation=explanation, confirmed=confirmed)
+            if confirmed:
+                try:
+                    with database.unit_of_work() as uow:
+                        context = NoShowApplicationService(uow, identity).manual_context(**inputs)
+                except ValueError as exc:
+                    st.error(str(exc))
+        else:
+            st.info("Laad Leden.csv om een bekende persoon te selecteren.")
+    acknowledged = ()
+    if context is not None:
+        with database.unit_of_work() as uow:
+            exact, possible = NoShowApplicationService(uow, identity).duplicate_check(context)
+        if exact:
+            st.error("Voor deze inroostering is al een no-show geregistreerd.")
+        if possible:
+            st.warning("Mogelijk duplicaat: controleer de bestaande registraties.")
+            st.dataframe([_no_show_history_row(e, None) for e in possible], hide_index=True, height=230)
+            if st.checkbox("Ik heb deze mogelijke duplicaten gecontroleerd en wil doorgaan."):
+                acknowledged = tuple(e.no_show_id for e in possible)
+        with st.form("no-show-form"):
+            submitted = st.form_submit_button("No-show bevestigen", type="primary", disabled=bool(exact))
+        if submitted:
+            try:
+                with database.unit_of_work() as uow:
+                    app = NoShowApplicationService(uow, identity)
+                    if mode == "Handmatig":
+                        # Re-read members and catalog at actual confirmation.
+                        inputs["persons"] = LocalCsvSourceApplicationService().volunteer_persons()
+                        if not inputs["other"]:
+                            inputs["catalog"] = load_shift_catalog()
+                        assessment = app.register_manual(**inputs, acknowledged_possible=acknowledged)
+                    else:
+                        assessment = app.register_booking(selected, source=source, acknowledged_possible=acknowledged)
+                st.session_state["last-no-show"] = assessment
+            except (ValueError, VrijwilligersFetchError) as exc:
+                st.error(str(exc))
+    assessment = st.session_state.pop("last-no-show", None)
+    if assessment:
+        if assessment.counter == 1:
+            st.warning("Eerste no-show: waarschuwing. Betrokkene moet zelf een vervangende inzet regelen.")
+        else:
+            card = "gele kaart" if assessment.card == "yellow" else "rode kaart"
+            follow_up = " Bestuurlijke vervolgactie is vereist." if assessment.board_follow_up else ""
+            st.warning(f"No-show {assessment.counter}: {card}, €{assessment.fine_eur} boete en {assessment.suspension_matches} wedstrijd(en) schorsing.{follow_up}")
+        st.info("Communicatie hierover is vereist. Het DVK registreert dit; verzending en uitvoering zijn niet geautomatiseerd in v0.5.")
+    st.markdown("#### Seizoensoverzicht en historie")
+    with database.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, identity)
+        history = app.history()
+    seasons = sorted({season_id(now.date()), *(e.season for e, r in history)}, reverse=True)
+    season = st.selectbox("Seizoen", seasons)
+    historical_names = {e.person_id: e.context.person_name for e, r in history if e.context}
+    historical_names.update({p.person_id: p.name for p in persons})
+    person_filter = st.selectbox("Persoonfilter", (None, *sorted(historical_names)),
+        format_func=lambda pid: "Alle personen" if pid is None else historical_names[pid] +
+        (f" (relatie {pid})" if list(historical_names.values()).count(historical_names[pid]) > 1 else ""))
+    status = st.selectbox("Status", ("Alle", "Actief", "Ingetrokken"))
+    with database.unit_of_work() as uow:
+        app = NoShowApplicationService(uow, identity)
+        filtered = app.history(season=season, person_id=person_filter, status=None if status == "Alle" else status)
+        revocable_rows = app.revocable_no_shows()
+    st.dataframe([_no_show_history_row(e, r) for e, r in filtered], hide_index=True, use_container_width=True, height=360)
+    for event, revocation in filtered:
+        with st.expander(f"Historie: {event.context.person_name} — {event.occurred_at:%d-%m-%Y %H:%M} — {event.context.service.service_type}"):
+            st.write(f"Registratie: {event.recorded_at:%d-%m-%Y %H:%M:%S} door {event.recorded_by}; {event.registration_mode}.")
+            if event.manual:
+                st.write(event.manual.declaration)
+                st.write("Verklaring bevestigd: Ja")
+                st.write("Taakidentiteit: " + ("catalogus" if event.manual.task_identity_verified else "onbevestigd"))
+                if event.manual.task_code:
+                    st.write("Oorspronkelijke taakcode: " + event.manual.task_code)
+                if event.manual.explanation:
+                    st.write(event.manual.explanation)
+            if revocation:
+                st.write(f"Intrekking: {revocation.revoked_at:%d-%m-%Y %H:%M:%S} door {revocation.revoked_by}: {revocation.reason}")
+            with database.unit_of_work() as uow:
+                current = NoShowApplicationService(uow, identity).current_state(event.person_id, event.season)
+            st.write(f"Actuele seizoensteller: {current.counter}")
+    visible_ids = {e.no_show_id for e, r in filtered if r is None}
+    revocable_rows = tuple(row for row in revocable_rows if row.no_show.no_show_id in visible_ids)
+    if st.session_state.pop("clear-no-show-revocation-reason", False):
+        st.session_state["no-show-revocation-reason"] = ""
+    if revocable_rows:
+        labels = {row.no_show.no_show_id: _assignment_label(row.assignment) for row in revocable_rows}
+        with st.form("no-show-revocation-form"):
+            identifier = st.selectbox("No-show intrekken", tuple(labels), format_func=labels.get, key="no-show-revocation-id")
+            reason = st.text_area("Toelichting voor intrekking (verplicht)", key="no-show-revocation-reason")
+            revoke = st.form_submit_button("Intrekking bevestigen", type="primary")
+        if revoke:
+            try:
+                with database.unit_of_work() as uow:
+                    app = NoShowApplicationService(uow, identity)
+                    app.revoke(identifier, reason=reason, revoked_at=datetime.now(TZ))
+                    row = next(row for row in revocable_rows if row.no_show.no_show_id == identifier)
+                    state = app.current_state(row.no_show.person_id, row.no_show.season)
+                person_label = row.assignment.person_name or "dit lid (naam onbekend)"
+                st.session_state["no-show-revocation-result"] = f"No-show ingetrokken. Actuele no-showteller voor {person_label} in seizoen {state.season}: {state.counter}."
+                st.session_state["clear-no-show-revocation-reason"] = True
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+    if result := st.session_state.pop("no-show-revocation-result", None):
+        st.success(result)
+
+
+def _no_show_history_row(event, revocation):
+    context = event.context
+    return {"Persoon": context.person_name, "Dienst": context.service.service_type,
+            "Begin": context.starts_at.strftime("%d-%m-%Y %H:%M %z"),
+            "Einde": context.ends_at.strftime("%d-%m-%Y %H:%M %z"), "Locatie": context.location,
+            "Registratievorm": event.registration_mode, "Status": "Ingetrokken" if revocation else "Actief"}
+
+
+def _render_planning_screen(render=_render_planning):
+    try:
+        render()
     except sqlite3.DatabaseError as exc:
         # Known schema/storage failures may block planning, but never the CSV control.
         # Unknown SQL errors and programming errors must remain visible to developers.
@@ -788,6 +886,7 @@ def _render_navigation():
         st.button("Startscherm", key="nav-home", on_click=_navigate, args=("home",))
         st.subheader("Ledendiensten & Vrijwilligersbeleid")
         st.button("Ledendienst Planning", key="nav-planning", on_click=_navigate, args=("planning",))
+        st.button("No-showmanagement", key="nav-no-shows", on_click=_navigate, args=("no-shows",))
         st.button("Taakplichtcontrole", key="nav-control", on_click=_navigate, args=("control",))
         st.button("Rooster Generator — extern, nog niet geïntegreerd", disabled=True, key="nav-rooster")
         st.subheader("Overige werkgebieden")
@@ -803,6 +902,7 @@ def _render_home():
     st.write("Kies een scherm via de zijbalk. Via Startscherm keer je altijd terug naar dit overzicht.")
     st.markdown("### Ledendiensten & Vrijwilligersbeleid")
     st.write("**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.")
+    st.write("**No-showmanagement** — zelfstandig registreren, historie en intrekken.")
     st.write("**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.")
     st.write("**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.")
     st.markdown("### Overige werkgebieden")
@@ -894,6 +994,8 @@ _render_navigation()
 _screen = st.session_state.get("dvk-screen", "home")
 if _screen == "planning":
     _render_planning_screen()
+elif _screen == "no-shows":
+    _render_planning_screen(_render_no_show_management)
 elif _screen == "control":
     _render_duty_control()
 else:

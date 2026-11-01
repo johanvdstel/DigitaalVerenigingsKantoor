@@ -144,7 +144,8 @@ def test_source_controls_under_diensten_and_no_show_roundtrip(tmp_path, monkeypa
     catalog = load_shift_catalog()
     binding = catalog.bindings(PERIOD)[0]
     assert sync(db, catalog, {binding.task_code: [row(binding.service, people()[0])]})[0] is None
-    app.run()
+    from sportlink_fixtures import open_no_show_ui
+    open_no_show_ui(app, db, monkeypatch)
     next(b for b in app.button if b.label == "No-show bevestigen").click().run()
     assert not app.exception
     with db.unit_of_work() as u:

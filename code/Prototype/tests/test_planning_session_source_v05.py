@@ -217,22 +217,20 @@ def test_booking_outside_active_period_is_not_selectable_or_registerable(db, cat
         assert not u.no_shows.all()
 
 
-def test_ui_source_replacement_between_render_and_submit_rejects_stale_selection(tmp_path):
+def test_ui_planning_revision_change_does_not_invalidate_independent_unchanged_booking(tmp_path, monkeypatch):
     from test_planning_ui_names_v05 import page
     from dvk.shift_catalog import load_shift_catalog
+    from sportlink_fixtures import open_no_show_ui
     app, database = page(tmp_path)
     c = load_shift_catalog()
     binding = c.bindings(PERIOD)[0]
     payload = {binding.task_code:[row(binding.service, people()[0])]}
     assert sync(database, c, payload)[0] is None
-    app.run()  # Render the selection using revision 1.
-    assert sync(database, c, payload)[0] is None  # Same logical booking, revision 2.
+    open_no_show_ui(app, database, monkeypatch)
+    # BL-19 replaces session-revision dependence: the actual booking is unchanged.
+    assert sync(database, c, payload)[0] is None
     next(b for b in app.button if b.label == 'No-show bevestigen').click().run()
-    assert not app.exception
-    assert any('bron is gewijzigd' in e.value for e in app.error)
-    with database.unit_of_work() as u: assert not u.no_shows.all()
-    next(b for b in app.button if b.label == 'No-show bevestigen').click().run()
-    assert not app.exception
+    assert not app.exception and not app.error
     with database.unit_of_work() as u: assert len(u.no_shows.all()) == 1
 
 
@@ -246,3 +244,7 @@ def test_selection_cannot_label_old_bookings_with_a_new_source_revision(db, cata
     with db.unit_of_work() as u:
         monkeypatch.setattr(NoShowApplicationService, 'available_assignments', changed)
         assert NoShowApplicationService(u, IDENTITY).assignment_contexts(period=PERIOD) == ()
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")
