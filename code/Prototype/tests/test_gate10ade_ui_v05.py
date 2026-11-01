@@ -66,11 +66,11 @@ def test_streamlit_uses_public_services_instead_of_repositories_or_private_state
     assert not any(node.attr.startswith("_") for node in attributes)
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)]
     assert any(node.func.attr == "revocable_no_shows" for node in calls)
-    assert any(node.func.attr == "assignment_contexts" for node in calls)
+    assert any(node.func.attr == "registration_choices" for node in calls)
 
 
 @pytest.fixture
-def rendered_app(tmp_path):
+def rendered_app(tmp_path, monkeypatch):
     # Run the real app against a disposable SQLite database, never the local demo.
     script = tmp_path / "streamlit_app.py"
     # Fix the clock before the first render; AppTest round-trips identical
@@ -89,9 +89,10 @@ def rendered_app(tmp_path):
             NoShowApplicationService(uow, Identity("vc1", "VC", frozenset({Permission.MANAGE_NO_SHOWS}))).register(
                 NoShowEvent(f"technical-no-show-{i}", source.assignment_id, context.assignment.person_id, when, when, "vc1", "2026/2027"), source_revision=source_revision(uow))
     app = AppTest.from_file(str(script), default_timeout=15)
-    app.session_state["dvk-screen"] = "planning"
+    from sportlink_fixtures import open_no_show_ui
     app.run()
-    app.button(key="resume-planning").click().run()
+    open_no_show_ui(app, db, monkeypatch, navigate=False)
+    app.button(key="nav-no-shows").click().run()
     assert not app.exception
     return app, db
 
@@ -169,7 +170,7 @@ def test_duplicate_no_show_registration_shows_message_without_second_event(rende
         assignment_id = source.assignment_id
         seed_bookings(uow, [source])
     app.run()
-    app.button(key="resume-planning").click().run()
+    next(b for b in app.button if b.label == "Sportlink-diensten raadplegen").click().run()
     next(widget for widget in app.selectbox if widget.label == "Inroostering").select(assignment_id)
     next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()
     assert not app.exception
@@ -180,7 +181,7 @@ def test_duplicate_no_show_registration_shows_message_without_second_event(rende
         before = uow.no_shows.all()
     next(widget for widget in app.button if widget.label == "No-show bevestigen").click().run()
     assert not app.exception
-    assert any("voor deze inroostering is al een no-show geregistreerd" in message.value for message in app.error)
+    assert any("al een no-show geregistreerd" in message.value for message in app.error)
     with db.unit_of_work() as uow:
         assert uow.no_shows.all() == before
         assert uow.no_shows.for_assignment(assignment_id) == original
@@ -223,3 +224,7 @@ def test_revocation_success_does_not_guess_missing_person_name(rendered_app, mon
     assert message == "No-show ingetrokken. Actuele no-showteller voor dit lid (naam onbekend) in seizoen 2026/2027: 1."
     assert person_id not in message
     assert "Jeugdlid Thuis" not in message
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

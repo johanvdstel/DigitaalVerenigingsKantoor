@@ -174,7 +174,7 @@ def test_unlinked_overlap_on_combined_bar_slots(db):
         assert len(u.sportlink_bookings.all()) == 1
 
 
-def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_path):
+def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_path, monkeypatch):
     from pathlib import Path
     from streamlit.testing.v1 import AppTest
     from dvk.persistence import SQLiteDatabase
@@ -203,6 +203,8 @@ def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_p
     tables = [t.value.to_string() for t in app.table]
     assert any("Unmatched synthetic volunteer" in t and "Geen overeenkomstig lid" in t for t in tables)
     assert any("Afgeschermd" in t and "Nee" in t for t in tables)
+    from sportlink_fixtures import open_no_show_ui
+    open_no_show_ui(app, database, monkeypatch)
     no_show = next(w for w in app.selectbox if w.label == "Inroostering")
     assert len(no_show.options) == 1
     assert people()[0].sportlink_name in no_show.options[0]
@@ -240,3 +242,7 @@ def test_source_name_presentation_is_preserved_without_changing_exact_matching(c
     assert b.volunteer_name == value["naam"]
     assert b.person_id == p.person_id
     assert b.can_register_no_show
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

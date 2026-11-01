@@ -50,3 +50,7 @@ def test_no_show_application_service_exposes_assignments_without_ui_sql(tmp_path
     with db.unit_of_work() as uow:
         rows = NoShowApplicationService(uow, IDENTITY).available_assignments()
         assert [row.assignment_id for row in rows] == [booking().assignment_id]
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

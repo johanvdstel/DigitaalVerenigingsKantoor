@@ -33,8 +33,8 @@ def test_five_sections_and_controls_in_agreed_order(operational_page):
     assert table(duties, "services_editor-")
     assert table(candidates)
     assert any(m.value == "### Actieve tijdelijke DVK-inroosteringen" for m in candidates.markdown)
-    assert candidates.get("divider")
-    assert any(m.value == "### No-shows" for m in candidates.markdown)
+    assert not any(m.value == "### No-shows" for m in candidates.markdown)
+    assert app.button(key="nav-no-shows")
     assert not fixtures.button
     assert fixtures.label == "Wedstrijden"
     assert fixtures.proto.expanded is False
