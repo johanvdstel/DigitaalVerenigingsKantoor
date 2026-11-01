@@ -705,7 +705,7 @@ def _render_no_show_management():
             for signal in consulted.signals:
                 st.warning(signal.message)
             if choices:
-                labels = {b.assignment_id: f"{b.starts_at:%d-%m-%Y %H:%M}–{b.ends_at:%d-%m %H:%M} — {b.service.service_type} — {b.volunteer_name}" for b in choices}
+                labels = {b.assignment_id: f"{b.starts_at:%d-%m-%Y %H:%M %z}–{b.ends_at:%d-%m %H:%M %z} — {b.service.service_type} — {b.volunteer_name}" for b in choices}
                 chosen = st.selectbox("Inroostering", tuple(labels), format_func=labels.get)
                 selected = next(b for b in choices if b.assignment_id == chosen)
                 context = selected
@@ -799,7 +799,8 @@ def _render_no_show_management():
     st.dataframe([_no_show_history_row(e, r) for e, r in filtered], hide_index=True, use_container_width=True, height=360)
     for event, revocation in filtered:
         with st.expander(f"Historie: {event.context.person_name} — {event.occurred_at:%d-%m-%Y %H:%M} — {event.context.service.service_type}"):
-            st.write(f"Registratie: {event.recorded_at:%d-%m-%Y %H:%M:%S} door {event.recorded_by}; {event.registration_mode}.")
+            actor = identity.display_name if event.recorded_by == identity.subject_id else event.recorded_by
+            st.write(f"Registratie: {event.recorded_at:%d-%m-%Y %H:%M:%S} door {actor}; {event.registration_mode}.")
             if event.manual:
                 st.write(event.manual.declaration)
                 st.write("Verklaring bevestigd: Ja")
@@ -809,10 +810,17 @@ def _render_no_show_management():
                 if event.manual.explanation:
                     st.write(event.manual.explanation)
             if revocation:
-                st.write(f"Intrekking: {revocation.revoked_at:%d-%m-%Y %H:%M:%S} door {revocation.revoked_by}: {revocation.reason}")
+                actor = identity.display_name if revocation.revoked_by == identity.subject_id else revocation.revoked_by
+                st.write(f"Intrekking: {revocation.revoked_at:%d-%m-%Y %H:%M:%S} door {actor}: {revocation.reason}")
             with database.unit_of_work() as uow:
                 current = NoShowApplicationService(uow, identity).current_state(event.person_id, event.season)
             st.write(f"Actuele seizoensteller: {current.counter}")
+            if current.assessment:
+                sanction = current.assessment
+                card = {None: "waarschuwing", "yellow": "gele kaart", "red": "rode kaart"}[sanction.card]
+                st.write(f"Actuele sanctie: {card}; boete €{sanction.fine_eur}; schorsing {sanction.suspension_matches} wedstrijd(en).")
+                if sanction.board_follow_up:
+                    st.write("Bestuurlijke vervolgactie is vereist.")
     visible_ids = {e.no_show_id for e, r in filtered if r is None}
     revocable_rows = tuple(row for row in revocable_rows if row.no_show.no_show_id in visible_ids)
     if st.session_state.pop("clear-no-show-revocation-reason", False):

@@ -48,7 +48,7 @@ niet gewijzigd. Geen migratie, historische reconstructie of productievoorziening
 | `dvk/no_show_source.py` | Zelfstandige read-only client/adapterraadpleging zonder planningsrepository. Bij echte bevestiging één heropvraag van de geselecteerde taak; vergelijking van identiteit, context en oorspronkelijke broninhoud. Geen API-verkeer bij gewone UI-reruns. |
 | `dvk/vrijwilligers_adapter.py` | Expliciet strikt tijdpad voor zelfstandige no-showraadpleging: ontbrekende, dubbelzinnige en niet-bestaande lokale tijden worden geweigerd. Expliciete UTC-offsets blijven werkelijke instants. Bestaande adapterpaden blijven behouden. |
 | `dvk/persistence/no_show_records.py` | Bestaande schema-13-JSON-payload leest de optionele handmatige snapshot; geen nieuwe tabel, migratie of herschrijving. |
-| `streamlit_app.py` | Zelfstandige portaalfunctie, Sportlink/Handmatig, catalogus/Andere dienst, persoonskeuze, duplicaatwaarschuwing, seizoenshistorie en intrekking. Oude bediening uit Planning verwijderd. Bestaande bevoegdheden, resultaatmeldingen en databasefoutafhandeling hergebruikt. |
+| `streamlit_app.py` | Zelfstandige portaalfunctie, Sportlink/Handmatig, catalogus/Andere dienst, persoonskeuze, duplicaatwaarschuwing, seizoenshistorie en intrekking. Getoonde offsets onderscheiden het herhaalde winteruur; actuele kaart/boete/schorsing komen uit de bestaande domeinafleiding. Oude bediening uit Planning verwijderd. Bestaande bevoegdheden, resultaatmeldingen en databasefoutafhandeling hergebruikt. |
 | `tests/test_bl19_no_show_management_v05.py` | Nieuwe synthetische contract-, grens-, concurrency-, bron-, persistentie- en operationele UI-tests. |
 | Bestaande tests en testhelpers | Gerichte aanpassing van navigatie en presentatie die BL-19 expliciet vervangt; expliciete historische testklok voor bestaande BL-11-cases. Zie hieronder. |
 
@@ -118,10 +118,10 @@ intrekking, herregistratie, historie en sanctie-uitkomsten blijven getoetst.
 
 ## Verificatie
 
-- BL-19-contracttests: **48 geslaagd**.
-- BL-19 plus bestaande presentatie-/intrekkingsselectie: **59 geslaagd**.
-- Volledige definitieve regressie vanuit `code/Prototype`: **1355 geslaagd**,
-  0 fouten, 0 overgeslagen, 88,93 seconden (Python 3.11.16 / Streamlit 1.66.1).
+- BL-19-contracttests: **49 geslaagd**.
+- BL-19 plus bestaande presentatie-/intrekkingsselectie: **60 geslaagd**.
+- Volledige definitieve regressie vanuit `code/Prototype`: **1356 geslaagd**,
+  0 fouten, 0 overgeslagen, 88,28 seconden (Python 3.11.16 / Streamlit 1.66.1).
 - Alle elf bestaande synthetische acceptatiescripts: geslaagd (exitcode 0).
 - Python-syntax/compilecontrole en `git diff --check`: geslaagd.
 - GitHub-PR/CI en exacte oplevercommit: zie commit-specifieke terugrapportage.
@@ -132,7 +132,12 @@ testverwachtingen waren nog niet aangepast. Een latere gerichte selectie had
 136 geslaagde tests en één AppTest-keuzeroundtripfout bij identieke labels; de
 fixture opent dat historische intrekkingsscherm nu zonder extra bronrerun.
 Daarna slaagden 1353 regressietests. Twee aanvullende seizoens-/datumwisseltests
-zijn vervolgens toegevoegd; definitieve aantallen staan in de oplevering.
+zijn vervolgens toegevoegd, gevolgd door een UI-test die de twee instants van
+het herhaalde winteruur zichtbaar onderscheidt. De actuele sanctiedetails en de
+bekende actornaam worden uit bestaande services/identiteit getoond. Een tussenrun
+vond nog één overtreding van de bestaande test op verwijderde vervangingsbediening:
+een overbodige directe verwijzing naar het vervangingsveld is uit de presentatie
+verwijderd; geen testverwachting aangepast. De definitieve suite is volledig groen.
 Een aanvullende, verkeerd vanuit de repositoryroot gestarte run verzamelde ook
 `code/Prototype/test_prototype_cases.py`, buiten `testpaths = ["tests"]`.
 Die oude tests verwachten een dictionary van de engine waar de huidige engine

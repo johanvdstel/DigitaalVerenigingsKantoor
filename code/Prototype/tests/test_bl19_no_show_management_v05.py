@@ -373,6 +373,8 @@ def test_manual_browser_route_with_api_failure_namesakes_and_other_service(tmp_p
     next(c for c in ui.checkbox if c.label == MANUAL_DECLARATION).check().run()
     next(b for b in ui.button if b.label == 'No-show bevestigen').click().run()
     assert not ui.exception and not ui.error
+    assert any('Actuele sanctie: waarschuwing' in item.value for item in ui.markdown)
+    assert any('door Demo planner' in item.value for item in ui.markdown)
     db = SQLiteDatabase(tmp_path/'dvk_v05.sqlite')
     with db.unit_of_work() as u:
         fact, = u.no_shows.all()
@@ -422,3 +424,33 @@ def test_regular_confirmation_uses_current_calendar_after_midnight(db):
         with pytest.raises(ValueError):
             app(u, selected_at+timedelta(minutes=2)).register_booking(selected, source=service)
         assert not u.no_shows.all()
+
+
+def test_repeated_dst_hour_has_distinct_human_booking_choices(tmp_path, monkeypatch):
+    from pathlib import Path
+    from dvk.local_csv_sources import LocalCsvSourceApplicationService
+    from dvk.vrijwilligers_client import SportlinkVrijwilligersClient
+    payload = []
+    for offset in ('+02:00', '+01:00'):
+        start = datetime.fromisoformat('2026-10-25T02:10:00'+offset)
+        end = datetime.fromisoformat('2026-10-25T02:30:00'+offset)
+        payload.append(row(start, end))
+    client = Client({'741':payload})
+    monkeypatch.setattr(SportlinkVrijwilligersClient, 'fetch_rows', lambda self, **kw: client.fetch_rows(**kw))
+    monkeypatch.setattr(LocalCsvSourceApplicationService, 'volunteer_persons', lambda self: PERSONS)
+    monkeypatch.setattr('dvk.shift_catalog.load_shift_catalog', lambda: CATALOG)
+    original = NoShowApplicationService.__init__
+    def init(self, *args, **kw):
+        kw.setdefault('clock', lambda: NOW)
+        original(self, *args, **kw)
+    monkeypatch.setattr(NoShowApplicationService, '__init__', init)
+    script = tmp_path/'streamlit_app.py'
+    script.write_text((Path(__file__).parents[1]/'streamlit_app.py').read_text())
+    ui = AppTest.from_file(str(script), default_timeout=20).run()
+    ui.button(key='nav-no-shows').click().run()
+    next(b for b in ui.button if b.label == 'Sportlink-diensten raadplegen').click().run()
+    assert not ui.exception and not ui.error
+    selector = next(s for s in ui.selectbox if s.label == 'Inroostering')
+    assert len(selector.options) == len(set(selector.options)) == 2
+    assert '+0200' in selector.options[0] and '+0100' in selector.options[1]
+    assert all('25-10-2026 02:10' in label for label in selector.options)
