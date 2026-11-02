@@ -1,6 +1,7 @@
 """BL-20: source matchdays and minimum-only emergency choices."""
 from dataclasses import replace
 
+from .football_participation import is_bond_team_player
 from .real_data_import import RealTeamMembership
 from .proposal_planning import PlannedProposal, plan_proposals
 from .team_linking import membership_identity
@@ -51,9 +52,8 @@ def other_weekend_persons(memberships, service):
         return frozenset()
     by_person = {}
     for membership in memberships:
-        if ((membership.team_type or "").casefold() == "bond"
-                and (membership.team_role or "").casefold() == "teamspeler"
-                and membership.playing_member is True):
+        if is_bond_team_player(membership.team_type, membership.team_role,
+                               membership.playing_member):
             # Friday does not impose a weekend restriction; other links retain theirs.
             if MATCHDAY_WEEKDAYS[membership.matchday.strip()] < 5:
                 continue
