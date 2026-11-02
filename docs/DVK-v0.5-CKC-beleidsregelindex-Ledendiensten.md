@@ -96,7 +96,8 @@ bronmeldingen blijven apart zichtbaar.
 
 **Implementatie en tests:** `is_bond_team_player` in
 [`football_participation.py`](../code/Prototype/dvk/football_participation.py);
-`load_exports` en `other_weekend_persons` in
+`load_exports` in [`real_data_import.py`](../code/Prototype/dvk/real_data_import.py)
+en `other_weekend_persons` in
 [`team_matchday.py`](../code/Prototype/dvk/team_matchday.py).
 [`test_bl22_b02_v05.py`](../code/Prototype/tests/test_bl22_b02_v05.py):
 `test_b02_truth_table`, `test_import_booleans_signals_and_weekend_outcome`,
