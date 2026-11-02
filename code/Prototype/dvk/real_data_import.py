@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from .football_participation import is_bond_team_player
 from .sportlink_exports import export_path, read_export_text
 from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
 
@@ -346,8 +347,8 @@ class SportlinkRealDataAdapter:
                                         normalized_value=None if playing_member is None else str(playing_member)))
 
         # Only one current Teams record satisfying all three criteria proves participation.
-        qualifying_ids = {t.person_id for t in teams if t.team_type and t.team_type.casefold() == "bond"
-                          and t.team_role and t.team_role.casefold() == "teamspeler" and t.playing_member is True}
+        qualifying_ids = {t.person_id for t in teams if is_bond_team_player(
+            t.team_type, t.team_role, t.playing_member)}
         memberships = [Membership(m.person_id, m.status, m.kind, start_date=m.start_date,
                                   end_date=m.end_date, plays_football=m.person_id in qualifying_ids,
                                   recreational=m.recreational, honorary=m.honorary) for m in memberships]
