@@ -1,6 +1,6 @@
 # DVK — Functionele backlog
 
-**Status:** BL-14 (incl. voormalig BL-15) functioneel geaccepteerd op 31 oktober 2026, codecommit `be1cd1d` via gemergede PR #58; BL-17, BL-20, BL-21 en BL-03 functioneel geaccepteerd op 29 oktober 2026 (respectievelijk PR #53 en PR #55); BL-23 en BL-24 functioneel geaccepteerd op 30 oktober 2026 en via PR #56 gemerged; overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
+**Status:** BL-19 functioneel geaccepteerd op 2 november 2026 (PR #61 open, niet gemerged); BL-14 (incl. voormalig BL-15) functioneel geaccepteerd op 31 oktober 2026, codecommit `be1cd1d` via gemergede PR #58; BL-17, BL-20, BL-21 en BL-03 functioneel geaccepteerd op 29 oktober 2026 (respectievelijk PR #53 en PR #55); BL-23 en BL-24 functioneel geaccepteerd op 30 oktober 2026 en via PR #56 gemerged; overige besluiten uit de integrale backlogreview blijven gelden. Integrale acceptatie prototype v0.5 blijft open  
 **Scope:** prototype v0.5 en later; geen implementatieplanning of productiearchitectuur.  
 **Verwijzingen:** [Prototypeplanning](DVK-PROTOTYPE-PLANNING.md) · [Productieroadmap](PRODUCTIE-ROADMAP.md)
 
@@ -87,7 +87,7 @@ Deze wensen zijn afzonderlijke backlogrequirements en blokkeren de lopende Vrijw
 
 ## BL-19 — Zelfstandig No-showmanagement (26 oktober 2026; aangescherpt 27 oktober 2026)
 
-**Status:** functionele afbakening bevestigd; nog niet geïmplementeerd. Onderdeel van prototype v0.5. De bestaande no-showregistratie, intrekkingsmogelijkheid en historie worden hergebruikt; BL-11 is als afzonderlijk backlogitem afgesloten.
+**Status:** functioneel geaccepteerd op 2 november 2026, codecommit `069e5a1388e1b66372062d411b5f44a6a6a5429d` van PR #61; nog niet gemerged. Onderdeel van prototype v0.5. De bestaande no-showregistratie, intrekkingsmogelijkheid en historie worden hergebruikt; BL-11 is als afzonderlijk backlogitem afgesloten.
 
 **Plaats in de navigatie:** afzonderlijke functie **No-showmanagement** onder **Ledendiensten & Vrijwilligersbeleid**, los van **Ledendienst Planning**. Verplaats de bestaande No-showbediening uit Ledendienst Planning/Kandidaten zonder gegevensverlies.
 
@@ -206,3 +206,10 @@ De **Vrijwilligers API** en **Programma API** zijn noodzakelijke bouwstenen voor
 - [Functioneel contract v0.5 vervolg](code/Prototype/FUNCTIONEEL-CONTRACT-v0.5-vervolg.md)
 - [Technische impactanalyse v0.5 vervolg](code/Prototype/TECHNISCHE-IMPACTANALYSE-v0.5-vervolg.md)
 - [GitHub Issue #12](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/12) en [#14](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/issues/14)
+
+
+## Acceptatie BL-19 — Iteratie 5 (2 november 2026)
+
+**2 november 2026 — Iteratie 5 / BL-19 functioneel geaccepteerd door CKC**, op codecommit `069e5a1388e1b66372062d411b5f44a6a6a5429d` van [PR #61](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/61), **nog niet gemerged**. Zelfstandig No-showmanagement (Sportlink-raadpleging en handmatige registratie), 15 kalenderdatums vandaag−14 t/m vandaag, actieve en ingetrokken historie, sanctietelling en intrekking geaccepteerd. Correcties BL-19-01 (datumkiezer), BL-19-02 (alfabetische persoonskeuzes), BL-19-03 (periode-uitleg) en BL-19-05 (historie met tien regels per pagina, registratiemoment nieuwste eerst en één detailpaneel) geaccepteerd. BL-19-04 en BL-19-06 bleken na nadere controle geen defect. 106 gerichte en 1371 regressietests geslaagd, CI #402 groen; paginering met meer dan tien regels, uitzonderingspaden en planningisolatie met synthetische tests gecontroleerd, niet volledig lokaal met echte CKC-scenario's. Geen Sportlink-writeback, schema- of sanctieregelwijziging. Integrale v0.5-acceptatie blijft open; volgende iteratie is **Iteratie 6 — BL-22**.
+
+[Uitvoering en acceptatieverslag](code/Prototype/DVK-v0.5-iteratie5-BL19.md). De eerdere BL-19-omschrijving hierboven documenteert de oorspronkelijke functionele afbakening; de geaccepteerde handmatige route, werkelijke diensttijden, bronhercontrole, duplicaatwaarschuwingen en presentatiecorrecties staan in het acceptatieverslag.
