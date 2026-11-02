@@ -1,7 +1,7 @@
 # Iteratie 5 — BL-19: technische oplevering
 
-Status: implementatie ter technische beoordeling en lokale functionele acceptatie.
-Geen functionele acceptatie, merge of administratieve afsluiting.
+Status: **functioneel geaccepteerd op 2 november 2026** op codecommit `069e5a1388e1b66372062d411b5f44a6a6a5429d`.
+PR #61 nog open, **niet gemerged**. Onderstaand oorspronkelijk technisch opleververslag is historisch behouden; de latere acceptatie staat aan het einde.
 
 ## Context en herleiding
 
@@ -188,3 +188,23 @@ scope. Onbevestigde historische taakcodes leveren bewust geen exactheidsbewijs.
 Een consultatiesnapshot leeft alleen in de UI-sessie; duurzame historie staat in
 SQLite. Bronwijzigingen leiden conservatief tot opnieuw raadplegen; oude feiten
 worden nooit met teruggekeerde bronboekingen samengevoegd of gereconstrueerd.
+
+
+## Functionele acceptatie — 2 november 2026
+
+**Besluit CKC:** Iteratie 5 / BL-19 functioneel geaccepteerd op exact codecommit `069e5a1388e1b66372062d411b5f44a6a6a5429d`, branch `codex/iteratie-5-bl19-no-showmanagement`, [PR #61](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/61). **PR #61 is nog open en niet gemerged.** Documentatiecommits na dit besluit wijzigen de geaccepteerde codecommit niet.
+
+### Lokale bevindingen en resultaten
+
+- No-showmanagement zelfstandig geopend zonder actieve planningssessie. Sportlink-diensten geraadpleegd via **Sportlink diensten raadplegen**; aanvankelijk ontbrak een runtime-client-id, na correcte lokale opstartomgeving werkte de raadpleging. Foutmelding was begrijpelijk. Persoon, dienst, datum en tijden waren correct zichtbaar.
+- Handmatige registratie lokaal uitgevoerd met de fictieve aanduiding **Vacature** (bestaande CKC-relatie): twee verschillende diensten op verschillende dagen, gelijktijdig actief; de tweede gaf **No-show 2: gele kaart, €75 boete, één wedstrijd schorsing**. Na intrekking van één registratie daalde de actuele seizoensteller van 2 naar 1; intrekkingsreden, tijd en actor bleven zichtbaar. De andere registratie was bij afronding nog actief. Dit zijn lokale testfeiten; geen persoonsgegevens of lokale database zijn naar GitHub overgebracht.
+- Datumkiezer accepteert vandaag−14 t/m vandaag, niet erbuiten; registratie pas na dienstaanvang; ongeldige eindtijd wordt geweigerd. Periode-uitleg zichtbaar.
+- Persoonskeuze bij handmatige registratie en historie alfabetisch. Status- en seizoenfilters functioneren. Eerdere seizoenen selecteerbaar, zonder lokale registraties om seizoenoverschrijdende sancties live te toetsen.
+- Historie toont één tabel en één detailpaneel; laatst geregistreerde No-show bovenaan. Actieve en ingetrokken details tonen oorspronkelijke dienst met taakcode en feitelijke tijden, registratie-actor en -tijd, verklaring, eventuele intrekking, actuele seizoensteller en sanctie. De intrekkingsbediening bleef beschikbaar.
+- BL-19-04 (tweemaal ‘eerste overtreding’) en BL-19-06 (sanctiestatus zou ontbreken in details) zijn **geen bevestigde defecten**; na hercontrole bleek de actuele werking correct.
+
+### Testbewijs en grenzen
+
+Codex rapporteerde **106 gerichte tests en 1371 regressietests geslaagd**, plus groene [CI #402](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/actions/runs/41471396479), op `069e5a1388e1b66372062d411b5f44a6a6a5429d`. Elf legacytests buiten de voorgeschreven tests-map falen ook op de ongewijzigde baseline en zijn niet aangepast. Paginering met meer dan tien registraties, Sportlink-registratie met gesimuleerde bron, duplicaat-/validatie-uitzonderingen, seizoensscheiding en onafhankelijkheid van een actieve planning zijn **synthetisch** getoetst; deze scenario's zijn niet allemaal live door CKC doorlopen. Geen productieacceptatie en geen integrale v0.5-acceptatie.
+
+**Vervolg:** projectdocumentatie administratief bijwerken; afzonderlijk expliciet mergeakkoord voor PR #61 blijft vereist. Daarna Iteratie 6 / BL-22, gevolgd door integrale v0.5-acceptatie; BL-13 RPA pas daarna.
