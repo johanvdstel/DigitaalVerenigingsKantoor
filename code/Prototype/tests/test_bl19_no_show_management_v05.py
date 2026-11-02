@@ -454,3 +454,29 @@ def test_repeated_dst_hour_has_distinct_human_booking_choices(tmp_path, monkeypa
     assert len(selector.options) == len(set(selector.options)) == 2
     assert '+0200' in selector.options[0] and '+0100' in selector.options[1]
     assert all('25-10-2026 02:10' in label for label in selector.options)
+
+
+@pytest.mark.parametrize('utc_now,local_today', [
+    ('2026-11-01T23:30:00+00:00', date(2026, 11, 2)),
+    ('2026-06-30T22:30:00+00:00', date(2026, 7, 1)),
+])
+def test_manual_calendar_limits_use_amsterdam_registration_window(tmp_path, monkeypatch, utc_now, local_today):
+    from pathlib import Path
+    from dvk.local_csv_sources import LocalCsvSourceApplicationService
+    monkeypatch.setattr(LocalCsvSourceApplicationService, 'volunteer_persons', lambda self: PERSONS)
+    script = tmp_path / 'streamlit_app.py'
+    script.write_text((Path(__file__).parents[1] / 'streamlit_app.py').read_text().replace(
+        'datetime.now(TZ)', f'datetime.fromisoformat("{utc_now}").astimezone(TZ)'))
+    ui = AppTest.from_file(str(script), default_timeout=20).run()
+    ui.button(key='nav-no-shows').click().run()
+    next(r for r in ui.radio if r.label == 'Registratievorm').set_value('Handmatig').run()
+    lower = local_today - timedelta(days=14)
+    for label in ('Begindatum', 'Einddatum'):
+        widget = next(w for w in ui.date_input if w.label == label)
+        assert date.fromisoformat(widget.proto.min.replace('/', '-')) == lower
+        assert date.fromisoformat(widget.proto.max.replace('/', '-')) == local_today
+        assert widget.value == local_today
+        for selected in (local_today - timedelta(days=1), lower, local_today):
+            next(w for w in ui.date_input if w.label == label).set_value(selected).run()
+            assert not ui.exception
+            assert next(w for w in ui.date_input if w.label == label).value == selected

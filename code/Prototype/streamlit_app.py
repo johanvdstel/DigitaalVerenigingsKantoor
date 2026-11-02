@@ -666,7 +666,7 @@ def _render_planning():
 
 
 def _render_no_show_management():
-    from dvk.no_show import TZ, MANUAL_DECLARATION
+    from dvk.no_show import TZ, MANUAL_DECLARATION, registration_period
     from dvk.no_show_source import NoShowSourceApplicationService
     st.markdown("### No-showmanagement")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
@@ -724,9 +724,12 @@ def _render_no_show_management():
             other = task == "Andere dienst"
             description = st.text_input("Dienstomschrijving (verplicht)") if other else ""
             historical_code = st.text_input("Oorspronkelijke taakcode (optioneel, onbevestigd)") if other else task
-            start_day = st.date_input("Begindatum", value=now.date())
+            registration_window = registration_period(now)
+            start_day = st.date_input("Begindatum", value=now.date(),
+                                      min_value=registration_window.start, max_value=registration_window.end)
             start_time = st.time_input("Begintijd", value=time(10))
-            end_day = st.date_input("Einddatum", value=now.date())
+            end_day = st.date_input("Einddatum", value=now.date(),
+                                    min_value=registration_window.start, max_value=registration_window.end)
             end_time = st.time_input("Eindtijd", value=time(12))
             location = st.text_input("Locatie (optioneel)")
             explanation = st.text_area("Toelichting (optioneel)")
