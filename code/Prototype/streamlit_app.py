@@ -357,7 +357,7 @@ def _render_planning():
                     for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
                         row[field] = "Onbekend"
             numeric = ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit")
-            widths = {"Datum": 90, "Tijd": 110, "Dienst": 140, **{name: 65 for name in numeric}, "Vrije capaciteit": 125}
+            widths = {"Datum": 90, "Tijd": 110, "Dienst": 110, **{name: 65 for name in numeric}, "Vrije capaciteit": 65}
             columns = {name: st.column_config.Column(name, width=width, help=name,
                        **_table_column_options(st.column_config.Column,
                                                alignment="right" if name in numeric else "left"))
@@ -366,7 +366,7 @@ def _render_planning():
                             "Kies": st.column_config.CheckboxColumn("Kies", width=55,
                                 help="Selecteer één dienst; een nieuwe keuze vervangt de vorige.",
                                 **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
-                            "Sportlink": st.column_config.TextColumn("Sportlink", width=200, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
+                            "Sportlink": st.column_config.TextColumn("Sportlink", width=140, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
             service_ids = tuple(row["service_id"] for row in rows)
             row_key = sha256("\0".join(service_ids).encode()).hexdigest()
             if row_actions:

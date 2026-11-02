@@ -45,16 +45,16 @@ def test_service_table_native_options_and_compact_numbers(operational_page):
         "Kies", "service_id", "Datum", "Tijd", "Dienst", "Min", "Max", "Sportlink",
         "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"]
     assert config["service_id"]["hidden"] is True
-    for label, width in {"Kies": 55, "Datum": 90, "Tijd": 110, "Dienst": 140}.items():
+    for label, width in {"Kies": 55, "Datum": 90, "Tijd": 110, "Dienst": 110}.items():
         assert config[label]["width"] == width
     assert config["Kies"]["pinned"] is True
     for label in ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
-        assert config[label]["width"] == (125 if label == "Vrije capaciteit" else 65)
+        assert config[label]["width"] == 65
         assert config[label]["help"] == label
         assert config[label]["alignment"] == "right"
         assert config[label]["disabled"] is True
     assert services.proto.row_height == 32
-    assert config["Sportlink"]["width"] == 200
+    assert config["Sportlink"]["width"] == 140
     assert table(app).proto.row_height == 32
 
 
