@@ -331,8 +331,6 @@ def _render_planning():
             st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
         else:
             st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Kandidaten gebruiken de vijf lokale CKC-exports en het Sportlink-wedstrijdprogramma. Persoonsconflicten met Sportlink-inroosteringen zijn nog niet aangesloten.")
-            if not source_matches:
-                st.warning("Geen gevalideerde Sportlink-bezetting voor deze periode. Bezetting en resterende behoefte zijn onbekend totdat de bron succesvol is opgehaald.")
     if not demo and candidate_context is not None and candidate_context.error is None:
         matches = candidate_context.program.matches
     with database.unit_of_work() as uow:
@@ -359,7 +357,7 @@ def _render_planning():
                     for field in ("Sportlink", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
                         row[field] = "Onbekend"
             numeric = ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit")
-            widths = {"Datum": 90, "Tijd": 110, "Dienst": 170, **{name: 65 for name in numeric}}
+            widths = {"Datum": 90, "Tijd": 110, "Dienst": 140, **{name: 65 for name in numeric}, "Vrije capaciteit": 125}
             columns = {name: st.column_config.Column(name, width=width, help=name,
                        **_table_column_options(st.column_config.Column,
                                                alignment="right" if name in numeric else "left"))
@@ -368,7 +366,7 @@ def _render_planning():
                             "Kies": st.column_config.CheckboxColumn("Kies", width=55,
                                 help="Selecteer één dienst; een nieuwe keuze vervangt de vorige.",
                                 **_table_column_options(st.column_config.CheckboxColumn, pinned=True)),
-                            "Sportlink": st.column_config.TextColumn("Sportlink", width=320, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
+                            "Sportlink": st.column_config.TextColumn("Sportlink", width=200, help="Originele Sportlink-namen. Dubbelklik op een cel om de volledige inhoud te lezen en te kopiëren; wijzigen is niet mogelijk.")})
             service_ids = tuple(row["service_id"] for row in rows)
             row_key = sha256("\0".join(service_ids).encode()).hexdigest()
             if row_actions:
@@ -591,6 +589,8 @@ def _render_planning():
             if replacing:
                 replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{active_session.source_revision}")
                 st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
+            if not demo and not source_matches:
+                st.warning("De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen.")
             if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
                 try:
                     persons = LocalCsvSourceApplicationService().volunteer_persons()
