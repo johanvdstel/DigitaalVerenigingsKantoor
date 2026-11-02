@@ -668,6 +668,7 @@ def _render_planning():
 def _render_no_show_management():
     from dvk.no_show import TZ, MANUAL_DECLARATION, registration_period
     from dvk.no_show_source import NoShowSourceApplicationService
+    from dvk.no_show_presenter import person_labels, history_page, PAGE_SIZE
     st.markdown("### No-showmanagement")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
     database.initialize()
@@ -714,16 +715,16 @@ def _render_no_show_management():
     else:
         st.caption("Voor een oorspronkelijke Sportlink-indeling die inmiddels is verwijderd. Geen actuele boeking vereist.")
         members = {p.person_id: p for p in persons}
-        names = [p.name for p in members.values()]
+        member_labels = person_labels({pid: p.name for pid, p in members.items()})
         if members:
-            person_id = st.selectbox("Persoon", tuple(members), format_func=lambda pid:
-                members[pid].name + (f" (relatie {pid})" if names.count(members[pid].name) > 1 else ""))
+            person_id = st.selectbox("Persoon", tuple(member_labels), format_func=member_labels.get)
             definitions = {d.task_code: d for d in catalog.definitions} if catalog else {}
             task = st.selectbox("Oorspronkelijke dienst", (*definitions, "Andere dienst"),
                 format_func=lambda code: definitions[code].service_type if code in definitions else code)
             other = task == "Andere dienst"
             description = st.text_input("Dienstomschrijving (verplicht)") if other else ""
             historical_code = st.text_input("Oorspronkelijke taakcode (optioneel, onbevestigd)") if other else task
+            st.caption("Een No-show kan worden geregistreerd vanaf 14 kalenderdagen geleden tot en met vandaag, mits de dienst al is begonnen.")
             registration_window = registration_period(now)
             start_day = st.date_input("Begindatum", value=now.date(),
                                       min_value=registration_window.start, max_value=registration_window.end)
@@ -791,30 +792,64 @@ def _render_no_show_management():
     season = st.selectbox("Seizoen", seasons)
     historical_names = {e.person_id: e.context.person_name for e, r in history if e.context}
     historical_names.update({p.person_id: p.name for p in persons})
-    person_filter = st.selectbox("Persoonfilter", (None, *sorted(historical_names)),
-        format_func=lambda pid: "Alle personen" if pid is None else historical_names[pid] +
-        (f" (relatie {pid})" if list(historical_names.values()).count(historical_names[pid]) > 1 else ""))
+    filter_labels = {None: "Alle personen", **person_labels(historical_names)}
+    person_filter = st.selectbox("Persoonfilter", tuple(filter_labels), format_func=filter_labels.get)
     status = st.selectbox("Status", ("Alle", "Actief", "Ingetrokken"))
     with database.unit_of_work() as uow:
         app = NoShowApplicationService(uow, identity)
         filtered = app.history(season=season, person_id=person_filter, status=None if status == "Alle" else status)
         revocable_rows = app.revocable_no_shows()
-    st.dataframe([_no_show_history_row(e, r) for e, r in filtered], hide_index=True, use_container_width=True, height=360)
-    for event, revocation in filtered:
-        with st.expander(f"Historie: {event.context.person_name} — {event.occurred_at:%d-%m-%Y %H:%M} — {event.context.service.service_type}"):
+    filters = (season, person_filter, status)
+    if st.session_state.get("no-show-history-filters") != filters:
+        st.session_state["no-show-history-page"] = 1
+        st.session_state["no-show-history-filters"] = filters
+        st.session_state.pop("no-show-history-detail", None)
+    page = history_page(filtered, st.session_state.get("no-show-history-page", 1))
+    previous, following = st.columns(2)
+    go_back = previous.button("Vorige pagina", key="no-show-history-previous", disabled=page.number == 1)
+    go_forward = following.button("Volgende pagina", key="no-show-history-next", disabled=page.number == page.count)
+    if go_back or go_forward:
+        st.session_state["no-show-history-page"] = page.number + (1 if go_forward else -1)
+        st.session_state.pop("no-show-history-detail", None)
+        st.rerun()
+    st.session_state["no-show-history-page"] = page.number
+    st.caption(f"Pagina {page.number} van {page.count} · {page.total} registraties")
+    st.dataframe([_no_show_history_row(e, r) for e, r in page.rows], hide_index=True, use_container_width=True, height=360)
+    if page.rows:
+        detail_labels = {e.no_show_id: f"{i}. {e.recorded_at:%d-%m-%Y %H:%M:%S} — {e.context.person_name or 'Persoon onbekend'} — {e.context.service.service_type}"
+                         for i, (e, r) in enumerate(page.rows, (page.number - 1) * PAGE_SIZE + 1)}
+        if st.session_state.get("no-show-history-detail") not in detail_labels:
+            st.session_state.pop("no-show-history-detail", None)
+        selected_detail = st.selectbox("Details van No-show", tuple(detail_labels), format_func=detail_labels.get,
+                                       key="no-show-history-detail")
+        event, revocation = next(row for row in page.rows if row[0].no_show_id == selected_detail)
+        context = event.context
+        with st.container(border=True):
+            st.markdown("##### Details geselecteerde No-show")
+            st.write(f"Persoon: {context.person_name or 'Persoon onbekend'}")
+            st.write(f"Dienst: {context.service.service_type or 'Dienst onbekend'}")
+            if context.task_code:
+                st.write(f"Taakcode: {context.task_code}")
+            st.write(f"Begin: {context.starts_at:%d-%m-%Y %H:%M %z}")
+            st.write(f"Einde: {context.ends_at:%d-%m-%Y %H:%M %z}")
+            if context.location:
+                st.write(f"Locatie: {context.location}")
             actor = identity.display_name if event.recorded_by == identity.subject_id else event.recorded_by
-            st.write(f"Registratie: {event.recorded_at:%d-%m-%Y %H:%M:%S} door {actor}; {event.registration_mode}.")
+            st.write(f"Registratie: {event.recorded_at:%d-%m-%Y %H:%M:%S %z} door {actor}; {event.registration_mode}.")
             if event.manual:
                 st.write(event.manual.declaration)
                 st.write("Verklaring bevestigd: Ja")
                 st.write("Taakidentiteit: " + ("catalogus" if event.manual.task_identity_verified else "onbevestigd"))
-                if event.manual.task_code:
-                    st.write("Oorspronkelijke taakcode: " + event.manual.task_code)
                 if event.manual.explanation:
                     st.write(event.manual.explanation)
+            elif event.booking and event.booking.provenance:
+                provenance = event.booking.provenance
+                st.write(f"Bron: {provenance.source_system} — {provenance.source_dataset}")
+                st.write(f"Bron geraadpleegd: {provenance.imported_at:%d-%m-%Y %H:%M:%S %z}")
+                st.write(f"Oorspronkelijke bronnaam: {event.booking.volunteer_name}")
             if revocation:
                 actor = identity.display_name if revocation.revoked_by == identity.subject_id else revocation.revoked_by
-                st.write(f"Intrekking: {revocation.revoked_at:%d-%m-%Y %H:%M:%S} door {actor}: {revocation.reason}")
+                st.write(f"Intrekking: {revocation.revoked_at:%d-%m-%Y %H:%M:%S %z} door {actor}: {revocation.reason}")
             with database.unit_of_work() as uow:
                 current = NoShowApplicationService(uow, identity).current_state(event.person_id, event.season)
             st.write(f"Actuele seizoensteller: {current.counter}")
@@ -824,6 +859,10 @@ def _render_no_show_management():
                 st.write(f"Actuele sanctie: {card}; boete €{sanction.fine_eur}; schorsing {sanction.suspension_matches} wedstrijd(en).")
                 if sanction.board_follow_up:
                     st.write("Bestuurlijke vervolgactie is vereist.")
+            else:
+                st.write("Actuele sanctie: geen actieve No-shows in dit seizoen.")
+    else:
+        st.info("Geen No-shows binnen deze filters.")
     visible_ids = {e.no_show_id for e, r in filtered if r is None}
     revocable_rows = tuple(row for row in revocable_rows if row.no_show.no_show_id in visible_ids)
     if st.session_state.pop("clear-no-show-revocation-reason", False):
@@ -853,9 +892,10 @@ def _render_no_show_management():
 
 def _no_show_history_row(event, revocation):
     context = event.context
-    return {"Persoon": context.person_name, "Dienst": context.service.service_type,
+    return {"Geregistreerd": event.recorded_at.strftime("%d-%m-%Y %H:%M:%S %z"),
+            "Persoon": context.person_name or "Persoon onbekend", "Dienst": context.service.service_type,
             "Begin": context.starts_at.strftime("%d-%m-%Y %H:%M %z"),
-            "Einde": context.ends_at.strftime("%d-%m-%Y %H:%M %z"), "Locatie": context.location,
+            "Einde": context.ends_at.strftime("%d-%m-%Y %H:%M %z"), "Locatie": context.location or "—",
             "Registratievorm": event.registration_mode, "Status": "Ingetrokken" if revocation else "Actief"}
 
 
