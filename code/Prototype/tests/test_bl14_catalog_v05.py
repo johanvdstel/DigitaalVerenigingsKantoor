@@ -400,3 +400,7 @@ def test_source_explicit_instants_during_clock_change_are_not_guessed_or_reverse
         extra=next(s for s in services if s.starts_at.hour==2)
         assert extra.starts_at.fold==0 and extra.ends_at.fold==1
         assert extra.duration_hours==0.75
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

@@ -24,7 +24,7 @@ def assert_no_registration_feedback(app):
     assert not any(COMMUNICATION in i.value for i in app.info)
 
 
-def setup(app, db):
+def setup(app, db, monkeypatch):
     catalog = load_shift_catalog()
     first = catalog.bindings(PERIOD)[0]
     later = next(b for b in catalog.bindings(PERIOD) if b.service.starts_at.date() > first.service.starts_at.date())
@@ -32,14 +32,15 @@ def setup(app, db):
     for b in (first, later):
         payload.setdefault(b.task_code, []).append(row(b.service, people()[0]))
     assert sync(db, catalog, payload)[0] is None
-    app.run()
+    from sportlink_fixtures import open_no_show_ui
+    open_no_show_ui(app, db, monkeypatch)
     return catalog
 
 
 @pytest.mark.parametrize('action', ['rerun', 'navigation', 'new_browser', 'synchronize', 'period_and_synchronize'])
-def test_first_feedback_is_shown_once_and_history_survives_later_screen_views(tmp_path, action):
+def test_first_feedback_is_shown_once_and_history_survives_later_screen_views(tmp_path, action, monkeypatch):
     app, db = page(tmp_path)
-    catalog = setup(app, db)
+    catalog = setup(app, db, monkeypatch)
     submit(app)
     assert any(w.value == FIRST for w in app.warning)
     assert any(COMMUNICATION in i.value for i in app.info)
@@ -51,16 +52,17 @@ def test_first_feedback_is_shown_once_and_history_survives_later_screen_views(tm
         app.run()
     elif action == 'navigation':
         app.button(key='nav-home').click().run()
-        app.button(key='nav-planning').click().run()
+        app.button(key='nav-no-shows').click().run()
     elif action == 'new_browser':
         app = AppTest.from_file(str(tmp_path / 'streamlit_app.py'), default_timeout=20).run()
-        app.button(key='nav-planning').click().run()
-        app.button(key='resume-planning').click().run()
+        app.button(key='nav-no-shows').click().run()
+
     elif action == 'synchronize':
         assert sync(db, catalog, {})[0] is None
         app.run()
     else:
         new_period = PlanningPeriod(PERIOD.start+timedelta(days=7), PERIOD.end+timedelta(days=7))
+        app.button(key='nav-planning').click().run()
         app.date_input(key='planning-from').set_value(new_period.start).run()
         assert_no_registration_feedback(app)
         app.button(key='confirm-period-change').click().run()
@@ -76,9 +78,9 @@ def test_first_feedback_is_shown_once_and_history_survives_later_screen_views(tm
         assert not u.no_show_revocations.for_no_show(fact.no_show_id)
 
 
-def test_second_feedback_duplicate_protection_and_revocation_keep_existing_semantics(tmp_path):
+def test_second_feedback_duplicate_protection_and_revocation_keep_existing_semantics(tmp_path, monkeypatch):
     app, db = page(tmp_path)
-    setup(app, db)
+    setup(app, db, monkeypatch)
     submit(app)
     with db.unit_of_work() as u:
         first, = u.no_shows.all()
@@ -92,7 +94,7 @@ def test_second_feedback_duplicate_protection_and_revocation_keep_existing_seman
         assert len(history) == 2
         assert NoShowApplicationService(u, IDENTITY).current_state(first.person_id, first.season).counter == 2
     submit(app)  # Duplicate submission may report an error, never repeat the success feedback.
-    assert any('al een no-show geregistreerd' in e.value for e in app.error)
+    assert any('al een no-show geregistreerd' in e.value.lower() for e in app.error)
     assert_no_registration_feedback(app)
     with db.unit_of_work() as u:
         assert u.no_shows.all() == history

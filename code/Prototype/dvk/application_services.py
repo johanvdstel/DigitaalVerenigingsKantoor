@@ -13,7 +13,8 @@ from .import_workflow import confirm_import, preview_differences
 from .model import Person, PrototypeCase
 from .no_show import (
     CurrentSanctionState, NoShowEvent, NoShowRevocation, SanctionAssessment,
-    assess_sanction, current_sanction_state, season_id,
+    assess_sanction, current_sanction_state, season_id, ManualServiceContext,
+    validate_registration_time, duplicate_events, MANUAL_DECLARATION,
 )
 from .planning_session import TZ, active_source, booking_in_period
 from .planning import PlanningOverview, PlanningPeriod, PlanningSourceStatus, build_planning_overview
@@ -27,7 +28,7 @@ from .vrijwilligers_adapter import VolunteerBooking, SportlinkVrijwilligersAdapt
 
 @dataclass(frozen=True)
 class AssignmentContext:
-    assignment: DutyAssignment | VolunteerBooking
+    assignment: DutyAssignment | VolunteerBooking | ManualServiceContext
     service: DutyService | None
     person_name: str | None
     source_revision: str | None = field(default=None, compare=False)
@@ -53,10 +54,11 @@ class NoShowContext:
 class NoShowApplicationService:
     """Authorized boundary for no-show facts, revocations and current sanctions."""
 
-    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None):
+    def __init__(self, uow, identity: Identity, authorizer: Authorizer | None = None, *, clock=None):
         self.uow = uow
         self.identity = identity
         self.authorizer = authorizer or Authorizer()
+        self.clock = clock or (lambda: datetime.now(TZ))
 
     def available_assignments(self, limit: int | None = None, *, period=None):
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
@@ -137,7 +139,7 @@ class NoShowApplicationService:
             raise
         return tuple(signals)
 
-    def register(self, event: NoShowEvent, *, source_revision=None, period=None) -> SanctionAssessment:
+    def register(self, event: NoShowEvent, *, source_revision=None, period=None, acknowledged_possible=()) -> SanctionAssessment:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         if event.recorded_by != self.identity.subject_id:
             raise ValueError("no-show recorded_by must match authenticated identity")
@@ -159,16 +161,113 @@ class NoShowApplicationService:
         if event.occurred_at != assignment.starts_at:
             raise ValueError("no-show occurrence must match Sportlink service start")
         event = replace(event, booking=assignment)
-        if any(self.uow.no_show_revocations.for_no_show(prior.no_show_id) is None
-               for prior in self.uow.no_shows.history_for_assignment(event.assignment_id)):
+        return self._save_event(event, acknowledged_possible=acknowledged_possible)
+
+    def _save_event(self, event, *, acknowledged_possible=()):
+        # All registration routes share the same transaction, clock and duplicate rules.
+        self.uow.begin_planning_write()
+        now = self.clock()
+        context = event.context
+        validate_registration_time(context.starts_at, context.ends_at, now)
+        event = replace(event, recorded_at=now)
+        events = self.uow.no_shows.all()
+        revocations = tuple(r for e in events
+                            if (r := self.uow.no_show_revocations.for_no_show(e.no_show_id)) is not None)
+        exact, possible = duplicate_events(context, events, revocations)
+        if exact:
             raise ValueError("voor deze inroostering is al een no-show geregistreerd")
+        if {e.no_show_id for e in possible} - set(acknowledged_possible):
+            raise ValueError("Mogelijk duplicaat: controleer de bestaande registraties en bevestig expliciet doorgaan")
         prior = self.uow.no_shows.for_person_season(event.person_id, event.season)
-        revocations = self.uow.no_show_revocations.for_person_season(event.person_id, event.season)
-        assessment = assess_sanction(event, prior, revocations)
+        revoked = self.uow.no_show_revocations.for_person_season(event.person_id, event.season)
+        assessment = assess_sanction(event, prior, revoked)
         self.uow.no_shows.add(event)
         self.uow.sanctions.add(assessment)
         self.uow.commit()
         return assessment
+
+    def registration_choices(self, bookings):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        choices = []
+        for booking in bookings:
+            if not booking.can_register_no_show:
+                continue
+            try:
+                validate_registration_time(booking.starts_at, booking.ends_at, self.clock())
+            except ValueError:
+                continue
+            choices.append(booking)
+        return tuple(sorted(choices, key=lambda b: (b.starts_at, b.person_name or "", b.assignment_id)))
+
+    def duplicate_check(self, context):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        events = self.uow.no_shows.all()
+        revocations = tuple(r for e in events
+                            if (r := self.uow.no_show_revocations.for_no_show(e.no_show_id)) is not None)
+        return duplicate_events(context, events, revocations)
+
+    def manual_context(self, *, person_id, persons, catalog, task_code, description,
+                       start_day, start_time, end_day, end_time, other=False,
+                       location="", explanation="", confirmed=False):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        from .shift_catalog import local_moment
+        matches = tuple(p for p in persons if p.person_id == person_id)
+        if not matches or any(p.volunteer_identity_conflicting or p != matches[0] for p in matches):
+            raise ValueError("Selecteer een betrouwbaar geïdentificeerd lid uit Leden.csv")
+        person = matches[0]
+        if not person.name.strip():
+            raise ValueError("Leesbare persoonsnaam ontbreekt in Leden.csv")
+        if not confirmed:
+            raise ValueError("De bevestigingsverklaring is verplicht")
+        if other:
+            if not description.strip():
+                raise ValueError("Een omschrijving voor Andere dienst is verplicht")
+            # Explicit CKC decision: entered historical codes remain unverified.
+            task_code = task_code.strip() or None
+        else:
+            definition = next((d for d in catalog.definitions if d.task_code == task_code), None)
+            if definition is None:
+                raise ValueError("Selecteer een dienst uit de actuele catalogus")
+            description = definition.service_type
+        start, end = local_moment(start_day, start_time), local_moment(end_day, end_time)
+        validate_registration_time(start, end, self.clock())
+        return ManualServiceContext(person.person_id, person.name, task_code, not other,
+                                    description.strip(), start, end, location.strip(), explanation.strip(),
+                                    MANUAL_DECLARATION, True)
+
+    def register_manual(self, *, acknowledged_possible=(), **inputs):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        # Caller supplies freshly loaded source persons/catalog, never a claimed booking.
+        context = self.manual_context(**inputs)
+        event = NoShowEvent(str(uuid4()), "MANUAL-" + str(uuid4()), context.person_id,
+                            context.starts_at, self.clock(), self.identity.subject_id,
+                            season_id(context.starts_at.astimezone(TZ).date()), manual=context)
+        return self._save_event(event, acknowledged_possible=acknowledged_possible)
+
+    def register_booking(self, selected, *, source, acknowledged_possible=()):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        booking = source.verify(selected, self.clock())
+        if (not booking.can_register_no_show or booking.service is None or booking.provenance is None
+                or booking.provenance.source_system != "Sportlink" or booking.provenance.kind != "SOURCE_FACT"):
+            raise ValueError("No-show vereist een betrouwbare Sportlink-inroostering met provenance")
+        event = NoShowEvent(str(uuid4()), booking.assignment_id, booking.person_id,
+                            booking.starts_at.astimezone(TZ), self.clock(), self.identity.subject_id,
+                            season_id(booking.starts_at.astimezone(TZ).date()), booking)
+        return self._save_event(event, acknowledged_possible=acknowledged_possible)
+
+    def history(self, *, season=None, person_id=None, status=None):
+        self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
+        result = []
+        for event in self.uow.no_shows.all():
+            revocation = self.uow.no_show_revocations.for_no_show(event.no_show_id)
+            if season is not None and event.season != season:
+                continue
+            if person_id is not None and event.person_id != person_id:
+                continue
+            if status is not None and status != ("Ingetrokken" if revocation else "Actief"):
+                continue
+            result.append((event, revocation))
+        return tuple(result)
 
     def revocable_no_shows(self, *, services: tuple[DutyService, ...] = (), persons: tuple[Person, ...] = ()) -> tuple[NoShowContext, ...]:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
@@ -176,7 +275,7 @@ class NoShowApplicationService:
         for event in self.uow.no_shows.all():
             if self.uow.no_show_revocations.for_no_show(event.no_show_id) is not None:
                 continue
-            assignment = event.booking
+            assignment = event.context
             if assignment is None:
                 raise ValueError("no-show references an unknown inroostering")
             rows.append(NoShowContext(event, AssignmentContext(assignment, assignment.service, assignment.person_name)))
@@ -194,6 +293,7 @@ class NoShowApplicationService:
         self.authorizer.require(self.identity, Permission.MANAGE_NO_SHOWS)
         if not reason.strip():
             raise ValueError("Een toelichting voor intrekking is verplicht.")
+        self.uow.begin_planning_write()
         if self.uow.no_shows.get(no_show_id) is None:
             raise ValueError("Onbekende no-show.")
         if self.uow.no_show_revocations.for_no_show(no_show_id) is not None:

@@ -23,7 +23,7 @@ def _seed(db):
 def _event(i, when=None):
     when = when or datetime(2026, 9, i, 10)
     source = booking(when=when)
-    return NoShowEvent(f"N{i}", source.assignment_id, "MEM1", source.starts_at, when, "vc1", season_id(when.date()), source)
+    return NoShowEvent(f"N{i}", source.assignment_id, "MEM1", source.starts_at, source.starts_at, "vc1", season_id(when.date()), source)
 
 
 @pytest.fixture
@@ -159,3 +159,7 @@ def test_assignment_context_uses_source_snapshot_and_limits_after_chronological_
         assert app.assignment_contexts(persons=(), services=()) == contexts
         rows = app.revocable_no_shows()
         assert rows[0].assignment == context
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

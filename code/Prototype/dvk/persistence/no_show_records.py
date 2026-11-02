@@ -6,15 +6,15 @@ from datetime import datetime
 
 from .sportlink_bookings import booking_from_dict
 
-from ..no_show import NoShowEvent, NoShowRevocation, SanctionAssessment
+from ..no_show import NoShowEvent, NoShowRevocation, SanctionAssessment, ManualServiceContext
 
 
 class SQLiteNoShowRepository:
     def __init__(self, connection): self._connection = connection
 
     def add(self, event: NoShowEvent) -> None:
-        if event.booking is None:
-            raise ValueError("Durable no-show requires an immutable Sportlink booking snapshot")
+        if event.context is None:
+            raise ValueError("Durable no-show requires an immutable service snapshot")
         self._connection.execute(
             "INSERT INTO sportlink_no_show_events VALUES (?, ?, ?, ?, ?, ?)",
             (event.no_show_id, event.assignment_id, event.person_id, event.season,
@@ -100,6 +100,11 @@ class SQLiteSanctionAssessmentRepository:
 def _event(data: dict) -> NoShowEvent:
     if data.get("booking"):
         data["booking"] = booking_from_dict(data["booking"])
+    if data.get("manual"):
+        manual = dict(data["manual"])
+        for key in ("starts_at", "ends_at"):
+            manual[key] = datetime.fromisoformat(manual[key])
+        data["manual"] = ManualServiceContext(**manual)
     for key in ("occurred_at", "recorded_at"):
         if data.get(key):
             data[key] = datetime.fromisoformat(data[key])

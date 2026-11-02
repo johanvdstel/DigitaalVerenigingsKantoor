@@ -39,3 +39,27 @@ def native_editor_state_roundtrip(monkeypatch):
     from ui_table_events import preserving_editors
     monkeypatch.setattr(element_tree, "get_widget_state",
                         preserving_editors(element_tree.get_widget_state))
+
+
+@pytest.fixture
+def historical_registration_context(monkeypatch):
+    """Existing BL-11 scenarios run at source start, not the wall clock of CI.
+
+    Distinct historical same-day tasks are explicitly acknowledged here; BL-19
+    rejection/confirmation behavior is tested separately without this fixture.
+    Original source dates and sanction cases remain unchanged.
+    """
+    from dvk.application_services import NoShowApplicationService
+    original = NoShowApplicationService.register
+    def historical(self, event, **kwargs):
+        previous_clock = self.clock
+        self.clock = lambda: event.occurred_at
+        try:
+            context = event.booking or self.uow.sportlink_bookings.get(event.assignment_id)
+            if context is not None:
+                _, possible = self.duplicate_check(context)
+                kwargs.setdefault("acknowledged_possible", tuple(e.no_show_id for e in possible))
+            return original(self, event, **kwargs)
+        finally:
+            self.clock = previous_clock
+    monkeypatch.setattr(NoShowApplicationService, "register", historical)

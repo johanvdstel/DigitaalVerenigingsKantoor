@@ -455,3 +455,7 @@ def catalog_projection(catalog, services, needs):
     """Keep historical slot assertions while separately asserting BL-14 additions."""
     ids = {b.service.service_id for b in catalog.bindings(PERIOD)}
     return (tuple(s for s in services if s.service_id in ids), tuple(n for n in needs if n.service_id in ids))
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

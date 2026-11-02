@@ -181,6 +181,7 @@ class SportlinkVrijwilligersAdapter:
         period=None,
         catalog_overlap: bool = False,
         planning_definitions=(),
+        strict_local_times=False,
     ) -> VolunteerImportResult:
         bindings = tuple(binding for binding in services if
                          (same_task_group(task_code, binding.task_code) if catalog_overlap else binding.task_code == task_code))
@@ -207,8 +208,9 @@ class SportlinkVrijwilligersAdapter:
                 continue
 
             try:
-                starts_at = self._parse_datetime(raw_date_from, raw_time_from)
-                ends_at = self._parse_datetime(raw_date_to or raw_date_from, raw_time_to) if raw_time_to or raw_date_to else starts_at
+                parser = self._parse_no_show_datetime if strict_local_times else self._parse_datetime
+                starts_at = parser(raw_date_from, raw_time_from)
+                ends_at = parser(raw_date_to or raw_date_from, raw_time_to) if raw_time_to or raw_date_to else starts_at
             except ValueError:
                 signals.append(DataQualitySignal(
                     "INVALID_VOLUNTEER_DATETIME", "ERROR", "sportlink_vrijwilligers", key,
@@ -305,6 +307,19 @@ class SportlinkVrijwilligersAdapter:
         if ends_at > starts_at and service.ends_at.astimezone(TZ) != ends_at:
             return False
         return True
+
+    @staticmethod
+    def _parse_no_show_datetime(date_value, time_value):
+        from .shift_catalog import local_moment
+        if not time_value and "T" not in date_value:
+            raise ValueError("Werkelijke diensttijd ontbreekt")
+        parsed = SportlinkVrijwilligersAdapter._parse_datetime(date_value, time_value)
+        explicit_offset = False
+        if "T" in date_value:
+            explicit_offset = datetime.fromisoformat(date_value.replace("Z", "+00:00")).tzinfo is not None
+        if explicit_offset:
+            return parsed
+        return local_moment(parsed.date(), parsed.time().replace(tzinfo=None))
 
     @staticmethod
     def _parse_datetime(date_value: str, time_value: str) -> datetime:

@@ -76,3 +76,7 @@ def test_revoke_is_authorized_auditable_correction(tmp_path):
         assert corrected.revoked_by == "planner"
         assert uow.no_shows.get("N1") == event()
         assert uow.no_show_revocations.for_no_show("N1") == corrected
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

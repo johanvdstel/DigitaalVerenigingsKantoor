@@ -47,3 +47,39 @@ def seed_bookings(uow, bookings):
 def source_revision(uow):
     session = uow.planning_sessions.get()
     return session.source_revision if session else None
+
+
+def open_no_show_ui(app, db, monkeypatch, *, navigate=True):
+    """UI relocation harness: synthetic external snapshot, independent of sessions.
+
+    The dedicated BL-19 source tests exercise HTTP-client/adapter confirmation;
+    these historical UI tests reuse their original known source fixtures.
+    """
+    from dvk.application_services import NoShowApplicationService
+    from dvk.local_csv_sources import LocalCsvSourceApplicationService
+    from dvk.no_show import registration_period
+    from dvk.no_show_source import NoShowSource, NoShowSourceApplicationService
+    from dvk.model import Person
+    def bookings():
+        with db.unit_of_work() as u:
+            return u.sportlink_bookings.all()
+    def now():
+        with db.unit_of_work() as u:
+            moments = [b.starts_at for b in u.sportlink_bookings.all()]
+            moments += [e.occurred_at for e in u.no_shows.all()]
+        from dvk.no_show import TZ
+        return max(moments) + timedelta(hours=1) if moments else datetime(2026,10,25,12,tzinfo=TZ)
+    original_init = NoShowApplicationService.__init__
+    def init(self, *args, **kwargs):
+        kwargs.setdefault("clock", now)
+        original_init(self, *args, **kwargs)
+    monkeypatch.setattr(NoShowApplicationService, "__init__", init)
+    monkeypatch.setattr(NoShowSourceApplicationService, "consult", lambda self, moment, **kw:
+        NoShowSource(bookings(), (), registration_period(now()), now()))
+    monkeypatch.setattr(LocalCsvSourceApplicationService, "volunteer_persons", lambda self:
+        tuple(Person(b.person_id, b.person_name, sportlink_name=b.volunteer_name)
+              for b in bookings() if b.person_id))
+    if navigate:
+        app.button(key="nav-no-shows").click().run()
+        app.button[ next(i for i,b in enumerate(app.button) if b.label == "Sportlink-diensten raadplegen") ].click().run()
+    return app

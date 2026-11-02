@@ -6,6 +6,8 @@
 
 De prototypebaseline omvat sinds [PR #38](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/38) een lokaal geaccepteerde Vrijwilligers API-integratie, duurzame planningssessies en No-Show-historie (SQLite-schema 13). [PR #41](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/41) voegde de lokaal geaccepteerde Programma-teamkoppeling en datumverwerking toe; [PR #42](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/42) standaardiseerde de lokale CSV-exportpaden. De Programma-integratie is inmiddels met BL-18/PR #46 functioneel afgerond; de integrale v0.5-acceptatie blijft open. Dit is **geen** productieacceptatie en wijzigt de nog openstaande integrale v0.5-acceptatie of de hieronder beschreven productievoorwaarden niet.
 
+**Prototypevoortgang 2 november 2026:** Iteratie 5 / BL-19 (zelfstandig No-showmanagement) is functioneel geaccepteerd op codecommit `069e5a1388e1b66372062d411b5f44a6a6a5429d` van [PR #61](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/61), nog niet gemerged. Dit wijzigt **geen** productievoorwaarden, verleent geen Sportlink-schrijfrechten en betekent geen integrale v0.5- of productieacceptatie. Hierna volgen Iteratie 6 / BL-22 en integrale v0.5-acceptatie; BL-13 RPA blijft een afzonderlijk vervolgtraject.
+
 ## Doel en afbakening
 
 Het prototype bewijst functionele bruikbaarheid. De **productiefase** maakt DVK veilig, beheersbaar, herstelbaar en duurzaam inzetbaar voor bevoegde CKC-medewerkers en vrijwilligers, bij voorkeur in een **gehoste omgeving**. Productie is geen automatische omzetting van de lokale Streamlit-app of SQLite-bestanden.

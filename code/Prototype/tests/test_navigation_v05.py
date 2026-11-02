@@ -121,6 +121,7 @@ def test_home_uses_one_consistent_line_per_function(tmp_path):
     assert groups == {
         'Ledendiensten & Vrijwilligersbeleid': [
             '**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.',
+            '**No-showmanagement** — zelfstandig registreren, historie en intrekken.',
             '**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.',
             '**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.'],
         'Overige werkgebieden': [

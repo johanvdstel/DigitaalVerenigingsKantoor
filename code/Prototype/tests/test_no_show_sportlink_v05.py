@@ -313,3 +313,7 @@ def test_vrij01_invalid_response_preserves_complete_persisted_state(
         assert {b.assignment_id: b for b in uow.sportlink_bookings.recent()} == {
             b.assignment_id: b for b in originals}
         assert uow.temporary_planning.all() == temporary
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

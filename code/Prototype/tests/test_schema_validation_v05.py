@@ -341,3 +341,7 @@ def test_repository_setup_failure_closes_uow_connection(tmp_path, monkeypatch):
     with closing(sqlite3.connect(db.path, timeout=0)) as c:
         c.execute("BEGIN IMMEDIATE")
         c.rollback()
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

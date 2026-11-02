@@ -221,3 +221,7 @@ def test_failed_ui_period_delete_retains_old_session_and_navigation(tmp_path, mo
     app.button(key='nav-control').click().run()
     assert not app.exception and not app.get('file_uploader')
     assert app.button(key='refresh-duty-sources')
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

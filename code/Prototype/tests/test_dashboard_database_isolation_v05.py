@@ -73,7 +73,7 @@ def test_valid_database_preserves_planning_and_no_show_screen(tmp_path):
     app.run(timeout=20)
     assert not app.error
     assert any(item.label == 'Diensten' for item in app.metric)
-    assert any(item.value == '### No-shows' for item in app.markdown)
+    assert not any(item.value == '### No-shows' for item in app.markdown)
     assert db_path.read_bytes() == before
     app.button(key='nav-control').click().run(timeout=20)
     control_visible(app)
@@ -131,10 +131,10 @@ def test_later_no_show_database_failure_does_not_block_dashboard(tmp_path, monke
 
     monkeypatch.setattr(NoShowApplicationService, 'revocable_no_shows', unavailable)
     app = AppTest.from_file(str(local_app(tmp_path)))
-    app.session_state['dvk-screen'] = 'planning'
+    app.session_state['dvk-screen'] = 'no-shows'
     app.run(timeout=20)
     assert len(app.error) == 1
-    assert any(item.value == '### No-shows' for item in app.markdown)
+    assert any(item.value == '### No-showmanagement' for item in app.markdown)
     app.button(key='nav-control').click().run(timeout=20)
     control_visible(app)
     assert not app.error

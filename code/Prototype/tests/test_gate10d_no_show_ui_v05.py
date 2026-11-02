@@ -6,5 +6,7 @@ def test_no_show_confirmation_uses_assignment_service_time():
     text = SOURCE.read_text()
     assert 'Datum no-show' not in text
     assert 'No-show bevestigen' in text
-    assert 'occurred_at = service_info.starts_at' in text
-    assert 'season_id(occurred_at.date())' in text
+    assert 'app.register_booking(selected, source=source' in text
+    services = (SOURCE.parent / 'dvk' / 'application_services.py').read_text()
+    assert 'booking.starts_at.astimezone(TZ), self.clock()' in services
+    assert 'season_id(booking.starts_at.astimezone(TZ).date())' in services

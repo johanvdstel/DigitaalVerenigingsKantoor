@@ -97,3 +97,7 @@ def test_complete_choices_keep_active_source_period_and_registration_guards(tmp_
         with pytest.raises(ValueError, match='actieve gevalideerde bron'):
             app.register(event(old), source_revision=choice.source_revision)
         assert not u.no_shows.all()
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")

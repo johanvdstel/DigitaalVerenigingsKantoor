@@ -161,7 +161,7 @@ def test_failed_version13_upgrade_rolls_back_entire_schema_and_history(tmp_path,
     assert register(db, 'AFTER-RETRY').counter == 1
 
 
-def test_ui_register_revoke_and_reregister_same_booking_keeps_history(tmp_path):
+def test_ui_register_revoke_and_reregister_same_booking_keeps_history(tmp_path, monkeypatch):
     from test_planning_ui_names_v05 import page
     from test_volunteer_planning_integration_v05 import PERIOD, people, row, sync
     from dvk.shift_catalog import load_shift_catalog
@@ -169,7 +169,8 @@ def test_ui_register_revoke_and_reregister_same_booking_keeps_history(tmp_path):
     catalog = load_shift_catalog()
     binding = catalog.bindings(PERIOD)[0]
     assert sync(db, catalog, {binding.task_code:[row(binding.service, people()[0])]})[0] is None
-    app.run()
+    from sportlink_fixtures import open_no_show_ui
+    open_no_show_ui(app, db, monkeypatch)
     next(b for b in app.button if b.label == 'No-show bevestigen').click().run()
     assert not app.exception
     with db.unit_of_work() as u:
@@ -185,3 +186,7 @@ def test_ui_register_revoke_and_reregister_same_booking_keeps_history(tmp_path):
         assert u.no_show_revocations.for_no_show(original.no_show_id).reason == 'Synthetic UI correction'
         assert len(u.no_shows.history_for_assignment(original.assignment_id)) == 2
         assert NoShowApplicationService(u, IDENTITY).current_state(original.person_id, original.season).counter == 1
+
+
+# Preserve historical BL-11 dates with an explicit test clock.
+pytestmark = pytest.mark.usefixtures("historical_registration_context")
