@@ -1,4 +1,5 @@
 """Synthetic Streamlit integration; no local CSVs, HTTP or CKC database."""
+from synthetic_demo_screen import use_synthetic_demo
 from ui_table_events import table as ui_table
 from dataclasses import replace
 from ui_table_events import table, pick
@@ -98,7 +99,7 @@ def test_period_change_and_demo_switch_do_not_reuse_operational_context(operatio
     app.button(key='confirm-period-change').click().run()
     assert not app.exception
     assert app.session_state['candidate-context'].period != PERIOD
-    app.radio(key='planning-source-mode').set_value('Demonstratie').run()
+    use_synthetic_demo(app)
     assert not app.exception
     assert not any(b.key == 'load-candidate-sources' for b in app.button)
 

@@ -1,4 +1,5 @@
 """Issue #12: FR-02–05; temporary planning never fabricates Sportlink facts."""
+from synthetic_demo_screen import use_synthetic_demo
 from ui_table_events import table as ui_table
 from ui_table_events import table, pick
 from concurrent.futures import ThreadPoolExecutor
@@ -262,7 +263,7 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
             app.button(key="resume-planning").click().run()
         else:
             app.button(key="activate-planning").click().run()
-        app.radio(key="planning-source-mode").set_value("Demonstratie").run()
+        use_synthetic_demo(app)
         app.date_input[0].set_value(date(2026, 9, 14)).run()
         assert not app.exception
         selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
@@ -286,7 +287,7 @@ def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
     app = AppTest.from_file(str(script), default_timeout=15).run()
     app.button(key="nav-planning").click().run()
-    app.radio(key="planning-source-mode").set_value("Demonstratie").run()
+    use_synthetic_demo(app)
     # A period change deliberately discards stale service/widget selections.
     app.date_input[0].set_value(date(2026, 9, 14)).run()
     app.session_state["selected_service_id"] = "BAR-WO-1"

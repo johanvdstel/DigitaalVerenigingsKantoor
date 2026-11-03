@@ -172,17 +172,19 @@ def _render_planning():
     data_sources = st.expander("Databronnen", expanded=False)
     with data_sources:
         st.markdown("## 2 — Databronnen")
+    fixtures = st.expander("Wedstrijden", expanded=False)
+    with fixtures:
+        st.markdown("## 3 — Wedstrijden")
     duties = st.expander("Diensten", expanded=False)
     with duties:
-        st.markdown("## 3 — Diensten")
+        st.markdown("## 4 — Diensten")
+        # Fill this early without moving reload validation past source processing.
+        catalog_controls = st.container()
         sportlink_source = st.container()
         duty_table = st.container()
     candidates = st.expander("Kandidaten", expanded=False)
     with candidates:
-        st.markdown("## 4 — Kandidaten")
-    fixtures = st.expander("Wedstrijden", expanded=False)
-    with fixtures:
-        st.markdown("## 5 — Wedstrijden")
+        st.markdown("## 5 — Kandidaten")
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
     database.initialize()
     identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
@@ -243,42 +245,44 @@ def _render_planning():
         except ValueError as exc:
             st.error(str(exc))
             return
-        if st.button("Reload catalog", key="reload-catalog"):
-            try:
-                pending_catalog = load_shift_catalog()
-                pending_catalog.bindings(period)
-                st.session_state["catalog-reload-request"] = (pending_catalog, period,
-                    active_session.session_id if active_session else None)
-            except ValueError as exc:
-                st.error(str(exc))
-        pending_reload = st.session_state.get("catalog-reload-request")
-        if pending_reload:
-            st.warning("Reload catalog beëindigt de huidige planningssessie en verwijdert alle tijdelijke indelingen. "
-                       "Bevestig dat deze niet langer nodig zijn en noodzakelijke handmatige verwerking in Sportlink is afgehandeld. "
-                       "Sportlink-bezetting moet daarna opnieuw worden opgehaald.")
-            if st.button("Reload catalog bevestigen", key="confirm-reload-catalog"):
+        with catalog_controls:
+            st.caption("Leest de roosterindeling opnieuw in. Na bevestiging begint een nieuwe planningssessie en vervalt de tijdelijke planning.")
+            if st.button("Dienstencatalogus (roosterindeling) opnieuw laden", key="reload-catalog"):
                 try:
-                    with database.unit_of_work() as uow:
-                        session = PlanningSessionApplicationService(uow, identity).reload_catalog(
-                            pending_reload[1], confirmed=True, expected_session_id=pending_reload[2], catalog=pending_reload[0])
+                    pending_catalog = load_shift_catalog()
+                    pending_catalog.bindings(period)
+                    st.session_state["catalog-reload-request"] = (pending_catalog, period,
+                        active_session.session_id if active_session else None)
                 except ValueError as exc:
                     st.error(str(exc))
-                    return
-                st.session_state.pop("catalog-reload-request", None)
-                st.session_state["planning-resumed"] = session.session_id
-                _clear_period_widgets()
-                st.rerun()
-            if st.button("Annuleren", key="cancel-reload-catalog"):
-                st.session_state.pop("catalog-reload-request", None)
-                st.rerun()
-            return
+            pending_reload = st.session_state.get("catalog-reload-request")
+            if pending_reload:
+                st.warning("Dienstencatalogus (roosterindeling) opnieuw laden beëindigt de huidige planningssessie en verwijdert alle tijdelijke indelingen. "
+                           "Bevestig dat deze niet langer nodig zijn en noodzakelijke handmatige verwerking in Sportlink is afgehandeld. "
+                           "Sportlink-bezetting moet daarna opnieuw worden opgehaald.")
+                if st.button("Opnieuw laden bevestigen", key="confirm-reload-catalog"):
+                    try:
+                        with database.unit_of_work() as uow:
+                            session = PlanningSessionApplicationService(uow, identity).reload_catalog(
+                                pending_reload[1], confirmed=True, expected_session_id=pending_reload[2], catalog=pending_reload[0])
+                    except ValueError as exc:
+                        st.error(str(exc))
+                        return
+                    st.session_state.pop("catalog-reload-request", None)
+                    st.session_state["planning-resumed"] = session.session_id
+                    _clear_period_widgets()
+                    st.rerun()
+                if st.button("Annuleren", key="cancel-reload-catalog"):
+                    st.session_state.pop("catalog-reload-request", None)
+                    st.rerun()
+                return
         try:
             catalog.bindings(period)
         except ValueError as exc:
             st.error(str(exc))
             return
         if active_session and active_session.source_revision and active_session.catalog is None:
-            st.warning("Deze bewaarde sessie heeft nog geen ingelezen lokale catalogus. Kies Reload catalog om met BL-14 te beginnen; bestaande gegevens en no-showbediening blijven tot bevestiging behouden.")
+            st.warning("Deze bewaarde sessie heeft nog geen ingelezen lokale catalogus. Kies Dienstencatalogus (roosterindeling) opnieuw laden in Diensten om met BL-14 te beginnen; bestaande gegevens en no-showbediening blijven tot bevestiging behouden.")
         if active_session is not None and active_period != period:
             st.caption(f"Actieve planningsperiode: {active_period.start:%d-%m-%Y} t/m {active_period.end:%d-%m-%Y}")
             st.warning("Bij het wijzigen van de planningsperiode worden alle tijdelijke indelingen verwijderd. "
@@ -307,8 +311,7 @@ def _render_planning():
             st.rerun()
         st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
-    with data_sources:
-        demo = st.radio("Gegevens", ("Sportlink en DVK-catalogus", "Demonstratie"), key="planning-source-mode") == "Demonstratie"
+    demo = False  # The normal planner always uses operational sources.
     if st.session_state.get("candidate-source-mode") != demo:
         st.session_state.pop("candidate-context", None)
         st.session_state.pop("candidate-load-key", None)
@@ -918,7 +921,7 @@ def _render_planning_screen(render=_render_planning):
 
 # Only retain scalar input values. Uploads and action/selection widgets follow
 # Streamlit's normal cleanup when their screen is no longer rendered.
-for _key in ("planning-mode", "planning-from", "planning-until", "planning-source-mode",
+for _key in ("planning-mode", "planning-from", "planning-until",
              "duty-control-date", "duty-control-period", "duty-control-filter"):
     if _key in st.session_state:
         st.session_state[_key] = st.session_state[_key]
