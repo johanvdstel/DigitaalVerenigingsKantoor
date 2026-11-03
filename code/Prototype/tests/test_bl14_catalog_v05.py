@@ -276,7 +276,9 @@ def test_reload_ui_cancel_confirm_invalid_and_unknown_source(operational_page):
         new = u.planning_sessions.get()
         assert new.session_id != old.session_id
         assert new.source_revision is None
-    assert any('Geen gevalideerde' in w.value for w in app.warning)
+    assert any(w.value == ('De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. '
+                           'Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen.')
+               for w in app.warning)
     (default_export_directory()/'shift_definitions.csv').unlink()
     app.button(key='reload-catalog').click().run()
     assert app.error and not app.exception

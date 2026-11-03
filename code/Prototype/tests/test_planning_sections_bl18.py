@@ -85,3 +85,43 @@ def test_matches_table_remains_available_in_collapsed_section(operational_page):
     assert expander.proto.expanded is False
     assert set(expander.dataframe[0].value.columns) == {"Datum", "Tijd", "Team", "Thuis/uit"}
     assert len(expander.dataframe[0].value) > 0
+
+
+OCCUPANCY_WARNING = (
+    "De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. "
+    "Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen."
+)
+
+
+def test_occupancy_warning_immediately_precedes_sync_and_tracks_source(tmp_path):
+    from test_planning_ui_names_v05 import page
+    from test_volunteer_planning_integration_v05 import sync
+    from dvk.shift_catalog import load_shift_catalog
+
+    app, db = page(tmp_path)
+    _, sources, duties, _, _ = sections(app)
+    assert not any("Geen gevalideerde Sportlink-bezetting" in w.value for w in app.warning)
+    assert not any(w.value == OCCUPANCY_WARNING for w in sources.warning)
+    fetch = next(e for e in duties.expander if e.label == "Feitelijke Sportlink-inroosteringen ophalen")
+    assert fetch.proto.expanded is False
+    children = list(fetch.children.values())
+    button_index = next(i for i, child in enumerate(children)
+                        if child.type == "button" and child.label == "Sportlink-inroosteringen synchroniseren")
+    assert children[button_index - 1].type == "warning"
+    assert children[button_index - 1].value == OCCUPANCY_WARNING
+    assert sum(w.value == OCCUPANCY_WARNING for w in app.warning) == 1
+
+    assert sync(db, load_shift_catalog(), {})[0] is None
+    app.run()
+    assert not app.exception
+    assert not any(w.value == OCCUPANCY_WARNING for w in app.warning)
+
+    # A new period has no validated occupancy; demo must still suppress the warning.
+    from datetime import timedelta
+    selected = app.date_input(key="planning-from").value
+    app.date_input(key="planning-from").set_value(selected + timedelta(days=7)).run()
+    app.button(key="confirm-period-change").click().run()
+    assert any(w.value == OCCUPANCY_WARNING for w in app.warning)
+    app.radio(key="planning-source-mode").set_value("Demonstratie").run()
+    assert not app.exception
+    assert not any(w.value == OCCUPANCY_WARNING for w in app.warning)

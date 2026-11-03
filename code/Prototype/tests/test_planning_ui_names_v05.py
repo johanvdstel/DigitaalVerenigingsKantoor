@@ -114,7 +114,7 @@ def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
     value = table.value[table.value.service_id == binding.service.service_id].iloc[0]["Sportlink"]
     assert table.proto.row_height == 32
     config = json.loads(table.proto.columns)
-    assert config["Sportlink"]["width"] == 320
+    assert config["Sportlink"]["width"] == 140
     assert config["Sportlink"]["type_config"]["type"] == "text"
     assert config["Sportlink"]["disabled"] is True
     assert "Dubbelklik" in config["Sportlink"]["help"]
