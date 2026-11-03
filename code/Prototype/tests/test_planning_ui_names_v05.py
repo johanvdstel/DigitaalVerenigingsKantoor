@@ -132,8 +132,8 @@ def test_source_controls_under_diensten_and_no_show_roundtrip(tmp_path, monkeypa
     app, db = page(tmp_path)
     # BL-18 moves Sportlink controls to Diensten, retaining the No-show roundtrip.
     nodes = list(app.main)
-    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 3 — Diensten")
-    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Kandidaten")
+    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Diensten")
+    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 5 — Kandidaten")
     sync_button = next(i for i,n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
     assert duties < sync_button < candidates
     assert any("Leden.csv wordt bij synchroniseren opnieuw" in c.value for c in app.caption)

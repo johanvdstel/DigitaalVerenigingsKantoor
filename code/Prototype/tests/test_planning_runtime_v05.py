@@ -1,4 +1,5 @@
 """BL-16 replaces PR #35's process-start deletion rule. Synthetic SQLite only."""
+from synthetic_demo_screen import use_synthetic_demo
 from ui_table_events import table as ui_table
 from datetime import date
 from pathlib import Path
@@ -125,7 +126,7 @@ def ui(tmp_path):
     app.button(key='nav-planning').click().run()
     assert prepare_planning(SQLiteDatabase(tmp_path / 'dvk_v05.sqlite')) is None
     app.button(key='activate-planning').click().run()
-    app.radio(key='planning-source-mode').set_value('Demonstratie').run()
+    use_synthetic_demo(app)
     assert not app.exception
     return app, SQLiteDatabase(tmp_path / 'dvk_v05.sqlite'), path
 

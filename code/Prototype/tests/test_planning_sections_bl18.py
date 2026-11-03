@@ -1,4 +1,5 @@
 """BL-18 presentation and preserved native service selection; synthetic only."""
+from synthetic_demo_screen import use_synthetic_demo
 from dataclasses import replace
 
 from test_candidate_context_ui_v05 import operational_page
@@ -9,7 +10,7 @@ from ui_table_events import table, choose_service, pick
 
 
 HEADINGS = [f"## {i} — {name}" for i, name in enumerate(
-    ("Instellingen", "Databronnen", "Diensten", "Kandidaten", "Wedstrijden"), 1)]
+    ("Instellingen", "Databronnen", "Wedstrijden", "Diensten", "Kandidaten"), 1)]
 
 
 def sections(app):
@@ -19,13 +20,13 @@ def sections(app):
 
 def test_five_sections_and_controls_in_agreed_order(operational_page):
     app, _, _ = operational_page
-    settings, sources, duties, candidates, fixtures = sections(app)
+    settings, sources, fixtures, duties, candidates = sections(app)
     assert [block.markdown[0].value for block in sections(app)] == HEADINGS
     assert settings.radio(key="planning-mode")
     assert settings.date_input(key="planning-from")
     assert settings.text_input(key="candidate-season")
     assert all(block.proto.expanded is False for block in sections(app))
-    assert sources.radio(key="planning-source-mode")
+    assert not any(r.key == "planning-source-mode" for r in app.radio)
     assert sources.button(key="load-candidate-sources")
     assert any(m.value == "### Datakwaliteit" for m in sources.markdown)
     assert any(e.label == "Bronstatus en actualiteit" for e in sources.expander)
@@ -78,9 +79,9 @@ def test_service_context_and_widget_identity_survive_actions(operational_page):
 
 def test_matches_table_remains_available_in_collapsed_section(operational_page):
     app, _, _ = operational_page
-    app.radio(key="planning-source-mode").set_value("Demonstratie").run()
+    use_synthetic_demo(app)
     assert not app.exception
-    fixtures = sections(app)[4]
+    fixtures = sections(app)[2]
     expander = fixtures
     assert expander.proto.expanded is False
     assert set(expander.dataframe[0].value.columns) == {"Datum", "Tijd", "Team", "Thuis/uit"}
@@ -99,7 +100,7 @@ def test_occupancy_warning_immediately_precedes_sync_and_tracks_source(tmp_path)
     from dvk.shift_catalog import load_shift_catalog
 
     app, db = page(tmp_path)
-    _, sources, duties, _, _ = sections(app)
+    _, sources, _, duties, _ = sections(app)
     assert not any("Geen gevalideerde Sportlink-bezetting" in w.value for w in app.warning)
     assert not any(w.value == OCCUPANCY_WARNING for w in sources.warning)
     fetch = next(e for e in duties.expander if e.label == "Feitelijke Sportlink-inroosteringen ophalen")
@@ -122,6 +123,49 @@ def test_occupancy_warning_immediately_precedes_sync_and_tracks_source(tmp_path)
     app.date_input(key="planning-from").set_value(selected + timedelta(days=7)).run()
     app.button(key="confirm-period-change").click().run()
     assert any(w.value == OCCUPANCY_WARNING for w in app.warning)
-    app.radio(key="planning-source-mode").set_value("Demonstratie").run()
+    use_synthetic_demo(app)
     assert not app.exception
     assert not any(w.value == OCCUPANCY_WARNING for w in app.warning)
+
+
+def test_catalog_controls_position_text_confirmation_and_no_extra_fetch(operational_page):
+    app, db, observed = operational_page
+    _, sources, _, duties, _ = sections(app)
+    label = 'Dienstencatalogus (roosterindeling) opnieuw laden'
+    explanation = ('Leest de roosterindeling opnieuw in. Na bevestiging begint een nieuwe '
+                   'planningssessie en vervalt de tijdelijke planning.')
+    assert duties.button(key='reload-catalog').label == label
+    assert any(c.value == explanation for c in duties.caption)
+    assert not any(b.key == 'reload-catalog' for b in sources.button)
+    children = list(duties.children.values())
+    catalog_index = next(i for i, c in enumerate(children)
+                         if c.type == 'flex_container' and any(b.key == 'reload-catalog' for b in c.button))
+    assert any(e.label == 'Feitelijke Sportlink-inroosteringen ophalen'
+               for e in children[catalog_index + 1].expander)
+    before = len(observed)
+    with db.unit_of_work() as u:
+        session = u.planning_sessions.get()
+    app.button(key='reload-catalog').click().run()
+    duties = sections(app)[3]
+    assert duties.button(key='confirm-reload-catalog')
+    assert duties.button(key='cancel-reload-catalog')
+    assert not app.exception and len(observed) == before
+    app.button(key='cancel-reload-catalog').click().run()
+    assert not app.exception and len(observed) == before
+    with db.unit_of_work() as u:
+        assert u.planning_sessions.get() == session
+
+
+def test_stale_demo_widget_cannot_select_demo_or_avoid_source_validation(operational_page, monkeypatch):
+    from dvk.candidate_context import CandidateSourceError
+    app, _, _ = operational_page
+    app.session_state['planning-source-mode'] = 'Demonstratie'
+    def failure(*a, **k):
+        raise CandidateSourceError('Synthetische bronfout; geen demonstratieterugval')
+    monkeypatch.setattr(CandidateContextApplicationService, 'load', failure)
+    app.button(key='load-candidate-sources').click().run()
+    assert not app.exception
+    assert not any(r.label == 'Gegevens' for r in app.radio)
+    assert not app.session_state['candidate-source-mode']
+    assert any('geen demonstratieterugval' in e.value for e in app.error)
+    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
