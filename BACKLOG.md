@@ -234,23 +234,25 @@ De hierboven als voorgenomen beschreven correcties zijn inmiddels **functioneel 
 
 ## Actuele vervolgplanning na Planner-overleg — 3 november 2026
 
-**Status: planning en functionele afspraken; Iteratie 8 en 9 zijn nog niet geïmplementeerd of geaccepteerd.** Deze sectie vervangt oudere uitspraken dat direct na Iteratie 7add de integrale v0.5-acceptatie volgt. Historische statusnotities blijven herkenbaar als momentopnamen. Iteraties 1, 2, 3, 4, 5, 6 en 7add zijn afgerond; [PR #63](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/63) is volgens de overdracht gemerged (mergecommit `db6fc1773362880663b8fe5b34b40e58434e107d`).
+**Status: Iteratie 8 lokaal functioneel geaccepteerd (PR #65 nog niet gemerged); Iteratie 9 nog niet geïmplementeerd of geaccepteerd.** Deze sectie vervangt oudere uitspraken dat direct na Iteratie 7add de integrale v0.5-acceptatie volgt. Historische statusnotities blijven herkenbaar als momentopnamen. Iteraties 1, 2, 3, 4, 5, 6 en 7add zijn afgerond; [PR #63](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/63) is volgens de overdracht gemerged (mergecommit `db6fc1773362880663b8fe5b34b40e58434e107d`).
 
 | Stap | Onderwerp | Status |
 | --- | --- | --- |
-| 8 | Databronnen en schermindeling | Gepland; vier voorstellen, functionele uitwerking en akkoord nog nodig |
+| 8 | Databronnen en schermindeling | Lokaal functioneel geaccepteerd op `6925532`; draft-PR #65 nog niet gemerged |
 | 9 | Kandidaatselectie en prioritering | Gepland; onderstaande functionele uitgangspunten overeengekomen, contract- en codetoets nog nodig |
 | 10 | Integrale functionele acceptatie v0.5 | Geplande acceptatiemijlpaal, geen reguliere ontwikkeliteratie |
 | Daarna | BL-13 — RPA Sportlink | Afzonderlijk traject; eerst haalbaarheidsproef |
 
-### Iteratie 8 — voorstellen, nog uit te werken
+### Iteratie 8 — functioneel geaccepteerd, PR #65 nog niet gemerged
 
-1. **UI-1:** sectie Wedstrijden direct na Databronnen plaatsen, inclusief consistente sectienummering en controle van verwijzingen in meldingen, instructies en tests.
-2. **UI-2:** knop `Reload Catalog` van Diensten naar Databronnen verplaatsen met behoud van werking. Begrijpelijke Nederlandse naam en exacte plaats nog overeen te komen.
-3. **UI-3:** bronactualiteit begrijpelijk presenteren. Eerst per bron onderzoeken of het echte ophaaltijdstip, het betrouwbare lokale download-/aanmaaktijdstip en/of het DVK-inleestijdstip beschikbaar is. Een inleestijdstip nooit zonder bewijs als downloadtijdstip tonen. Presentatie nog afstemmen.
-4. **UI-4:** operationele keuze Demonstratie en mogelijk overbodige keuze Sportlink/DVK-catalogus onderzoeken en zo mogelijk verwijderen uit de operationele UI. Technische test- en synthetische voorzieningen behouden waar nodig; gevolgen eerst onderzoeken.
+**Status 3 november 2026:** Iteratie 8 is door CKC lokaal functioneel geaccepteerd op codecommit `69255327dcf5fc35a578bc12ace985afa0ffe900` in [draft-PR #65](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/65), **nog niet gemerged**. De vier UI-onderdelen zijn visueel goedgekeurd; catalogus-herladen met annuleren en bevestigen is lokaal geslaagd. Technisch: 1506 regressietests, 11 synthetische acceptatiescripts en [CI #422](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/actions/runs/41730239295) geslaagd. Iteratie 9 blijft gepland en niet geïmplementeerd; Iteratie 10 blijft de integrale acceptatiemijlpaal.
 
-**Nog open:** code- en broncontractonderzoek, precieze labels en presentatie, effecten op tests en operationele bronverwerking, definitieve scope en acceptatiecriteria. Bestaande read-only grenzen blijven gelden. Geen Codex-implementatie vóór afzonderlijk functioneel akkoord.
+1. **UI-1 — Schermindeling:** vijf standaard ingeklapte rubrieken in volgorde Instellingen, Databronnen, Wedstrijden, Diensten, Kandidaten; bestaande werking behouden.
+2. **UI-2 — Dienstencatalogus:** knop **Dienstencatalogus (roosterindeling) opnieuw laden** met uitleg onder Diensten, direct boven **Feitelijke Sportlink-inroosteringen ophalen**. Bestaande bevestiging, annulering, sessievervanging en bescherming van duurzame no-showfeiten behouden. Beide paden lokaal geslaagd.
+3. **UI-3 — Bronactualiteit:** acht bronnen met één kolom **Laatst ingelezen door DVK**; CSV toont bestaand DVK-inleesmoment, API toont begin van DVK-ophaalactie (geen Sportlink-actualisatietijd); onbekende tijden **Onbekend**. Historische urenbron heeft type **CSV**; de bron blijft functioneel optioneel.
+4. **UI-4 — Operationele bronnen:** demonstratie-/bronkeuzeradio verwijderd uit de gewone Planner. Operationele Sportlink- en CKC-bronnen standaard; synthetische tests behouden zonder nieuwe gebruikersroute of stille demonstratieterugval.
+
+**Acceptatiegrens:** dit is lokale functionele acceptatie van Iteratie 8 op de genoemde codecommit, niet de merge van PR #65, niet de integrale v0.5-acceptatie en geen productieacceptatie. Geen nieuwe Sportlink-schrijfbevoegdheid.
 
 ### Iteratie 9 — overeengekomen functionele uitgangspunten, nog niet gebouwd
 
