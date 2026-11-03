@@ -149,3 +149,40 @@ Het [functioneel ontwerp Planningssessies](code/Prototype/DVK-v0.5-planningssess
 ### Acceptatie Iteratie 7add — UI-correcties (3 november 2026)
 
 **Functioneel geaccepteerd door CKC** op codecommit `e4d6a9df5c599a47751ea79fa3366dd18ac7b3f5` in [draft-PR #63](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/63), nog niet gemerged. De waarschuwing over nog niet opgehaalde actuele Sportlink-bezetting staat bij de synchronisatieknop in sectie 3 Diensten. Na twee correctierondes zijn Dienst 110 px, Sportlink 140 px en Vrije capaciteit 65 px geaccepteerd. Bij de lokale visuele controle waren de waarden van Vrije capaciteit volledig zichtbaar zonder horizontaal scrollen; de kop mag afgekapt zijn. Dienstnamen zijn voldoende leesbaar en volledige Sportlink-namen zijn via dubbelklik beschikbaar. 131 gerichte tests, 1502 volledige regressietests, 11 synthetische runners en CI #414 geslaagd. Zie [acceptatieverslag](code/Prototype/DVK-v0.5-iteratie7add-acceptatie.md). De **volgende mijlpaal is integrale functionele acceptatie van prototype v0.5**. Onderzoek van de langdurige lokale Streamlit-opstart wordt apart gepland; BL-13/RPA blijft een afzonderlijk vervolgtraject na v0.5.
+
+
+## Actuele vervolgplanning na Planner-overleg — 3 november 2026
+
+**Status: planning en functionele afspraken; Iteratie 8 en 9 zijn nog niet geïmplementeerd of geaccepteerd.** Deze sectie vervangt oudere uitspraken dat direct na Iteratie 7add de integrale v0.5-acceptatie volgt. Historische statusnotities blijven herkenbaar als momentopnamen. Iteraties 1, 2, 3, 4, 5, 6 en 7add zijn afgerond; [PR #63](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/63) is volgens de overdracht gemerged (mergecommit `db6fc1773362880663b8fe5b34b40e58434e107d`).
+
+| Stap | Onderwerp | Status |
+| --- | --- | --- |
+| 8 | Databronnen en schermindeling | Gepland; vier voorstellen, functionele uitwerking en akkoord nog nodig |
+| 9 | Kandidaatselectie en prioritering | Gepland; onderstaande functionele uitgangspunten overeengekomen, contract- en codetoets nog nodig |
+| 10 | Integrale functionele acceptatie v0.5 | Geplande acceptatiemijlpaal, geen reguliere ontwikkeliteratie |
+| Daarna | BL-13 — RPA Sportlink | Afzonderlijk traject; eerst haalbaarheidsproef |
+
+### Iteratie 8 — voorstellen, nog uit te werken
+
+1. **UI-1:** sectie Wedstrijden direct na Databronnen plaatsen, inclusief consistente sectienummering en controle van verwijzingen in meldingen, instructies en tests.
+2. **UI-2:** knop `Reload Catalog` van Diensten naar Databronnen verplaatsen met behoud van werking. Begrijpelijke Nederlandse naam en exacte plaats nog overeen te komen.
+3. **UI-3:** bronactualiteit begrijpelijk presenteren. Eerst per bron onderzoeken of het echte ophaaltijdstip, het betrouwbare lokale download-/aanmaaktijdstip en/of het DVK-inleestijdstip beschikbaar is. Een inleestijdstip nooit zonder bewijs als downloadtijdstip tonen. Presentatie nog afstemmen.
+4. **UI-4:** operationele keuze Demonstratie en mogelijk overbodige keuze Sportlink/DVK-catalogus onderzoeken en zo mogelijk verwijderen uit de operationele UI. Technische test- en synthetische voorzieningen behouden waar nodig; gevolgen eerst onderzoeken.
+
+**Nog open:** code- en broncontractonderzoek, precieze labels en presentatie, effecten op tests en operationele bronverwerking, definitieve scope en acceptatiecriteria. Bestaande read-only grenzen blijven gelden. Geen Codex-implementatie vóór afzonderlijk functioneel akkoord.
+
+### Iteratie 9 — overeengekomen functionele uitgangspunten, nog niet gebouwd
+
+- **Teamclassificatie:** Sportlink-teamnamen die beginnen met `JO`, `O` of `MO`, direct gevolgd door een leeftijdscategorie tot en met 20, gelden als jeugd (bijv. `JO7`, `O9-1`, `JO19-2`, `MO15`, `MO17-2`, `O20`). `O23`/`MO23` en alle andere teamnamen (bijv. `CKC 1`, `VR1`, `Zon2`) gelden als senioren. Dit vervangt voor deze selectie het individuele leeftijdsonderscheid.
+- **Zaterdagochtend:** dienststart vóór 12:30: eerst geschikte ouders/verzorgers van spelers uit thuisspelende jeugdteams met overlappende wedstrijd; daarna geschikte spelers van thuisspelende seniorenteams zonder wedstrijdconflict. Dienststart is bepalend, ook wanneer de dienst na 12:30 eindigt. Voor jeugdwedstrijden geldt aanvang + twee uur.
+- **Zaterdagmiddag:** dienststart vanaf 12:30: eerst geschikte spelers van thuisspelende seniorenteams zonder wedstrijdconflict. Jeugdouders niet in de middagvoorkeursgroep. Seniorenspelers mogen ook 's ochtends worden voorgesteld zonder wedstrijdconflict. Bestaande wedstrijdmarges blijven gelden.
+- **Noodgroepen:** na voorkeursgroepen eerst geschikte kandidaten van teams zonder wedstrijd (noodoptie 1), daarna geschikte kandidaten van uitspelende teams zonder wedstrijdconflict (noodoptie 2). Zaterdag- en zondagteams niet mengen. Toepassing van jeugdouder-/seniorenspelerregels binnen noodgroepen nog toetsen.
+- **Rangschikking binnen elke groep:** eerst meeste openstaande uren van huidig seizoen; bij gelijke actuele achterstand meeste openstaande uren van vorig seizoen. Groepsprioriteit gaat vóór uren. De UI toont dezelfde volgorde.
+- **Historische achterstand:** achterstand van vorig seizoen telt het gehele huidige seizoen mee; eerdere beperking tot juli–december vervalt; geen afbouwfactor. Dit is een **nieuwe geplande beleidswijziging**, niet de al geïmplementeerde BL-03-regel.
+- **Behoud:** taakplicht, vrijstellingen, ouderrelaties, geschiktheid, wedstrijdmarges, bronvalidatie en menselijke goedkeuring blijven gelden. Geen automatische Sportlink-writeback.
+
+**Nog open:** volledige combinatietoets aan bestaande code, functionele contracten en geaccepteerde regressies; precisering van noodgroepen en eventuele tegenstrijdigheden. Geen zelfstandige interpretaties of implementatie zonder CKC-besluit.
+
+### Acceptatie en afzonderlijk aandachtspunt
+
+Iteratie 10 beoordeelt integraal bronnen en actualiteit, taakplicht, selectie en wedstrijdcontext, historische uren, tijdelijke planning en goedkeuring, Sportlink-bezetting/synchronisatie, no-shows en portaalnavigatie. Eerdere acceptaties waar mogelijk hergebruiken. Prototypeacceptatie is geen productieacceptatie. De trage lokale Streamlit-start blijft een afzonderlijk bij voorkeur read-only technisch onderzoek zonder vastgestelde oorzaak; niet zonder bewijs aan PR #63 toeschrijven. BL-13 blijft een later afzonderlijk traject zonder verleende Sportlink-schrijfbevoegdheid.
