@@ -14,8 +14,7 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
                          volunteer_attempt=None, volunteer_matching=False, demo=False):
     rows = []
     def add(name, kind, moment, status, usable, note=''):
-        rows.append({'Databron': name, 'Type': kind, 'Laatst ingelezen door DVK': _time(moment) if kind.startswith('CSV') else 'Onbekend',
-                     'Laatst opgehaald door DVK': _time(moment) if kind == 'API' else 'Onbekend',
+        rows.append({'Databron': name, 'Type': kind, 'Laatst ingelezen door DVK': _time(moment),
                      'Status': status, 'Bruikbaarheid': usable, 'Toelichting': note})
     for dataset, filename in EXPORT_FILENAMES.items():
         loaded = context is not None and filename in context.source_files
@@ -26,7 +25,7 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
             '; '.join(sorted({s.message for s in signals})) if loaded else
             (load_error or 'Nog niet ingelezen; beschikbaarheid niet vastgesteld.'))
     history = context.historical_backlog if context else None
-    add(HISTORICAL_FILENAME, 'CSV (optioneel)', history.loaded_at if history else None,
+    add(HISTORICAL_FILENAME, 'CSV', history.loaded_at if history else None,
         ('Ingelezen' if history.available else 'Niet beschikbaar / onbruikbaar') if history else 'Niet geladen',
         ('Deels bruikbaar; zie bronmeldingen' if history.signals else 'Beschikbaar')
         if history and history.available else 'Historie niet meegewogen; planning blijft bruikbaar',
@@ -61,6 +60,6 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
             'Niet bruikbaar; zie bronmeldingen' if context.error else 'Beschikbaar', note)
     if demo:
         for row in rows:
-            row.update({'Laatst ingelezen door DVK': 'Onbekend', 'Laatst opgehaald door DVK': 'Onbekend', 'Status': 'Demonstratie',
+            row.update({'Laatst ingelezen door DVK': 'Onbekend', 'Status': 'Demonstratie',
                         'Bruikbaarheid': 'Synthetische planning', 'Toelichting': 'Demonstratie toont geen actuele bronstatus.'})
     return rows

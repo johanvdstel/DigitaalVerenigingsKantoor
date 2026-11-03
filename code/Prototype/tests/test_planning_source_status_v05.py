@@ -12,7 +12,6 @@ from test_candidate_context_ui_v05 import operational_page
 
 MOMENT = datetime.fromisoformat('2026-10-20T12:34:00+02:00')
 TIME = 'Laatst ingelezen door DVK'
-API_TIME = 'Laatst opgehaald door DVK'
 
 
 def indexed(**kwargs):
@@ -34,6 +33,7 @@ def test_known_csv_time_and_optional_history_are_independent():
     for filename in EXPORT_FILENAMES.values():
         assert rows[filename][TIME] == '20-10-2026 12:34'
         assert rows[filename]['Status'] == 'Ingelezen'
+    assert rows[HISTORICAL_FILENAME]['Type'] == 'CSV'
     assert rows[HISTORICAL_FILENAME][TIME] == 'Onbekend'
     assert 'planning blijft bruikbaar' in rows[HISTORICAL_FILENAME]['Bruikbaarheid']
     assert rows['Sportlink Programma']['Status'] == 'Technisch geslaagd'
@@ -87,7 +87,7 @@ def test_program_transport_failure_and_semantic_failure_are_distinct():
     ctx = context()
     failed = indexed(context=replace(ctx, program=None, error='Programma API niet beschikbaar'))['Sportlink Programma']
     assert failed['Status'] == 'Aanvraag mislukt'
-    assert failed[API_TIME] == 'Onbekend'
+    assert failed[TIME] == 'Onbekend'
     invalid = indexed(context=replace(ctx, error='Teamkoppeling onbekend'))['Sportlink Programma']
     assert invalid['Status'] == 'Technisch geslaagd'
     assert invalid['Bruikbaarheid'].startswith('Niet bruikbaar')
@@ -102,7 +102,7 @@ def test_volunteer_failure_preserves_last_success_time_and_usability():
     row = indexed(volunteer_success=success, volunteer_matching=True,
                   volunteer_attempt={'status': 'Mislukt', 'message': 'Synthetische netwerkfout'})['Sportlink Vrijwilligers']
     assert row['Status'] == 'Laatste verversing mislukt'
-    assert row[API_TIME] == '20-10-2026 12:34'
+    assert row[TIME] == '20-10-2026 12:34'
     assert row['Bruikbaarheid'] == 'Gevalideerd voor gekozen periode'
     assert 'Vorige bron behouden' in row['Toelichting']
 
@@ -112,6 +112,10 @@ def test_ui_shows_complete_table_and_refresh_preserves_planning(operational_page
     detail = next(e for e in app.expander if e.label == 'Bronstatus en actualiteit')
     assert len(detail.dataframe[0].value) == 8
     assert detail.dataframe[0].value.Databron.tolist() == list(indexed())
+    assert detail.dataframe[0].value.columns.tolist() == [
+        'Databron', 'Type', TIME, 'Status', 'Bruikbaarheid', 'Toelichting']
+    historical_row = detail.dataframe[0].value.set_index('Databron').loc[HISTORICAL_FILENAME]
+    assert historical_row['Type'] == 'CSV'
     app.button(key='load-candidate-sources').click().run()
     assert not app.exception
     assert len(observed) == 2
@@ -130,6 +134,7 @@ def test_available_history_time_and_partial_warnings_are_preserved():
     history = HistoricalBacklogSource(True, signals=(signal,), message='Planner borgt vorig seizoen.', loaded_at=MOMENT)
     row = indexed(context=replace(context(), historical_backlog=history))[HISTORICAL_FILENAME]
     assert row[TIME] == '20-10-2026 12:34'
+    assert row['Type'] == 'CSV'
     assert row['Status'] == 'Ingelezen'
     assert row['Bruikbaarheid'] == 'Deels bruikbaar; zie bronmeldingen'
     assert row['Toelichting'] == history.message
@@ -146,23 +151,23 @@ def test_regular_source_warnings_do_not_claim_whole_source_unusable():
     assert row['Toelichting'] == signal.message
 
 
-def test_csv_and_api_times_have_distinct_exact_labels_and_original_values():
+def test_csv_and_api_times_share_one_exact_label_and_keep_original_values():
     ctx = replace(context(), csv_loaded_at=MOMENT, fetched_at=MOMENT)
     success = dict(start='2026-10-19', end='2026-10-25', fetched_at=MOMENT.isoformat())
     rows = indexed(context=ctx, volunteer_success=success)
     assert len(rows) == 8
+    assert all(list(r) == ['Databron', 'Type', TIME, 'Status', 'Bruikbaarheid', 'Toelichting']
+               for r in rows.values())
     for name in EXPORT_FILENAMES.values():
         assert rows[name][TIME] == '20-10-2026 12:34'
-        assert rows[name][API_TIME] == 'Onbekend'
     for name in ('Sportlink Programma', 'Sportlink Vrijwilligers'):
-        assert rows[name][API_TIME] == '20-10-2026 12:34'
-        assert rows[name][TIME] == 'Onbekend'
+        assert rows[name][TIME] == '20-10-2026 12:34'
         assert 'begin van de DVK-' in rows[name]['Toelichting']
         assert 'actualisatie in Sportlink' in rows[name]['Toelichting']
-    assert all(r[TIME] == r[API_TIME] == 'Onbekend' for r in indexed().values())
+    assert all(r[TIME] == 'Onbekend' for r in indexed().values())
 
 
 def test_failed_volunteer_first_attempt_has_unknown_success_time():
     row = indexed(volunteer_attempt={'status': 'Mislukt', 'message': 'Synthetisch'})['Sportlink Vrijwilligers']
-    assert row[API_TIME] == 'Onbekend'
+    assert row[TIME] == 'Onbekend'
     assert row['Status'] == 'Laatste verversing mislukt'
