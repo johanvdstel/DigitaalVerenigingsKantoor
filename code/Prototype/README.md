@@ -400,12 +400,11 @@ Rooster Generator blijft gericht op vooraf bepaalde tijdvakken. Zijn bestaande
 exacte/overlapadapterpaden zijn ongewijzigd; de aanvullende dienstinterpretatie
 wordt uitsluitend in de Ledendienst Planning-keten geactiveerd.
 
-### Reload catalog
+### Dienstencatalogus (roosterindeling) opnieuw laden
 
 De geladen catalogus hoort bij de duurzame planningssessie en blijft bij
 navigatie of procesherstart behouden. Bewerken van de bestanden wijzigt die
-sessie niet. Kies in **Instellingen** `Reload catalog`: DVK leest/valideert beide
-bestanden, toont de waarschuwing en wacht op **Reload catalog bevestigen**.
+sessie niet. Kies onder **Ledendienst Planning → 4. Diensten** de knop **Dienstencatalogus (roosterindeling) opnieuw laden**, direct boven **Feitelijke Sportlink-inroosteringen ophalen**. DVK leest/valideert beide bestanden, toont de waarschuwing en wacht op **Opnieuw laden bevestigen**.
 Die bevestiging beëindigt de huidige sessie en tijdelijke indelingen en start
 altijd een nieuwe sessie, ook bij ongewijzigde bestanden. Daarna is de
 Sportlink-bezetting onbekend totdat handmatig succesvol opnieuw is opgehaald.
@@ -416,3 +415,8 @@ configuratie in de bestaande sessieopslag, zonder schemawijziging of migratie.
 Een oude gevalideerde sessie zonder catalogus vraagt voor planning om een
 bevestigde reload; bestaande werkgegevens worden niet automatisch verwijderd.
 No-showbediening op de bewaarde broncontext blijft beschikbaar.
+
+
+### Iteratie 8 — schermindeling en bronactualiteit (3 november 2026)
+
+CKC heeft Iteratie 8 lokaal functioneel geaccepteerd op codecommit `69255327dcf5fc35a578bc12ace985afa0ffe900` in [draft-PR #65](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/65), nog niet gemerged. De vijf standaard ingeklapte secties zijn: 1 Instellingen, 2 Databronnen, 3 Wedstrijden, 4 Diensten en 5 Kandidaten. De gewone Planner toont geen demonstratie-/bronkeuzeradio; synthetische tests blijven beschikbaar. Onder **Databronnen → Bronstatus en actualiteit** staan acht bronnen met één tijdkolom **Laatst ingelezen door DVK**. CSV-tijden zijn lokale DVK-inleesmomenten; API-tijden zijn het begin van de DVK-ophaalactie, niet de actualisatietijd van Sportlink. Ontbrekende tijden heten **Onbekend**. `Overzicht per periode vorig seizoen.csv` toont type **CSV**, maar blijft functioneel optioneel. De catalogusbediening staat onder Diensten zoals hierboven beschreven; annuleren en bevestigen zijn lokaal getest. 1506 regressietests, 11 synthetische scripts en CI #422 geslaagd. Iteratie 9 (kandidaatselectie) is nog niet geïmplementeerd; Iteratie 10 blijft de integrale v0.5-acceptatie. Zie [acceptatieverslag](DVK-v0.5-iteratie8-acceptatie.md).
