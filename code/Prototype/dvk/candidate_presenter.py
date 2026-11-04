@@ -19,8 +19,14 @@ def priority_explanation(proposal) -> str:
             parts.append("Achterstallige uren uit vorig seizoen zijn nog niet beschikbaar en tellen niet mee.")
         elif rule.startswith("wedstrijdvoorkeur="):
             parts.append({
-                "neutral": "Wedstrijdcontext geeft geen voorkeur.",
-                "preferred": "Wedstrijdcontext geeft deze kandidaat voorrang bij gelijke urenprioriteit.",
-                "avoid": "Wedstrijdcontext geeft deze kandidaat minder voorkeur bij gelijke urenprioriteit.",
+                "same_day_emergency": "Noodkandidaat: al tijdelijk ingepland op dezelfde dag.",
+                "neutral": "Noodgroep zonder wedstrijd; binnen de groep bepalen de uren de volgorde.",
+                "youth_home": "Eerste voorkeursgroep: jeugdteam met een overlappende thuiswedstrijd, dienststart vóór 12:30.",
+                "preferred": "Wedstrijdcontext geeft deze kandidaat voorrang vóór de noodgroepen; binnen de groep bepalen de uren de volgorde.",
+                "avoid": "Wedstrijdcontext geeft deze kandidaat een plaats in de noodgroep uitwedstrijd zonder wedstrijdconflict.",
             }[rule.split("=", 1)[1]])
+        elif rule == "jeugd thuis zonder overlap: noodgroep zonder wedstrijd":
+            parts.append("Jeugdteam met een niet-overlappende thuiswedstrijd: ingedeeld in de prioriteringscategorie zonder wedstrijd; het team speelt wel thuis.")
+        elif rule == "andere teamspeeldag: laatste noodgroep":
+            parts.append("Andere teamspeeldag: laatste noodgroep, uitsluitend bij tekort aan minimumbezetting.")
     return " ".join(parts)

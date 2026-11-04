@@ -19,7 +19,9 @@ REJECTION_CATEGORIES = frozenset({
 })
 
 
-def _match_for_assessment(assessment: CandidateAssessment, service: DutyService, matches: tuple[Match, ...]) -> Match | None:
+def match_for_assessment(assessment: CandidateAssessment, service: DutyService, matches: tuple[Match, ...]) -> Match | None:
+    if assessment.match_id is not None:
+        return next((m for m in matches if m.match_id == assessment.match_id), None)
     if assessment.team_id is None: return None
     return next((m for m in matches if m.team_id == assessment.team_id and m.starts_at.date() == service.starts_at.date()), None)
 
@@ -31,7 +33,7 @@ def create_assignment_proposal(proposal_id: str, service: DutyService, case: Pro
     if not assessment.eligible: raise ValueError("cannot create a proposal for an ineligible candidate")
     registration = case.sportlink_duty
     if registration is None or registration.required_hours is None: raise ValueError("complete A/B/C/D duty position required for proposal")
-    position = duty_position_from_registration(registration); match = _match_for_assessment(assessment, service, matches)
+    position = duty_position_from_registration(registration); match = match_for_assessment(assessment, service, matches)
     uncertainties = []
     if assessment.team_id is None: uncertainties.append("team_unknown")
     if assessment.match_relation in {"no_match_context", "no_match_that_day"}: uncertainties.append("match_context_incomplete")
