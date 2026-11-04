@@ -49,6 +49,7 @@ class CandidateAssessment:
     preference: str
     exclusion_reason: str | None = None
     planning_relation: str | None = None
+    match_id: str | None = None
 
 
 @dataclass(frozen=True)

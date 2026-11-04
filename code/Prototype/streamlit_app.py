@@ -392,7 +392,7 @@ def _render_planning():
     candidate_result = None
     with data_sources:
         if not demo:
-            st.caption("Historische urenbron: Overzicht per periode vorig seizoen.csv. Achterstanden tellen uitsluitend mee voor diensten van juli tot en met december.")
+            st.caption("Historische urenbron: Overzicht per periode vorig seizoen.csv. Positieve achterstanden tellen het volledige lopende seizoen mee, na de voorkeursgroep en de actuele openstaande uren.")
             st.caption(export_location_hint())
             with settings:
                 source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")

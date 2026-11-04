@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .model import Decision, PrototypeCase
 from .recommendation_planner import RecommendationPlan
+from .proposals import match_for_assessment
 from .workstream_model import (
     CandidateAssessment, CandidatePriority, DashboardCandidateRow, DashboardDutyRow,
     DashboardNotProposedRow, DashboardServiceRow, DashboardViewModel, DutyService,
@@ -12,12 +13,6 @@ from .workstream_model import (
 def _team_for_person(person_id: str, team_memberships: tuple[TeamMembership, ...]) -> str | None:
     membership = next((item for item in team_memberships if item.person_id == person_id), None)
     return membership.team_id if membership else None
-
-
-def _match_for_team(team_id: str | None, service: DutyService, matches: tuple[Match, ...]) -> Match | None:
-    if team_id is None:
-        return None
-    return next((m for m in matches if m.team_id == team_id and m.starts_at.date() == service.starts_at.date()), None)
 
 
 def build_dashboard(
@@ -60,7 +55,7 @@ def build_dashboard(
     for priority in recommended:
         assessment = assessments_by_key[(priority.service_id, priority.person_id)]
         service = services_by_id[priority.service_id]
-        match = _match_for_team(assessment.team_id, service, matches)
+        match = match_for_assessment(assessment, service, matches)
         equal_count = sum(1 for row in recommended if row.service_id == priority.service_id)
         candidate_rows.append(DashboardCandidateRow(
             priority.service_id, priority.person_id, cases_by_person[priority.person_id].person.name,
@@ -77,7 +72,7 @@ def build_dashboard(
         if key in recommended_keys or assessment.person_id not in cases_by_person:
             continue
         service = services_by_id[assessment.service_id]
-        match = _match_for_team(assessment.team_id, service, matches)
+        match = match_for_assessment(assessment, service, matches)
         if not assessment.eligible:
             reason = assessment.exclusion_reason or "voldoet niet aan de kandidaatvoorwaarden"
         elif key in recommendation_plan.skipped_same_day:
@@ -95,6 +90,6 @@ def build_dashboard(
     return DashboardViewModel(
         tuple(sorted(duty_rows, key=lambda r: (-r.remaining_hours, r.name))),
         tuple(sorted(service_rows, key=lambda r: r.starts_at)),
-        tuple(sorted(candidate_rows, key=lambda r: (services_by_id[r.service_id].starts_at, r.name))),
+        tuple(sorted(candidate_rows, key=lambda r: (services_by_id[r.service_id].starts_at, r.rank))),
         tuple(sorted(not_proposed, key=lambda r: (services_by_id[r.service_id].starts_at, r.name))),
     )

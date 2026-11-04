@@ -107,8 +107,8 @@ def test_local_loading_in_operational_context_and_refresh():
 
 
 @pytest.mark.parametrize('year', [2026, 2027])
-@pytest.mark.parametrize('month,day,consider', [(6,30,False),(7,1,True),(11,30,True),
-                                               (12,1,True),(12,31,True),(1,1,False)])
+@pytest.mark.parametrize('month,day,consider', [(6,30,True),(7,1,True),(11,30,True),
+                                               (12,1,True),(12,31,True),(1,1,True)])
 def test_all_boundaries_use_service_date_and_repeat_annually(year,month,day,consider):
     ctx = replace(context(), historical_backlog=history([history_row()]))
     s = service()
@@ -123,12 +123,12 @@ def test_all_boundaries_use_service_date_and_repeat_annually(year,month,day,cons
     assert result.priorities[0].previous_season_backlog == (6 if consider else 0)
 
 
-def test_priority_order_current_then_history_then_match_and_stable_id():
+def test_iteration9_priority_order_group_then_current_then_history_then_stable_id():
     result = propose(context(data_with_two()))
     assessments = tuple(replace(a,preference='preferred' if a.person_id=='M1' else 'neutral')
                         for a in result.assessments)
     ranked = prioritize_candidates(assessments,result.cases,date(2026,12,31),{'M1':0,'M2':9})
-    assert [p.person_id for p in ranked] == ['M2','M1']
+    assert [p.person_id for p in ranked] == ['M1','M2']  # I9: group precedes history.
     ranked = prioritize_candidates(assessments,result.cases,date(2027,1,1),{'M1':0,'M2':9})
     assert [p.person_id for p in ranked] == ['M1','M2']
     cases = tuple(replace(c,sportlink_duty=replace(c.sportlink_duty,completed_hours=1))
@@ -155,7 +155,7 @@ def test_explanation_distinguishes_all_states_without_changing_current_hours(sta
     explanation=priority_explanation(p)
     expected={'positive':'vorig seizoen: 6','zero':'0 uur','negative':'geen krediet',
               'unknown':'geen vastgestelde nulachterstand','unavailable':'niet beschikbaar',
-              'outside':'uitsluitend van juli tot en met december'}[state]
+              'outside':'0 uur'}[state]  # I9: history applies in January too.
     assert expected in explanation
     assert (p.A,p.B,p.C,p.D,p.E)==(10,0,0,0,10)
     assert len(result.planned)==2

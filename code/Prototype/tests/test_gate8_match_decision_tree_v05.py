@@ -88,12 +88,14 @@ def test_youth_weekend_service_starting_at_1230_is_allowed():
     assert result.eligible is True
 
 
-def test_youth_weekend_service_starting_after_1230_is_ineligible():
+def test_iteration9_youth_after_1230_without_overlap_is_fallback():
     service = _service(datetime(2026, 9, 19, 12, 31), datetime(2026, 9, 19, 17))
     match = Match("M7", "JO14-1", datetime(2026, 9, 19, 10), "home")
     result = _assessment("W04", service, match)
-    assert result.eligible is False
-    assert result.match_relation == "youth_weekend_after_1230"
+    # Iteration 9: afternoon youth are allowed in the fallback groups.
+    assert result.eligible is True
+    assert result.preference == "neutral"
+    assert result.match_relation == "home_match_same_day"
 
 
 def test_youth_weekday_evening_service_is_allowed():

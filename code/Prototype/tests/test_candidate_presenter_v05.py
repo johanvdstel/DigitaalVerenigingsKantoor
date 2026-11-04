@@ -7,9 +7,9 @@ from dvk.candidate_presenter import priority_explanation
 
 
 @pytest.mark.parametrize('preference,expected', [
-    ('neutral', 'Wedstrijdcontext geeft geen voorkeur.'),
-    ('preferred', 'voorrang bij gelijke urenprioriteit'),
-    ('avoid', 'minder voorkeur bij gelijke urenprioriteit'),
+    ('neutral', 'Noodgroep zonder wedstrijd'),
+    ('preferred', 'voorrang vóór de noodgroepen'),
+    ('avoid', 'noodgroep uitwedstrijd zonder wedstrijdconflict'),
 ])
 @pytest.mark.parametrize('backlog,expected_backlog', [
     ('historische bron niet beschikbaar', 'zijn nog niet beschikbaar en tellen niet mee'),

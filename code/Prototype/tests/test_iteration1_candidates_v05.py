@@ -132,7 +132,12 @@ def test_unusable_regular_candidate_does_not_hide_emergency_need(invalid):
 
 def test_emergency_still_respects_match_conflict_and_maximum_capacity():
     data = team_data(['Algemeen/Zondag'],names=['O17-1'])
-    assert not propose(context(data,[row(wedstrijddatum='2026-10-24T11:00:00+0200')])).planned
+    # I9: youth home overlap is allowed before 12:30, regardless of age.
+    youth = propose(context(data,[row(wedstrijddatum='2026-10-24T11:00:00+0200')]))
+    assert youth.planned[0].staffing_purpose == 'emergency_minimum_coverage'
+    # Senior match conflicts still veto the BL-20 fallback.
+    senior = team_data(['Algemeen/Zondag'],names=['Senioren'])
+    assert not propose(context(senior,[row(thuisteam='CKC Senioren',wedstrijddatum='2026-10-24T11:00:00+0200')])).planned
     assert not plan(data,occupancy=4)[0].planned
 
 

@@ -179,7 +179,8 @@ class CandidateContextApplicationService:
         history = context.historical_backlog
         priorities = prioritize_candidates(assessments, cases, service.starts_at.date(),
                                           history.values if history and history.available else {},
-                                          apply_previous_season=bool(history and history.available))
+                                          apply_previous_season=bool(history and history.available),
+                                          other_weekend_person_ids=other_weekend)
         by_case = {case.person.person_id: case for case in cases}
         by_assessment = {assessment.person_id: assessment for assessment in assessments}
         proposals = tuple(create_assignment_proposal(

@@ -146,9 +146,9 @@ def test_ssl_failure_is_not_retried_like_rooster2():
 
 
 @pytest.mark.parametrize('born,side,kickoff,eligible,preference,category', [
-    ('01-01-1990', 'HOME', 11, False, 'none', 'member'),
-    ('01-01-2012', 'HOME', 11, True, 'preferred', 'parent_guardian'),
-    ('01-01-1990', 'HOME', 15, True, 'preferred', 'member'),
+    ('01-01-1990', 'HOME', 11, True, 'youth_home', 'member'),
+    ('01-01-2012', 'HOME', 11, True, 'youth_home', 'parent_guardian'),
+    ('01-01-1990', 'HOME', 15, True, 'neutral', 'member'),
     ('01-01-1990', 'AWAY', 11, False, 'none', 'member'),
     ('01-01-2012', 'AWAY', 11, False, 'none', 'parent_guardian'),
     ('01-01-1990', 'AWAY', 15, True, 'avoid', 'member'),
@@ -189,10 +189,10 @@ def test_sportlink_duty_preserved_despite_younger_minor_exemption():
     assert next(c for c in result.controls if c.person_id == 'YOUNG').expectation.status == 'vrijgesteld'
 
 
-def test_youth_weekend_after_1230_is_still_excluded():
+def test_iteration9_youth_afternoon_without_match_is_fallback():
     result = propose(context(exports(members=[dict(pid='M1', born='01-01-2012', team='O17-1')])), service(13))
-    assert not result.planned
-    assert result.assessments[0].match_relation == 'youth_weekend_after_1230'
+    assert result.planned  # I9: youth allowed in afternoon fallback groups.
+    assert result.assessments[0].match_relation == 'no_match_that_day'
 
 
 def test_real_abcd_positions_and_existing_priority_without_fictitious_backlog():
@@ -306,14 +306,17 @@ def test_sportlink_duty_despite_personal_and_household_exemption():
     assert any(g.code == 'household_function' for g in result.controls[0].expectation.grounds)
 
 
-def test_first_match_behavior_is_preserved_without_reordering():
+def test_iteration9_all_matches_are_assessed_independently_of_order():
     conflict = row(wedstrijddatum='2026-10-24T11:00:00+0200', wedstrijdcode='first')
     later = row(wedstrijddatum='2026-10-24T18:00:00+0200', wedstrijdcode='second')
-    assert not propose(context(rows=[conflict, later])).planned
-    assert propose(context(rows=[later, conflict])).planned
+    # I9: this team is youth, so morning home overlap has primary preference.
+    for matches in ([conflict, later], [later, conflict]):
+        result = propose(context(rows=matches))
+        assert result.assessments[0].preference == 'youth_home'
+        assert len(result.planned) == 1
 
 
-def test_first_team_membership_behavior_is_preserved():
+def test_iteration9_best_team_group_is_independent_of_membership_order():
     data = exports()
     fields = ['Rel. code', 'Team', 'Teamsoort', 'Teamrol', 'Spelend lid', 'Speeldag']
     rows = [{'Rel. code': 'M1', 'Team': name, 'Teamsoort': 'Bond', 'Teamrol': 'Teamspeler',
@@ -321,10 +324,10 @@ def test_first_team_membership_behavior_is_preserved():
     data['teams'] = csv_bytes(fields, rows)
     match = row(wedstrijddatum='2026-10-24T11:00:00+0200')
     result = propose(context(data, [match]))
-    assert result.assessments[0].team_id == 'Senioren'
+    assert result.assessments[0].team_id == 'O17-1'
     assert result.planned
     data['teams'] = csv_bytes(fields, rows[::-1])
-    assert not propose(context(data, [match])).planned
+    assert propose(context(data, [match])).assessments == result.assessments
 
 
 def test_no_extra_program_count_or_period_completeness_gate():
