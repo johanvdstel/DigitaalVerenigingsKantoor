@@ -82,6 +82,8 @@ class VolunteerBooking:
     provenance: Provenance | None = None
     service: DutyService | None = None
     identity_issues: tuple[str, ...] = ()
+    # Technical occurrence within an identical shielded source group, never a person.
+    source_occurrence: int = 1
 
     @property
     def can_register_no_show(self) -> bool:
@@ -97,6 +99,8 @@ class VolunteerBooking:
                     self.ends_at.astimezone(timezone.utc).isoformat())
         # Keep all existing linked booking keys, including durable no-show references.
         key = (self.person_id, *interval) if self.person_id else (self.volunteer_name, *interval, self.location)
+        if not self.person_id and self.volunteer_name.strip() == "Afgeschermd" and self.source_occurrence > 1:
+            key = (*key, self.source_occurrence)
         prefix = "SL-" if self.person_id else "SLU-"
         return prefix + hashlib.sha256(json.dumps(key, ensure_ascii=False).encode()).hexdigest()
 
@@ -189,6 +193,7 @@ class SportlinkVrijwilligersAdapter:
         provenance: list[Provenance] = []
         signals: list[DataQualitySignal] = []
         persons = None if persons is None else tuple(persons)
+        shielded_occurrences: dict[str, int] = {}
 
         for index, row in enumerate(rows, 1):
             key = f"{task_code}:{index}"
@@ -283,6 +288,11 @@ class SportlinkVrijwilligersAdapter:
                                        None if person is None else person.person_id,
                                        None if person is None else person.name, service=service,
                                        identity_issues=tuple(issues))
+            if match_name == "Afgeschermd":
+                group = booking.assignment_id
+                occurrence = shielded_occurrences.get(group, 0) + 1
+                shielded_occurrences[group] = occurrence
+                booking = replace(booking, source_occurrence=occurrence)
             if persons is not None:
                 booking = replace(booking, service=replace(service, starts_at=starts_at, ends_at=ends_at, location=location))
                 key = booking.assignment_id
