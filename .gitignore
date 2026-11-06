@@ -1,0 +1,16 @@
+# Private local Sportlink exports; keep accepted testdata/configuration CSVs tracked.
+DVK-Sportlink-exports/
+Leden.csv
+Functies.csv
+Commissies.csv
+Teams.csv
+Overzicht per periode.csv
+# Original export filenames or manually dated copies of those exports.
+Leden *.csv
+Functies *.csv
+Commissies *.csv
+Teams *.csv
+Overzicht per periode *.csv
+
+# macOS Git may match Teams.csv case-insensitively; retain the accepted fixture.
+!/code/Prototype/testdata/v03_import/teams.csv

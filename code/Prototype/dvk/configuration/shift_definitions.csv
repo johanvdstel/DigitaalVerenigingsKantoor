@@ -1,0 +1,5 @@
+task_code,service_type,duration_hours,minimum_staff,maximum_staff,friday_minimum,friday_maximum
+741,Bar weekend,2.5,2,4,1,2
+761,Bar Zo-Do,2.5,1,2,,
+701,Bar korte inzet,1,1,2,,
+442,Commissiekamer,2.5,1,2,,

@@ -37,15 +37,15 @@ def main() -> None:
         date(2026, 11, 30),
         {"W09P": 6, "W07P": 0},
     )
-    show("W09 — gelijke E: vóór 1 december telt oude achterstand mee", w09)
+    show("W09 — gelijke E: in juli t/m december telt oude achterstand mee", w09)
 
-    december = prioritize_candidates(
+    januari = prioritize_candidates(
         (assessment("W09P"), assessment("W07P")),
         (W_CASE_BY_ID["W09"], W_CASE_BY_ID["W07"]),
-        date(2026, 12, 1),
+        date(2027, 1, 1),
         {"W09P": 6, "W07P": 0},
     )
-    show("W09 grenscontrole — vanaf 1 december telt oude achterstand niet mee", december)
+    show("W09 grenscontrole — vanaf 1 januari telt oude achterstand niet mee", januari)
 
 
 if __name__ == "__main__":

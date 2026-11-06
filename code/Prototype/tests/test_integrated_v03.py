@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
@@ -48,7 +49,7 @@ def test_v03_integrated_approved_chain_is_reproducible_end_to_end():
     assert result.decision.decision == "approved"
     assert result.assignment is not None
     assert (before.C, before.D, before.E) == (2, 1, 7)
-    assert (after.C, after.D, after.E) == (2, 4, 4)
+    assert (after.C, after.D, after.E) == (2, 1, 7)
 
 
 def test_v03_integrated_rejection_stops_before_assignment_and_preserves_hours():

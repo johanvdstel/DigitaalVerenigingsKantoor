@@ -1,3 +1,4 @@
+# Issue #12 / FR-02–05 supersede local assignment = Sportlink D/E mutation.
 from dataclasses import replace
 from datetime import date, datetime
 
@@ -22,7 +23,7 @@ def _fixture():
     return case, service, proposal
 
 
-def test_w11_approved_proposal_creates_assignment_and_changes_d_and_e_only():
+def test_w11_fr02_approved_proposal_creates_temporary_assignment_without_source_mutation():
     case, service, proposal = _fixture()
     decision = assess_proposal(proposal, "approved", "Vrijwilligerscommissie")
     assignment = create_duty_assignment("A-W11", proposal, decision, service)
@@ -34,7 +35,7 @@ def test_w11_approved_proposal_creates_assignment_and_changes_d_and_e_only():
     after = duty_position_from_registration(updated_case.sportlink_duty)
 
     assert (before.A, before.B, before.C, before.D, before.E) == (10, 0, 2, 1, 7)
-    assert (after.A, after.B, after.C, after.D, after.E) == (10, 0, 2, 4, 4)
+    assert (after.A, after.B, after.C, after.D, after.E) == (10, 0, 2, 1, 7)
     assert after.C == before.C
 
 

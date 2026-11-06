@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Iterable
@@ -154,6 +155,8 @@ class SportlinkProgrammaAdapter:
         if not value:
             raise ValueError("Sportlink wedstrijddatum ontbreekt")
         normalized = value.strip().replace("Z", "+00:00")
+        # Sportlink sends +HHMM; older fromisoformat versions require +HH:MM.
+        normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", normalized)
         try:
             parsed = datetime.fromisoformat(normalized)
         except ValueError as exc:

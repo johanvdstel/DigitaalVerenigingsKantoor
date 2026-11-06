@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import replace
+from datetime import date, time, timedelta
+import re
+
+from .prioritization import PREFERENCE_ORDER
 
 from .duty import derive_duty_qualification, derive_executor_category
-from .model import PrototypeCase
+from .model import DutyQualification, PrototypeCase
+from .planning_workqueue import TemporaryPlanning, assess_planning_availability
 from .workstream_model import CandidateAssessment, DutyService, Match, TeamMembership
+
+# v0.5 planning assumption: a match occupies two hours from kick-off
+# (2x45 minutes, 15 minutes half-time, 15 minutes run-out).
+MATCH_PLANNING_DURATION = timedelta(hours=2)
 
 
 def _active_team_membership(
@@ -37,24 +46,31 @@ def _match_for_team_on_service_date(
     )
 
 
-def _match_start_overlaps_service(match: Match, service: DutyService) -> bool:
-    return service.starts_at <= match.starts_at < service.ends_at
+def _match_overlaps_service(match: Match, service: DutyService) -> bool:
+    """True when the service and the v0.5 two-hour match window share time."""
+    match_ends_at = match.starts_at + MATCH_PLANNING_DURATION
+    return service.starts_at < match_ends_at and service.ends_at > match.starts_at
 
 
-def assess_candidate(
+def _youth_service_window_allowed(service: DutyService) -> bool:
+    """Parents of youth members are candidates on weekdays and weekend services starting <= 12:30."""
+    if service.starts_at.weekday() < 5:
+        return True
+    return service.starts_at.time() <= time(12, 30)
+
+
+def _assess_legacy_candidate(
     case: PrototypeCase,
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
+    qualification: DutyQualification | None = None,
 ) -> CandidateAssessment:
-    """Assess candidate eligibility and practical match context without ranking.
-
-    v0.4 canonical Match values use HOME/AWAY. Lowercase remains accepted here
-    for the already accepted v0.3 fixtures; all returned assessment values keep
-    the established lowercase domain vocabulary.
-    """
-    qualification = derive_duty_qualification(case, today)
+    """Assess candidate eligibility using the Gate-8 youth/senior match decision tree."""
+    qualification = qualification or derive_duty_qualification(case, today)
+    if qualification.person_id != case.person.person_id:
+        raise ValueError("qualification belongs to a different person")
     executor_category = derive_executor_category(case, today)
     person_id = case.person.person_id
 
@@ -62,6 +78,13 @@ def assess_candidate(
         return CandidateAssessment(
             person_id, service.service_id, False, executor_category,
             None, None, "not_assessed", "none", qualification.reason,
+        )
+
+    if executor_category == "parent_guardian" and not _youth_service_window_allowed(service):
+        return CandidateAssessment(
+            person_id, service.service_id, False, executor_category,
+            None, None, "youth_weekend_after_1230", "none",
+            "jeugdlid alleen beschikbaar voor doordeweekse diensten of weekenddiensten die uiterlijk om 12:30 beginnen",
         )
 
     team = _active_team_membership(person_id, service, team_memberships)
@@ -78,7 +101,7 @@ def assess_candidate(
             team.team_id, None, "no_match_that_day", "neutral",
         )
 
-    overlap = _match_start_overlaps_service(match, service)
+    overlap = _match_overlaps_service(match, service)
     home_away = match.home_away.lower()
 
     if home_away == "away":
@@ -94,21 +117,16 @@ def assess_candidate(
         )
 
     if home_away == "home":
-        if executor_category == "parent_guardian":
-            if overlap:
+        if overlap:
+            if executor_category == "parent_guardian":
                 return CandidateAssessment(
                     person_id, service.service_id, True, executor_category,
                     team.team_id, "home", "home_match_overlaps_service", "preferred",
                 )
             return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_same_day", "neutral",
-            )
-
-        if overlap:
-            return CandidateAssessment(
-                person_id, service.service_id, True, executor_category,
-                team.team_id, "home", "home_match_overlaps_service", "neutral",
+                person_id, service.service_id, False, executor_category,
+                team.team_id, "home", "home_match_overlaps_service", "none",
+                "dienst overlapt met de thuiswedstrijd",
             )
         return CandidateAssessment(
             person_id, service.service_id, True, executor_category,
@@ -118,14 +136,100 @@ def assess_candidate(
     raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
 
 
+def is_youth_team(team_name: str) -> bool:
+    """Iteration 9: the complete leading JO/O/MO age category determines the group."""
+    category = re.match(r"^(?:JO|MO|O)([0-9]+)", team_name)
+    return category is not None and int(category.group(1)) <= 20
+
+
+def _assess_candidate(case, service, team_memberships, matches, today, qualification=None):
+    qualification = qualification or derive_duty_qualification(case, today)
+    if qualification.person_id != case.person.person_id:
+        raise ValueError("qualification belongs to a different person")
+    person_id = case.person.person_id
+    executor = derive_executor_category(case, today)
+    if not qualification.duty_required:
+        return CandidateAssessment(person_id, service.service_id, False, executor,
+                                   None, None, "not_assessed", "none", qualification.reason)
+    service_date = service.starts_at.date()
+    teams = sorted({m.team_id for m in team_memberships
+                    if m.person_id == person_id
+                    and (m.start_date is None or m.start_date <= service_date)
+                    and (m.end_date is None or m.end_date >= service_date)})
+    if not teams:
+        if service.starts_at.weekday() != 5:
+            return _assess_legacy_candidate(case, service, (), (), today, qualification)
+        return CandidateAssessment(person_id, service.service_id, True, executor,
+                                   None, None, "no_match_context", "neutral")
+
+    outcomes = []
+    for team_id in teams:
+        team_matches = sorted((m for m in matches if m.team_id == team_id
+                               and m.starts_at.date() == service_date),
+                              key=lambda m: (m.starts_at, m.match_id))
+        for match in team_matches or (None,):
+            if service.starts_at.weekday() != 5:
+                outcomes.append(replace(_assess_legacy_candidate(
+                    case, service, (TeamMembership(person_id, team_id),),
+                    (match,) if match else (), today, qualification),
+                    match_id=match.match_id if match else None))
+                continue
+            relation, side, preference, reason = "no_match_that_day", None, "neutral", None
+            if match:
+                side = match.home_away.lower()
+                if side not in {"home", "away"}:
+                    raise ValueError(f"Unknown home_away value for match {match.match_id}: {match.home_away!r}")
+                overlap = _match_overlaps_service(match, service)
+                relation = f"{side}_match_" + ("overlaps_service" if overlap else "same_day")
+                youth = is_youth_team(team_id)
+                youth_home_overlap = (youth and side == "home" and overlap
+                                      and service.starts_at.time() < time(12, 30))
+                if overlap and not youth_home_overlap:
+                    reason = "dienst overlapt met de " + ("thuiswedstrijd" if side == "home" else "uitwedstrijd")
+                    preference = "none"
+                elif youth_home_overlap:
+                    preference = "youth_home"
+                elif side == "away":
+                    preference = "avoid"
+                elif youth:
+                    # Priority category only: retain the actual home-match facts.
+                    preference = "neutral"
+                else:
+                    preference = "preferred"
+            outcomes.append(CandidateAssessment(person_id, service.service_id, reason is None,
+                                                executor, team_id, side, relation, preference, reason,
+                                                match_id=match.match_id if match else None))
+    # Every relevant match can veto; otherwise take the best group. Sorted team
+    # and match keys also make the selected explanatory context deterministic.
+    conflicts = [outcome for outcome in outcomes if not outcome.eligible]
+    return conflicts[0] if conflicts else max(outcomes, key=lambda a: (PREFERENCE_ORDER[a.preference],
+                                                                   a.match_id is not None))
+
+
+def assess_candidate(
+    case: PrototypeCase,
+    service: DutyService,
+    team_memberships: tuple[TeamMembership, ...],
+    matches: tuple[Match, ...],
+    today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
+    qualification: DutyQualification | None = None,
+) -> CandidateAssessment:
+    return assess_planning_availability(
+        _assess_candidate(case, service, team_memberships, matches, today, qualification),
+        service, active_planning,
+    )
+
+
 def select_candidates(
     cases: tuple[PrototypeCase, ...],
     service: DutyService,
     team_memberships: tuple[TeamMembership, ...],
     matches: tuple[Match, ...],
     today: date,
+    *, active_planning: tuple[TemporaryPlanning, ...] = (),
 ) -> tuple[CandidateAssessment, ...]:
     assessments = tuple(
-        assess_candidate(case, service, team_memberships, matches, today) for case in cases
+        assess_candidate(case, service, team_memberships, matches, today, active_planning=active_planning) for case in cases
     )
     return tuple(assessment for assessment in assessments if assessment.eligible)
