@@ -89,7 +89,7 @@ def test_distinct_shielded_bookings_same_service_and_reorder_are_preserved(db, c
     assert {k:v for k,v in after[2].items() if k != "source_revision"} == {k:v for k,v in before[2].items() if k != "source_revision"}
 
 
-@pytest.mark.parametrize("name", ["Afgeschermd", "Unmatched synthetic name"])
+@pytest.mark.parametrize("name", ["Unmatched synthetic name"])
 def test_indistinguishable_unlinked_duplicates_never_partially_publish(db, catalog, name):
     slot = catalog.bindings(PERIOD)[0].service
     assert sync(db, catalog, {"A": [row(slot, people()[0])]})[0] is None
@@ -174,7 +174,8 @@ def test_unlinked_overlap_on_combined_bar_slots(db):
         assert len(u.sportlink_bookings.all()) == 1
 
 
-def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_path, monkeypatch):
+@pytest.mark.parametrize("shielded_count", [1, 2, 3])
+def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_path, monkeypatch, shielded_count):
     from pathlib import Path
     from streamlit.testing.v1 import AppTest
     from dvk.persistence import SQLiteDatabase
@@ -190,19 +191,25 @@ def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_p
     known = row(slot, people()[0])
     unknown = dict(known, naam="Unmatched synthetic volunteer")
     shielded = dict(known, naam="Afgeschermd")
-    assert sync(database, c, {c.bindings(PERIOD)[0].task_code: [known, unknown, shielded]})[0] is None
+    assert sync(database, c, {c.bindings(PERIOD)[0].task_code: [known, unknown] + [shielded] * shielded_count})[0] is None
     app = AppTest.from_file(str(script)).run()
     app.button(key="nav-planning").click().run()
     app.button(key="resume-planning").click().run()
     assert not app.exception
     text = "\n".join(item.value for item in app.get("markdown"))
-    assert "Opgehaalde Sportlink-inroosteringen: 3" in text
-    assert "Afgeschermd: 1" in text
-    assert "Zonder betrouwbare unieke persoonskoppeling: 2" in text
+    assert f"Opgehaalde Sportlink-inroosteringen: {2 + shielded_count}" in text
+    assert f"Afgeschermd: {shielded_count}" in text
+    assert f"Zonder betrouwbare unieke persoonskoppeling: {1 + shielded_count}" in text
     assert any("Geslaagd, met aandachtspunten" in item.value for item in app.markdown)
     tables = [t.value.to_string() for t in app.table]
     assert any("Unmatched synthetic volunteer" in t and "Geen overeenkomstig lid" in t for t in tables)
     assert any("Afgeschermd" in t and "Nee" in t for t in tables)
+    source_table = next(t.value for t in app.table if "No-showregistratie mogelijk" in t.value.columns)
+    assert source_table.to_string(index=False).count("Afgeschermd") == shielded_count
+    from ui_table_events import table
+    service_table = table(app, "services_editor-").value
+    assert service_table.loc[service_table["Sportlink"].str.contains("Afgeschermd"), "Sportlink"].iloc[0].count("Afgeschermd") == shielded_count
+    assert "source_occurrence" not in text + "\n".join(tables) + service_table.to_string()
     from sportlink_fixtures import open_no_show_ui
     open_no_show_ui(app, database, monkeypatch)
     no_show = next(w for w in app.selectbox if w.label == "Inroostering")
@@ -218,6 +225,7 @@ def test_old_booking_json_keeps_key_and_snapshot_without_migration(db, catalog):
     b, = imported(catalog, [row(catalog.bindings(PERIOD)[0].service, people()[0])], people()).bookings
     old = asdict(b)
     old.pop("identity_issues")
+    old.pop("source_occurrence")
     restored = booking_from_dict(json.loads(json.dumps(old, default=str)))
     assert restored.assignment_id == b.assignment_id
     assert restored.can_register_no_show
@@ -242,6 +250,146 @@ def test_source_name_presentation_is_preserved_without_changing_exact_matching(c
     assert b.volunteer_name == value["naam"]
     assert b.person_id == p.person_id
     assert b.can_register_no_show
+
+
+@pytest.mark.parametrize("count", [1, 2, 3])
+def test_identical_shielded_rows_remain_separate_after_reopen_and_refresh(db, catalog, count):
+    from dvk.persistence import SQLiteDatabase
+
+    slot = catalog.bindings(PERIOD)[0].service
+    value = dict(row(slot, people()[0]), naam="Afgeschermd")
+    single, = imported(catalog, [value], people()).bookings
+    # Explicit pre-correction key contract, independent of the new occurrence field.
+    import hashlib
+    from datetime import timezone
+    legacy_key = ("Afgeschermd", "A", slot.starts_at.astimezone(timezone.utc).isoformat(),
+                  slot.ends_at.astimezone(timezone.utc).isoformat(), value["lokatie"])
+    assert single.assignment_id == "SLU-" + hashlib.sha256(json.dumps(legacy_key, ensure_ascii=False).encode()).hexdigest()
+    assert sync(db, catalog, {"A": [value] * count})[0] is None
+    before = snapshot(db)[0]
+    assert len(before) == len({b.assignment_id for b in before}) == count
+    assert single.assignment_id in {b.assignment_id for b in before}
+    assert {b.source_occurrence for b in before} == set(range(1, count + 1))
+    assert len({b.provenance.source_record_key for b in before}) == count
+    for b in before:
+        assert b.person_id is None and b.person_name is None
+        assert b.volunteer_name == "Afgeschermd" and not b.can_register_no_show
+        assert b.provenance.source_value == str(value)
+        assert b.provenance.kind == "SOURCE_FACT"
+    reopened = SQLiteDatabase(db.path)
+    with reopened.unit_of_work() as u:
+        assert u.sportlink_bookings.all() == before
+        app = VolunteerPlanningApplicationService(u, IDENTITY, catalog)
+        assert app.planning_data(PERIOD)[1][0].confirmed_occupancy == count
+        assert app.service_names(PERIOD)[slot.service_id] == ", ".join(["Afgeschermd"] * count)
+        report = u.sportlink_bookings.refresh_state()["identity"]
+        assert (report["total"], report["shielded"], report["unlinked"]) == (count, count, count)
+        no_show = NoShowApplicationService(u, IDENTITY)
+        assert no_show.registration_choices(before) == ()
+        assert no_show.available_assignments() == ()
+        for b in before:
+            event = NoShowEvent("N", b.assignment_id, "invented", b.starts_at, NOW,
+                                IDENTITY.subject_id, season_id(b.starts_at.date()))
+            with pytest.raises(ValueError, match="betrouwbare"):
+                no_show.register(event, source_revision=source_revision(u))
+        assert not u.no_shows.all()
+        assert u._connection.execute('SELECT count(*) FROM sportlink_sanction_assessments').fetchone()[0] == 0
+    assert sync(reopened, catalog, {"A": [value] * count})[0] is None
+    assert snapshot(reopened)[0] == before
+
+
+def test_shielded_counts_replace_instead_of_accumulating(db, catalog):
+    slot = catalog.bindings(PERIOD)[0].service
+    value = dict(row(slot, people()[0]), naam="Afgeschermd")
+    for count in (1, 3, 2, 0):
+        assert sync(db, catalog, {"A": [value] * count})[0] is None
+        with db.unit_of_work() as u:
+            assert len(u.sportlink_bookings.all()) == count
+            assert VolunteerPlanningApplicationService(u, IDENTITY, catalog).planning_data(PERIOD)[1][0].confirmed_occupancy == count
+
+
+def test_shielded_group_numbering_and_mixed_occupancy_are_order_independent(db, catalog):
+    from itertools import permutations
+
+    slot = catalog.bindings(PERIOD)[0].service
+    known = row(slot, people()[0])
+    shielded = dict(known, naam="Afgeschermd")
+    other_group = dict(shielded, lokatie="Other synthetic location")
+    values = [shielded, other_group, known, shielded]
+    expected_keys = None
+    for order in permutations(values):
+        assert sync(db, catalog, {"A": order})[0] is None
+        with db.unit_of_work() as u:
+            bookings = u.sportlink_bookings.all()
+            keys = {b.assignment_id for b in bookings}
+            if expected_keys is None:
+                expected_keys = keys
+            assert keys == expected_keys and len(keys) == 4
+            assert [b.source_occurrence for b in bookings if b.location == "Other synthetic location"] == [1]
+            assert VolunteerPlanningApplicationService(u, IDENTITY, catalog).planning_data(PERIOD)[1][0].confirmed_occupancy == 4
+    assert sync(db, catalog, {"A": [shielded, shielded, known]})[0] is None
+    with db.unit_of_work() as u:
+        assert VolunteerPlanningApplicationService(u, IDENTITY, catalog).planning_data(PERIOD)[1][0].confirmed_occupancy == 3
+        assert len(NoShowApplicationService(u, IDENTITY).available_assignments()) == 1
+
+
+@pytest.mark.parametrize("linked", [False, True])
+def test_other_duplicates_still_block_with_identical_shielded_rows(db, catalog, linked):
+    slot = catalog.bindings(PERIOD)[0].service
+    known = row(slot, people()[0])
+    shielded = dict(known, naam="Afgeschermd")
+    assert sync(db, catalog, {"A": [shielded, shielded, known]})[0] is None
+    seed_work(db, slot)
+    before = snapshot(db)
+    duplicate = known if linked else dict(known, naam="Unmatched synthetic volunteer")
+    assert sync(db, catalog, {"A": [shielded, shielded, duplicate, duplicate]})[0]
+    assert snapshot(db) == before
+
+
+@pytest.mark.parametrize("failure", ["fetch", "invalid", "rollback"])
+def test_identical_shielded_refresh_preserves_state_on_failure(db, catalog, monkeypatch, failure):
+    from dvk.persistence.planning_records import SQLiteTemporaryPlanningRepository
+
+    slot = catalog.bindings(PERIOD)[0].service
+    value = dict(row(slot, people()[0]), naam="Afgeschermd")
+    assert sync(db, catalog, {"A": [value, value]})[0] is None
+    seed_work(db, slot)
+    before = snapshot(db)
+    payload = {"A": [value] * 3}
+    if failure == "fetch":
+        payload["B"] = TimeoutError("synthetic failure")
+    elif failure == "invalid":
+        payload["A"].append(dict(value, datumtot=slot.starts_at.isoformat()))
+    else:
+        def fail(self, identifier):
+            raise RuntimeError("synthetic delete failure")
+        monkeypatch.setattr(SQLiteTemporaryPlanningRepository, "remove", fail)
+    if failure == "rollback":
+        with pytest.raises(RuntimeError, match="synthetic delete failure"):
+            sync(db, catalog, payload)
+    else:
+        assert sync(db, catalog, payload)[0]
+    assert snapshot(db) == before
+
+
+@pytest.mark.parametrize("shielded", [False, True])
+def test_pre_occurrence_payloads_keep_existing_keys(catalog, shielded):
+    from dataclasses import asdict
+    from dvk.persistence.sportlink_bookings import booking_from_dict
+
+    value = row(catalog.bindings(PERIOD)[0].service, people()[0])
+    if shielded:
+        value["naam"] = "Afgeschermd"
+    b, = imported(catalog, [value], people()).bookings
+    old = asdict(b)
+    old.pop("source_occurrence")
+    restored = booking_from_dict(json.loads(json.dumps(old, default=str)))
+    assert restored == b and restored.assignment_id == b.assignment_id
+    # Occurrence must never alter keys for any other kind of booking.
+    if not shielded:
+        assert replace(b, source_occurrence=3).assignment_id == b.assignment_id
+        unlinked = replace(b, person_id=None, person_name=None)
+        assert replace(unlinked, source_occurrence=3).assignment_id == unlinked.assignment_id
 
 
 # Preserve historical BL-11 dates with an explicit test clock.
