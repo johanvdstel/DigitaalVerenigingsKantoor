@@ -75,7 +75,7 @@ def rendered_app(tmp_path, monkeypatch):
     script = tmp_path / "streamlit_app.py"
     # Fix the clock before the first render; AppTest round-trips identical
     # formatted labels through their display value on unrelated reruns.
-    script.write_text(SOURCE.read_text().replace("value=date.today()", "value=date(2026, 9, 14)"))
+    script.write_text(SOURCE.read_text().replace("value=datetime.now(TZ).date()", "value=date(2026, 9, 14)"))
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
     db.initialize()
     context = _context()

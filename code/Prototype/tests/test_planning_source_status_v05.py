@@ -32,11 +32,12 @@ def test_known_csv_time_and_optional_history_are_independent():
     rows = indexed(context=replace(ctx, csv_loaded_at=MOMENT, historical_backlog=history))
     for filename in EXPORT_FILENAMES.values():
         assert rows[filename][TIME] == '20-10-2026 12:34'
-        assert rows[filename]['Status'] == 'Ingelezen'
+        expected = 'Ingelezen, geen regels' if filename in ('Functies.csv', 'Commissies.csv') else 'Ingelezen'
+        assert rows[filename]['Status'] == expected
     assert rows[HISTORICAL_FILENAME]['Type'] == 'CSV'
     assert rows[HISTORICAL_FILENAME][TIME] == 'Onbekend'
     assert 'planning blijft bruikbaar' in rows[HISTORICAL_FILENAME]['Bruikbaarheid']
-    assert rows['Sportlink Programma']['Status'] == 'Technisch geslaagd'
+    assert rows['Sportlink Programma']['Status'] == 'Geslaagd, geen operationele wedstrijden'
     assert 'geen operationele wedstrijden' in rows['Sportlink Programma']['Toelichting']
 
 
@@ -59,7 +60,7 @@ def test_missing_regular_source_never_claims_other_files_available():
         CandidateContextApplicationService(IDENTITY).load(
             period=PERIOD, source_period='2026-2027', client_id='synthetic', client_factory=factory(b'[]'))
     rows = indexed(load_error=str(error.value))
-    assert rows['Teams.csv']['Status'] == 'Niet geladen'
+    assert rows['Teams.csv']['Status'] == 'Niet beschikbaar'
     assert "'Teams.csv' ontbreekt" in rows['Teams.csv']['Toelichting']
     assert all(rows[n]['Bruikbaarheid'] == 'Onbekend' for n in EXPORT_FILENAMES.values())
 
@@ -97,7 +98,7 @@ def test_program_transport_failure_and_semantic_failure_are_distinct():
 def test_volunteer_failure_preserves_last_success_time_and_usability():
     success = dict(start='2026-10-19', end='2026-10-25', fetched_at=MOMENT.isoformat(), identity={'total': 0})
     row = indexed(volunteer_success=success, volunteer_matching=True)['Sportlink Vrijwilligers']
-    assert row['Status'] == 'Technisch geslaagd'
+    assert row['Status'] == 'Geslaagd, geen inroosteringen'
     assert 'inroosteringen: 0' in row['Toelichting']
     row = indexed(volunteer_success=success, volunteer_matching=True,
                   volunteer_attempt={'status': 'Mislukt', 'message': 'Synthetische netwerkfout'})['Sportlink Vrijwilligers']

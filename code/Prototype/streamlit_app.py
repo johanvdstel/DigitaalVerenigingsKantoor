@@ -19,12 +19,13 @@ from dvk.team_matchday import EMERGENCY_MATCHDAY_REASON
 from dvk.application_version import active_application_version
 from dvk.planning_source_presenter import planning_source_rows
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
-from dvk.no_show import NoShowEvent, season_id
+from dvk.new_planning import NewPlanningApplicationService
+from dvk.no_show import NoShowEvent, TZ, season_id
 from dvk.persistence import SQLiteDatabase
 from dvk.persistence.schema_validation import SchemaValidationError
 from dvk.planning_diagnostics import trace_planning
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
-from dvk.planning_session import PlanningSessionApplicationService
+from dvk.planning_session import PlanningCandidateSources, PlanningSessionApplicationService
 from dvk.proposal_planning import plan_proposals
 from dvk.proposals import create_assignment_proposal
 from dvk.prioritization import prioritize_candidates
@@ -117,7 +118,7 @@ def _cancel_period_change():
 
 def _clear_period_widgets():
     for key in list(st.session_state):
-        if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-error"} or key.startswith(
+        if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-error", "candidate-session-id", "initial-volunteer-error"} or key.startswith(
                 ("proposal-run-", "confirmed-", "pick-", "services_editor-", "service-choice-", "candidate-table-", "candidate-detail-")):
             del st.session_state[key]
 
@@ -172,6 +173,7 @@ def _render_planning():
     settings = st.expander("Instellingen", expanded=False)
     with settings:
         st.markdown("## 1 — Instellingen")
+    source_summary = st.container()
     fixtures = st.expander("Wedstrijden", expanded=False)
     with fixtures:
         st.markdown("## 2 — Wedstrijden")
@@ -228,7 +230,7 @@ def _render_planning():
             st.session_state["planning-from"] = active_period.start
             st.session_state["planning-until"] = active_period.end
         mode = st.radio("Selectie", ("Dag", "Week", "Aangepast"), index=1, key="planning-mode")
-        selected = st.date_input("Week waarin datum valt" if mode == "Week" else "Vanaf", value=date.today(), key="planning-from")
+        selected = st.date_input("Week waarin datum valt" if mode == "Week" else "Vanaf", value=datetime.now(TZ).date(), key="planning-from")
         if mode == "Dag": period = PlanningPeriod(selected, selected)
         elif mode == "Week":
             monday = selected - timedelta(days=selected.weekday()); period = PlanningPeriod(monday, monday + timedelta(days=6))
@@ -301,14 +303,32 @@ def _render_planning():
             _clear_period_widgets()
         st.session_state["planning-accepted-inputs"] = inputs
         with database.unit_of_work() as uow:
-            active_session = PlanningSessionApplicationService(uow, identity).current()
+            sessions = PlanningSessionApplicationService(uow, identity)
+            active_session = sessions.current()
+            if active_session:
+                _restore_candidate_sources(sessions, active_session.session_id)
         if active_session:
             st.session_state["planning-resumed"] = active_session.session_id
-        elif st.button("Start nieuwe planning", key="activate-planning"):
-            with database.unit_of_work() as uow:
-                session = PlanningSessionApplicationService(uow, identity).start(period, catalog=catalog)
-            st.session_state["planning-resumed"] = session.session_id
-            st.rerun()
+        else:
+            suggested = suggested_season(period.start)
+            source_period = st.text_input(
+                "Seizoen van Overzicht per periode", value=suggested, key=f"start-source-season-{suggested}",
+                help="Controleer of dit seizoen overeenkomt met het lokale Sportlink-bestand.",
+            )
+            if st.button("Start nieuwe planning", key="activate-planning"):
+                with st.status("Bronnen voor de nieuwe planning laden…", expanded=True) as progress:
+                    try:
+                        session = NewPlanningApplicationService(database, identity).start(
+                            period=period, catalog=catalog, source_period=source_period,
+                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""), progress=progress.write,
+                        )
+                    except ValueError as exc:
+                        st.error(str(exc))
+                        return
+                _clear_period_widgets()
+                st.session_state["planning-resumed"] = session.session_id
+                st.session_state["candidate-season"] = source_period
+                st.rerun()
         st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
     demo = False  # The normal planner always uses operational sources.
@@ -330,6 +350,17 @@ def _render_planning():
         source_bookings = source_app.bookings(period) if not demo else ()
         services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
         names_by_service = source_app.service_names(period) if not demo else {}
+    if active_session and not demo:
+        same_context = st.session_state.get("candidate-session-id") == active_session.session_id
+        with source_summary:
+            st.markdown("### Bronstatus voor deze planning")
+            rows = planning_source_rows(
+                context=candidate_context,
+                load_error=st.session_state.get("candidate-load-error") if same_context else None,
+                volunteer_success=success, volunteer_attempt=attempt, volunteer_matching=source_matches,
+                volunteer_error=st.session_state.get("initial-volunteer-error") if same_context else None,
+            )
+            st.dataframe(rows, hide_index=True, height=325)
     if not demo and candidate_context is not None and candidate_context.error is None:
         matches = candidate_context.program.matches
     with database.unit_of_work() as uow:
@@ -554,9 +585,10 @@ def _render_planning():
         elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
         else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     with sportlink_source:
-        _render_volunteer_sync(database, identity, catalog, period, active_session,
-                               temporary_rows, source_matches, disabled=demo)
         if not demo:
+            if not source_matches:
+                st.warning("De Sportlink-bezetting is onbekend voor deze periode. "
+                           "Ga naar Databronnen om feitelijke inroosteringen handmatig op te halen.")
             st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
             if success:
                 st.caption(f"Laatste geslaagde bronperiode: {success['start']} t/m {success['end']}; opgehaald: {success['fetched_at']}")
@@ -606,8 +638,8 @@ def _planner_identity():
 
 
 def _render_volunteer_sync(database, identity, catalog, period, active_session,
-                           temporary_rows, source_matches, *, disabled=False, from_sources=False):
-    sync_key = f"sync-volunteers-{from_sources}-{period}-{active_session.session_id if active_session else None}-{active_session.source_revision if active_session else None}"
+                           temporary_rows, source_matches):
+    sync_key = f"sync-volunteers-{active_session.session_id}-{active_session.source_revision}"
     with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
         st.caption(export_location_hint(("leden",)))
         st.caption("Leden.csv wordt bij synchroniseren uit de ingestelde exportmap gelezen voor persoonskoppeling.")
@@ -617,18 +649,15 @@ def _render_volunteer_sync(database, identity, catalog, period, active_session,
         if replacing:
             replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{sync_key}")
             st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
-        if not disabled and not source_matches:
+        if not source_matches:
             st.warning("De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen.")
-        if st.button("Sportlink-inroosteringen synchroniseren", key=sync_key, disabled=disabled or (replacing and not replace_confirmed)):
+        if st.button("Sportlink-inroosteringen synchroniseren", key=sync_key, disabled=replacing and not replace_confirmed):
             try:
                 persons = LocalCsvSourceApplicationService().volunteer_persons()
-                with database.unit_of_work(migrate_schema=not from_sources) as uow:
+                with database.unit_of_work(migrate_schema=False) as uow:
                     sessions = PlanningSessionApplicationService(uow, identity)
                     if sessions.current() != active_session:
                         raise ValueError("De planningssessie is gewijzigd. Controleer de periode en bevestig opnieuw.")
-                    if active_session is None:
-                        active_session = sessions.start(period, catalog=catalog)
-                        st.session_state["planning-resumed"] = active_session.session_id
                     error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
                         period=period,
                         client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
@@ -638,6 +667,7 @@ def _render_volunteer_sync(database, identity, catalog, period, active_session,
                 if error:
                     st.error(error)
                 else:
+                    st.session_state.pop("initial-volunteer-error", None)
                     st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
                     st.rerun()
             except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
@@ -649,26 +679,54 @@ def _render_volunteer_sync(database, identity, catalog, period, active_session,
             st.success(sync_result)
 
 
-def _render_candidate_refresh(identity, session):
+def _set_candidate_sources(session_id, sources):
+    st.session_state["candidate-session-id"] = session_id
+    for key, value in (
+        ("candidate-context", sources.context),
+        ("candidate-load-error", sources.error),
+        ("initial-volunteer-error", sources.initial_volunteer_error),
+    ):
+        if value is None:
+            st.session_state.pop(key, None)
+        else:
+            st.session_state[key] = value
+
+
+def _restore_candidate_sources(sessions, session_id):
+    if st.session_state.get("candidate-session-id") != session_id:
+        stored = sessions.candidate_sources(session_id)
+        _set_candidate_sources(session_id, stored if stored is not None else PlanningCandidateSources())
+        if stored is None:
+            st.session_state.pop("candidate-session-id", None)
+
+
+def _render_candidate_refresh(database, identity, session):
     period = session.period
+    current_context = st.session_state.get("candidate-context")
+    season = current_context.source_period if current_context else suggested_season(period.start)
     st.caption("Controleer of de handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma.")
-    source_period = st.text_input("Seizoen van Overzicht per periode",
-                                 value=suggested_season(period.start), key="candidate-season")
+    source_period = st.text_input("Seizoen van Overzicht per periode", value=season, key="candidate-season")
     st.caption("Het historische urenbestand is optioneel. Controleer zelf of het bij het vorige seizoen hoort.")
     if st.button("Brongegevens vernieuwen", key="load-candidate-sources"):
-        st.session_state.pop("candidate-load-error", None)
-        st.session_state.pop("candidate-context", None)
-        st.session_state["candidate-session-id"] = session.session_id
-        for key in list(st.session_state):
-            if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
-                del st.session_state[key]
+        context = error = None
         try:
             with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
-                st.session_state["candidate-context"] = CandidateContextApplicationService(identity).load(
+                context = CandidateContextApplicationService(identity).load(
                     period=period, source_period=source_period,
                     client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
         except CandidateSourceError as exc:
-            st.session_state["candidate-load-error"] = str(exc)
+            error = str(exc)
+        sources = PlanningCandidateSources(context, error, st.session_state.get("initial-volunteer-error"))
+        try:
+            with database.unit_of_work(migrate_schema=False) as uow:
+                PlanningSessionApplicationService(uow, identity).save_candidate_sources(session.session_id, sources)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        _set_candidate_sources(session.session_id, sources)
+        for key in list(st.session_state):
+            if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
+                del st.session_state[key]
 
 
 def _render_sources():
@@ -705,6 +763,7 @@ def _render_sources():
                 sessions = PlanningSessionApplicationService(uow, identity)
                 session = sessions.current()
                 if session:
+                    _restore_candidate_sources(sessions, session.session_id)
                     success, attempt, matching = VolunteerPlanningApplicationService(
                         uow, identity, session.catalog).source(session.period)
                     try:
@@ -722,23 +781,26 @@ def _render_sources():
     if session:
         period = session.period
         st.caption(f"Actieve planningsperiode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
-        _render_candidate_refresh(identity, session)
+        _render_candidate_refresh(database, identity, session)
         if catalog is not None:
             _render_volunteer_sync(database, identity, catalog, period, session,
-                                   temporary_rows, matching, from_sources=True)
+                                   temporary_rows, matching)
     else:
         st.info("Start een planningssessie via Ledendienst Planning om kandidaatbronnen of Sportlink-inroosteringen voor die periode op te halen.")
 
-    load_error = st.session_state.get("candidate-load-error")
+    same_context = session and st.session_state.get("candidate-session-id") == session.session_id
+    load_error = st.session_state.get("candidate-load-error") if same_context else None
     if load_error:
         st.error(load_error)
-    context = st.session_state.get("candidate-context")
+    context = st.session_state.get("candidate-context") if same_context else None
     availability = local.availability() if directory is not None else {}
+    volunteer_error = st.session_state.get("initial-volunteer-error") if same_context else None
     rows = planning_source_rows(context=context, load_error=load_error,
                                 volunteer_success=success, volunteer_attempt=attempt,
-                                volunteer_matching=matching, availability=availability)
+                                volunteer_matching=matching, availability=availability,
+                                volunteer_error=volunteer_error)
     st.markdown("### Lokale CSV-bronnen")
-    st.caption("Beschikbaarheid hoort bij de ingestelde map. Inleesstatus toont het laatst bekende resultaat van de kandidaatbronnen voor deze browser.")
+    st.caption("Beschikbaarheid hoort bij de ingestelde map. Inleesstatus toont het laatst bekende resultaat voor de actieve planning.")
     if context and context.source_directory and context.source_directory != directory:
         st.info(f"De getoonde inleesstatus komt uit de eerder gebruikte map: {context.source_directory}.")
     st.dataframe([row for row in rows if row["Type"] == "CSV"], hide_index=True, height=250)

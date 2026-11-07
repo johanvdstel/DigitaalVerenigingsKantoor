@@ -70,17 +70,18 @@ class CandidateContextApplicationService:
         self.authorizer = Authorizer()
 
     def load(self, *, period, source_period, client_id, exports=None,
-             client_factory=SportlinkProgrammaClient):
+             client_factory=SportlinkProgrammaClient, local_sources=None, members_text=None,
+             before_programma=None):
         self.authorizer.require(self.identity, Permission.VIEW_PLANNING)
         try:
             source_period = validate_season(source_period)
         except ValueError as exc:
             raise CandidateSourceError(str(exc)) from None
         csv_loaded_at = source_directory = None
-        local_sources = LocalCsvSourceApplicationService()
+        local_sources = local_sources if local_sources is not None else LocalCsvSourceApplicationService()
         try:
             if exports is None:
-                loaded = local_sources.load()
+                loaded = local_sources.load() if members_text is None else local_sources.load(members_text=members_text)
                 exports = loaded.exports
                 csv_loaded_at = loaded.loaded_at
                 source_directory = loaded.directory
@@ -101,6 +102,8 @@ class CandidateContextApplicationService:
             person_ids=(p.person_id for p in source.persons))
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
         client = client_factory(adapter)
+        if before_programma is not None:
+            before_programma()
         try:
             fetched = client.fetch_rows(client_id=client_id)
         except (ProgrammaFetchError, ValueError):

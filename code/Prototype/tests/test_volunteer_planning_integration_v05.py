@@ -214,7 +214,7 @@ def test_no_show_and_revocation_survive_refresh_and_timezone_match(db,catalog):
 
 def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     script = tmp_path / "streamlit_app.py"
-    script.write_text((Path(__file__).parents[1]/"streamlit_app.py").read_text().replace("value=date.today()","value=date(2026, 10, 19)"))
+    script.write_text((Path(__file__).parents[1]/"streamlit_app.py").read_text().replace("value=datetime.now(TZ).date()","value=date(2026, 10, 19)"))
     app = AppTest.from_file(str(script),default_timeout=20).run()
     app.button(key="nav-planning").click().run()
     assert not app.exception

@@ -23,6 +23,7 @@ from streamlit.testing.v1 import element_tree
 from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.persistence import SQLiteDatabase
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchResult
 from dvk.shift_catalog import load_shift_catalog
 from test_candidate_context_v05 import exports
 from test_volunteer_planning_integration_v05 import sync, PERIOD
@@ -50,7 +51,9 @@ def main(count, mixed=False, legacy_selection=False, actions="all"):
     with tempfile.TemporaryDirectory(prefix='dvk-synthetic-profile-') as directory:
         target=Path(directory)/'streamlit_app.py'
         source=ROOT/'streamlit_app.py'
-        original=source.read_text().replace('value=date.today()','value=date(2026,10,19)')
+        original = source.read_text()
+        for marker in ("value=date.today()", "value=datetime.now(TZ).date()"):
+            original = original.replace(marker, "value=date(2026,10,19)")
         # Profile every script attempt, including the attempt aborted by st.rerun.
         header = """from __future__ import annotations
 import cProfile, streamlit as st, time as profile_time, json as profile_json
@@ -75,6 +78,8 @@ finally:
               patch.object(element_tree, 'get_widget_state', preserving_editors(element_tree.get_widget_state)),
               patch('dvk.local_csv_sources.read_export_text', read),
               patch.object(SportlinkProgrammaClient, 'fetch_rows', fetch),
+              patch.object(SportlinkVrijwilligersClient, 'fetch_rows',
+                           lambda self, **kw: VrijwilligersFetchResult(kw["task_code"], ())),
               patch.object(SQLiteDatabase, 'initialize', init)):
             app=AppTest.from_file(str(target),default_timeout=60).run()
             app.button(key='nav-planning').click().run()

@@ -183,7 +183,7 @@ def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_p
 
     script = tmp_path / "streamlit_app.py"
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text().replace(
-        "value=date.today()", "value=date(2026, 10, 19)"))
+        "value=datetime.now(TZ).date()", "value=date(2026, 10, 19)"))
     database = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
     database.initialize()
     c = load_shift_catalog()

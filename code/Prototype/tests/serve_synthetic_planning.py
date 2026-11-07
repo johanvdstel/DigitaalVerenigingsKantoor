@@ -27,7 +27,8 @@ def serve(root, count, mixed, port, historical=False):
     tests = Path(__file__).resolve().parent
     with tempfile.TemporaryDirectory(prefix="dvk-browser-synthetic-") as directory:
         target = Path(directory)/"streamlit_app.py"
-        body = (root/"streamlit_app.py").read_text().replace("value=date.today()", "value=date(2026,10,19)")
+        body = (root/"streamlit_app.py").read_text().replace("value=datetime.now(TZ).date()", "value=date(2026,10,19)")
+        body = body.replace("value=date.today()", "value=date(2026,10,19)")
         header = f"""from __future__ import annotations
 import sys, time as probe_time, json as probe_json
 from pathlib import Path
@@ -49,6 +50,7 @@ def _probe_catalog():
 load_shift_catalog = _probe_catalog
 from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchResult
 from test_volunteer_planning_integration_v05 import sync, PERIOD, IDENTITY
 _data=synthetic_exports({count!r}, {mixed!r})
 def _read_source(dataset, explicit_path=None):
@@ -77,7 +79,7 @@ _probe_start=probe_time.perf_counter()
 _probe_outcome='rerun-or-error'
 """
         body = body.replace("from __future__ import annotations", "", 1)
-        wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
+        wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())), patch.object(SportlinkVrijwilligersClient,'fetch_rows',lambda self,**kwargs:VrijwilligersFetchResult(kwargs['task_code'],())):
     try:
 """
         if "def _render_sources(" in body:

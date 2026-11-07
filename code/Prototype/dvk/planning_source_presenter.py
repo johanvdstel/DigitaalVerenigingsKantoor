@@ -11,22 +11,33 @@ def _time(value):
 
 
 def planning_source_rows(*, context=None, load_error=None, volunteer_success=None,
-                         volunteer_attempt=None, volunteer_matching=False, demo=False, availability=None):
+                         volunteer_attempt=None, volunteer_matching=False, demo=False, availability=None, volunteer_error=None):
     rows = []
     def add(name, kind, moment, status, usable, note=''):
         rows.append({'Databron': name, 'Type': kind, 'Laatst ingelezen door DVK': _time(moment),
                      'Status': status, 'Bruikbaarheid': usable, 'Toelichting': note})
+    source_datasets = {record.dataset for record in context.source.diagnostic_records} if context else set()
     for dataset, filename in EXPORT_FILENAMES.items():
         loaded = context is not None and filename in context.source_files
         signals = tuple(s for s in context.source.signals if s.dataset == dataset) if loaded else ()
+        label = filename.removesuffix(".csv")
+        issue = load_error if load_error and (filename in load_error or f"{label}:" in load_error) else None
+        status = ('Ingelezen' if dataset in source_datasets or signals else 'Ingelezen, geen regels') if loaded else (
+            'Niet beschikbaar' if issue else 'Niet geladen')
         add(filename, 'CSV', context.csv_loaded_at if loaded else None,
-            'Ingelezen' if loaded else 'Niet geladen',
+            status,
             'Bronmeldingen; zie datakwaliteit' if signals else ('Beschikbaar' if loaded else 'Onbekend'),
             '; '.join(sorted({s.message for s in signals})) if loaded else
-            (load_error or 'Nog niet ingelezen; beschikbaarheid niet vastgesteld.'))
+            (issue or 'Geen afzonderlijk inleesresultaat.'))
     history = context.historical_backlog if context else None
+    history_status = 'Niet geladen'
+    if history:
+        if history.available:
+            history_status = 'Ingelezen' if history.records or history.signals else 'Ingelezen, geen regels'
+        else:
+            history_status = 'Niet beschikbaar / onbruikbaar'
     add(HISTORICAL_FILENAME, 'CSV', history.loaded_at if history else None,
-        ('Ingelezen' if history.available else 'Niet beschikbaar / onbruikbaar') if history else 'Niet geladen',
+        history_status,
         ('Deels bruikbaar; zie bronmeldingen' if history.signals else 'Beschikbaar')
         if history and history.available else 'Historie niet meegewogen; planning blijft bruikbaar',
         history.message if history else 'Optioneel. Planner borgt het juiste vorige seizoen; bronstatus onbekend.')
@@ -35,12 +46,16 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
     total = (success.get('identity') or {}).get('total') if success else None
     note = f'Aangeleverde inroosteringen: {total}.' if total is not None else 'Aantal aangeleverde inroosteringen onbekend.'
     if failed:
-        note += ' Laatste verversing mislukt: ' + volunteer_attempt.get('message', '') + '. Vorige bron behouden.'
+        note += ' Laatste verversing mislukt: ' + volunteer_attempt.get('message', '') + '.'
+        note += ' Vorige bron behouden.' if success else ' Geen gevalideerde bron gepubliceerd.'
+    elif volunteer_error and not success:
+        note += ' ' + volunteer_error
     if success:
         note += ' Getoond moment is het begin van de DVK-ophaalactie, niet de actualisatie in Sportlink.'
         note += f" Bronperiode: {success['start']} t/m {success['end']}."
     add('Sportlink Vrijwilligers', 'API', success.get('fetched_at') if success else None,
-        'Laatste verversing mislukt' if failed else ('Technisch geslaagd' if success else 'Niet opgehaald'),
+        'Laatste verversing mislukt' if failed else (
+            'Geslaagd, geen inroosteringen' if total == 0 else 'Technisch geslaagd' if success else 'Niet opgehaald'),
         'Gevalideerd voor gekozen periode' if volunteer_matching else 'Geen gevalideerde bron voor gekozen periode', note)
     program = context.program if context else None
     if program is None:
@@ -56,7 +71,8 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
         note += ' Getoond moment is het begin van de DVK-laadactie, vóór de API-aanvraag; niet de actualisatie in Sportlink.'
         if context.error:
             note += ' ' + context.error
-        add('Sportlink Programma', 'API', context.fetched_at, 'Technisch geslaagd',
+        add('Sportlink Programma', 'API', context.fetched_at,
+            'Geslaagd, geen operationele wedstrijden' if not count and not context.error else 'Technisch geslaagd',
             'Niet bruikbaar; zie bronmeldingen' if context.error else 'Beschikbaar', note)
     if availability is not None:
         for row in rows:
@@ -64,8 +80,6 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
                 name = row["Databron"]
                 row["Beschikbaarheid"] = availability.get(name, "Onbekend")
                 row["Verplicht"] = "Nee" if name == HISTORICAL_FILENAME else "Ja"
-                if load_error and row["Toelichting"] == load_error and name not in load_error:
-                    row["Toelichting"] = "Geen afzonderlijk inleesresultaat."
     if demo:
         for row in rows:
             row.update({'Laatst ingelezen door DVK': 'Onbekend', 'Status': 'Demonstratie',

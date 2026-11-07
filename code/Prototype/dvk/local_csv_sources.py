@@ -59,9 +59,13 @@ class LocalCsvSourceApplicationService:
         return replace(import_historical_backlog(text, person_ids),
                        loaded_at=datetime.now().astimezone())
 
-    def load(self):
+    def read_members(self) -> str:
+        return read_export_text("leden", self.directory / EXPORT_FILENAMES["leden"])
+
+    def load(self, *, members_text=None):
         directory = self.directory
-        exports = {dataset: read_export_text(dataset, directory / filename).encode("utf-8")
+        exports = {dataset: (members_text if dataset == "leden" and members_text is not None
+                             else read_export_text(dataset, directory / filename)).encode("utf-8")
                    for dataset, filename in EXPORT_FILENAMES.items()}
         return LoadedLocalExports(exports, datetime.now().astimezone(), tuple(EXPORT_FILENAMES.values()), directory)
 
@@ -71,7 +75,7 @@ class LocalCsvSourceApplicationService:
         return LocalDutyControl(load_duty_dashboard(sources.exports, as_of=as_of,
                                                    source_period=source_period), sources)
 
-    def volunteer_persons(self):
+    def volunteer_persons(self, *, members_text=None):
         # Synchronization needs only Leden.csv; retain the existing name validation.
-        text = read_export_text("leden", self.directory / EXPORT_FILENAMES["leden"])
+        text = self.read_members() if members_text is None else members_text
         return SportlinkRealDataAdapter.read_volunteer_persons(text)

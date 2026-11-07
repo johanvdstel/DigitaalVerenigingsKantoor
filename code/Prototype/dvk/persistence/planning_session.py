@@ -7,8 +7,10 @@ from ..shift_catalog import ShiftCatalog, ShiftDefinition, StaffingRule, WeeklyS
 
 from ..planning import PlanningPeriod
 from ..planning_session import PlanningSession
+from .candidate_sources import decode_sources, encode_sources
 
 KEY = 'active-planning-session'
+CANDIDATE_SOURCES_KEY = 'active-planning-candidate-sources'
 
 
 class SQLitePlanningSessionRepository:
@@ -31,6 +33,19 @@ class SQLitePlanningSessionRepository:
 
     def remove(self):
         self._connection.execute('DELETE FROM dvk_records WHERE record_id=?', (KEY,))
+
+
+    def candidate_sources(self, session_id):
+        row = self._connection.execute('SELECT payload FROM dvk_records WHERE record_id=?',
+                                       (CANDIDATE_SOURCES_KEY,)).fetchone()
+        return decode_sources(row[0], session_id) if row else None
+
+    def save_candidate_sources(self, session_id, sources):
+        self._connection.execute('INSERT OR REPLACE INTO dvk_records VALUES (?, ?)',
+                                 (CANDIDATE_SOURCES_KEY, encode_sources(session_id, sources)))
+
+    def clear_candidate_sources(self):
+        self._connection.execute('DELETE FROM dvk_records WHERE record_id=?', (CANDIDATE_SOURCES_KEY,))
 
 
 def _catalog(data):

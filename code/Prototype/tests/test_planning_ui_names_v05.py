@@ -13,19 +13,25 @@ from streamlit.testing.v1 import AppTest
 from dvk.persistence import SQLiteDatabase
 from dvk.shift_catalog import load_shift_catalog
 from dvk.vrijwilligers_adapter import same_task_group, overlaps_service_date
-from test_volunteer_planning_integration_v05 import PERIOD, people, row, sync, seed_work, snapshot, client
+from test_volunteer_planning_integration_v05 import IDENTITY, PERIOD, people, row, sync, seed_work, snapshot, client
 
 SOURCE = Path(__file__).parents[1] / "streamlit_app.py"
 
 
-def page(tmp_path):
+def page(tmp_path, *, automatic=False):
     script = tmp_path / "streamlit_app.py"
-    script.write_text(SOURCE.read_text().replace("value=date.today()", "value=date(2026, 10, 19)"))
+    script.write_text(SOURCE.read_text().replace("value=datetime.now(TZ).date()", "value=date(2026, 10, 19)"))
+    db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
+    if not automatic:
+        # Earlier regressions start from a saved session without a volunteer source.
+        from dvk.planning_session import PlanningSessionApplicationService
+        with db.unit_of_work() as uow:
+            PlanningSessionApplicationService(uow, IDENTITY).start(PERIOD, catalog=load_shift_catalog())
     app = AppTest.from_file(str(script), default_timeout=20).run()
     app.button(key="nav-planning").click().run()
-    app.button(key="activate-planning").click().run()
+    app.button(key="activate-planning" if automatic else "resume-planning").click().run()
     assert not app.exception
-    return app, SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
+    return app, db
 
 
 def helpers():
@@ -128,14 +134,10 @@ def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
     assert not any(isinstance(n, ast.FunctionDef) and n.name == "_names_preview" for n in tree.body)
 
 
-def test_source_controls_under_diensten_and_no_show_roundtrip(tmp_path, monkeypatch):
+def test_manual_source_controls_in_databronnen_and_no_show_roundtrip(tmp_path, monkeypatch):
     app, db = page(tmp_path)
-    # BL-18 moves Sportlink controls to Diensten, retaining the No-show roundtrip.
-    nodes = list(app.main)
-    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 3 — Diensten")
-    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Kandidaten")
-    sync_button = next(i for i,n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
-    assert duties < sync_button < candidates
+    assert not any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
+    app.button(key="nav-sources").click().run()
     assert any("Leden.csv wordt bij synchroniseren uit de ingestelde exportmap" in c.value for c in app.caption)
     from dvk.sportlink_exports import export_path
     export_path("leden").unlink()

@@ -1,11 +1,17 @@
 """Durable single-session lifecycle; no browser/process lifetime business rules."""
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from .planning import PlanningPeriod
 from .security import Authorizer, Permission
 from .shift_catalog import ShiftCatalog
+
+if TYPE_CHECKING:
+    from .candidate_context import CandidateContext
 
 TZ = ZoneInfo('Europe/Amsterdam')
 
@@ -16,6 +22,13 @@ class PlanningSession:
     period: PlanningPeriod
     source_revision: str | None = None
     catalog: ShiftCatalog | None = None
+
+
+@dataclass(frozen=True)
+class PlanningCandidateSources:
+    context: CandidateContext | None = None
+    error: str | None = None
+    initial_volunteer_error: str | None = None
 
 
 def active_source(uow, period=None):
@@ -65,6 +78,20 @@ class PlanningSessionApplicationService:
         Authorizer().require(self.identity, Permission.VIEW_PLANNING)
         return self.uow.planning_sessions.get()
 
+    def candidate_sources(self, session_id):
+        Authorizer().require(self.identity, Permission.VIEW_PLANNING)
+        return self.uow.planning_sessions.candidate_sources(session_id)
+
+    def save_candidate_sources(self, session_id, sources):
+        Authorizer().require(self.identity, Permission.DECIDE_PROPOSAL)
+        self.uow.begin_planning_write()
+        current = self.uow.planning_sessions.get()
+        if current is None or current.session_id != session_id or (
+                sources.context is not None and sources.context.period != current.period):
+            raise ValueError("De planningssessie is tijdens het laden gewijzigd.")
+        self.uow.planning_sessions.save_candidate_sources(session_id, sources)
+        self.uow.commit()
+
     def start(self, period, *, confirmed=False, expected_session_id=None, catalog=None):
         Authorizer().require(self.identity, Permission.DECIDE_PROPOSAL)
         self.uow.begin_planning_write()
@@ -102,3 +129,4 @@ class PlanningSessionApplicationService:
             self.uow.temporary_planning.remove(entry.assignment.assignment_id)
         self.uow.sportlink_bookings.replace_all(())
         self.uow.sportlink_bookings.clear_refresh_state()
+        self.uow.planning_sessions.clear_candidate_sources()
