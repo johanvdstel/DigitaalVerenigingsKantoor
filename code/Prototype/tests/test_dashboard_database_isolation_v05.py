@@ -96,7 +96,7 @@ def test_five_uploads_render_without_sqlite_or_sportlink_access(tmp_path, monkey
     monkeypatch.setattr(SQLiteDatabase, 'initialize', unavailable)
     monkeypatch.setattr(sqlite3, 'connect', forbidden)
     monkeypatch.setattr(SportlinkVrijwilligersClient, 'fetch_rows', forbidden)
-    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', lambda dataset: files[dataset].decode('utf-8-sig'))
+    monkeypatch.setattr('dvk.local_csv_sources.read_export_text', lambda dataset, explicit_path=None: files[dataset].decode('utf-8-sig'))
     app = AppTest.from_file(str(path))
     app.session_state['dvk-screen'] = 'control'
     app.session_state['duty-control-period'] = '2026-2027'

@@ -6,7 +6,7 @@ import pytest
 
 from dvk.candidate_context import CandidateContextApplicationService
 from dvk.shift_catalog import load_shift_catalog
-from test_candidate_context_ui_v05 import operational_page
+from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
 from test_candidate_context_v05 import context, exports
 from test_candidate_person_issues_v05 import rows, write_rows
 from test_programma_team_linking_v05 import row
@@ -41,7 +41,7 @@ def test_real_group_order_ranks_home_facts_and_planning_roundtrip(operational_pa
         matches.append(row(**values))
     ctx = replace(context(data,matches),period=PERIOD)
     monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a,**k: ctx)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     app.session_state['selected_service_id'] = s.service_id
     app.run()
     assert not app.exception

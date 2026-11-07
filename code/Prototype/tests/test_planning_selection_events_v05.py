@@ -1,5 +1,5 @@
 """Stable row actions keep service selection and widget identity consistent."""
-from test_candidate_context_ui_v05 import operational_page
+from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
 from test_candidate_context_v05 import IDENTITY
 from dvk.application_services import PlanningApplicationService
 from ui_table_events import table, choose_service, pick
@@ -45,7 +45,7 @@ def test_multiple_candidates_within_capacity_confirm_and_undo(operational_page, 
     app, db, _ = operational_page
     ctx=replace(many(),period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService,"load",lambda *a,**k:ctx)
-    app.button(key="load-candidate-sources").click().run()
+    refresh_candidate_sources(app)
     choose_service(app,1)
     pick(app,0); pick(app,1)
     confirm=next(b for b in app.button if b.label=="Selectie bevestigen")

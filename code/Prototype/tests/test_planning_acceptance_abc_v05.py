@@ -13,7 +13,7 @@ from dvk.planning_session import PlanningSessionApplicationService
 from dvk.sportlink_exports import EXPORT_FILENAMES, export_path
 from test_candidate_context_v05 import exports, context, propose, service, need, IDENTITY, PERIOD
 from test_candidate_person_issues_v05 import rows, write_rows, data_with_two
-from test_candidate_context_ui_v05 import operational_page
+from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
 
 
 def save(data):
@@ -126,7 +126,7 @@ def test_b_ui_rejects_excess_selection_without_writes(operational_page, monkeypa
     app,db,_=operational_page
     ctx=replace(many(),period=app.session_state['candidate-context'].period)
     monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a,**k:ctx)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     choices=table(app)
     assert len(choices.value)==6
     edit(app, choices, {i: {'Kies': True} for i in range(6)})

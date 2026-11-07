@@ -3,7 +3,7 @@ import ast
 import json
 from pathlib import Path
 
-from test_candidate_context_ui_v05 import operational_page
+from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
 from test_candidate_context_v05 import IDENTITY
 from dvk.application_services import PlanningApplicationService
 from ui_table_events import table, edit, pick, choose_service
@@ -96,7 +96,7 @@ def test_many_candidates_use_one_editor_and_no_exception_form(operational_page, 
     members = [dict(pid=f"SYNTH-{i}", born="01-01-1990", team="O17-1", number=str(i+1)) for i in range(250)]
     ctx = replace(context(exports(members=members)), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
-    app.button(key="load-candidate-sources").click().run()
+    refresh_candidate_sources(app)
     assert len(table(app).value) == 250
     assert table(app).value.Rang.tolist() == list(range(1, 251))
     assert len([t for t in app.dataframe if t.key and t.key.startswith("candidate-table-")]) == 1
@@ -114,7 +114,7 @@ def test_changed_candidate_rows_discard_old_positional_edits(operational_page, m
     app, db, _ = operational_page
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
-    app.button(key="load-candidate-sources").click().run()
+    refresh_candidate_sources(app)
     old_key = table(app).key
     pick(app)
     original = CandidateContextApplicationService.propose
@@ -137,7 +137,7 @@ def test_shared_candidate_detail_never_records_an_exception(operational_page, mo
     app, db, _ = operational_page
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
-    app.button(key="load-candidate-sources").click().run()
+    refresh_candidate_sources(app)
     pick(app, index=5)
     observed = []
     original = ProposalDecisionApplicationService.reject
@@ -162,7 +162,7 @@ def test_multiple_selected_details_and_deselect_preserve_storage(operational_pag
     app, db, _ = operational_page
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
-    app.button(key="load-candidate-sources").click().run()
+    refresh_candidate_sources(app)
     names = table(app).value.Kandidaat.tolist()
     before = snapshot(db)
     edit(app, table(app), {0: {"Kies": True}, 1: {"Kies": True}})

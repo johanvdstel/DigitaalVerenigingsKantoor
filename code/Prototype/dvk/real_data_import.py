@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .football_participation import is_bond_team_player
-from .sportlink_exports import export_path, read_export_text
+from .sportlink_exports import EXPORT_FILENAMES, default_export_directory, export_path, read_export_text
 from .model import DutyPolicy, DutyPosition, Membership, Person, RoleAssignment, SportlinkDutyRegistration
 
 if TYPE_CHECKING:
@@ -158,12 +158,20 @@ class SportlinkRealDataAdapter:
                 signals.append(DataQualitySignal("SOURCE_NOT_REFRESHED", "WARNING", dataset, None,
                                                  "Geen nieuwere ophaaldatum sinds vorige planning"))
 
-        member_rows = self.read_rows(members_path, "leden")
-        function_rows = self.read_rows(functions_path, "functies")
-        committee_rows = self.read_rows(committees_path, "commissies")
-        duty_rows = (self.read_rows(None if duty_path is _DEFAULT_DUTY_EXPORT else duty_path, "vrijwilligers_periode")
+        paths = (members_path, functions_path, committees_path, teams_path)
+        directory = (default_export_directory()
+                     if any(path is None for path in paths) or duty_path is _DEFAULT_DUTY_EXPORT
+                     else None)
+
+        def read(path, dataset):
+            return self.read_rows(directory / EXPORT_FILENAMES[dataset] if path is None else path, dataset)
+
+        member_rows = read(members_path, "leden")
+        function_rows = read(functions_path, "functies")
+        committee_rows = read(committees_path, "commissies")
+        duty_rows = (read(None if duty_path is _DEFAULT_DUTY_EXPORT else duty_path, "vrijwilligers_periode")
                      if duty_path is not None else [])
-        team_rows = self.read_rows(teams_path, "teams")
+        team_rows = read(teams_path, "teams")
 
         # Keep only fields needed for source diagnostics, including rejected rows.
         fields = {
@@ -391,8 +399,9 @@ class SportlinkRealDataAdapter:
     def read_rows(cls, path: str | Path | None, dataset: str) -> list[dict[str, str]]:
         if hasattr(path, "read"):
             return cls.read_rows_text(path.read().lstrip("\ufeff"), dataset)
+        path = export_path(dataset, path)
         text = read_export_text(dataset, path)
-        return cls.read_rows_text(text, dataset, name=export_path(dataset, path).name)
+        return cls.read_rows_text(text, dataset, name=path.name)
 
     @classmethod
     def read_rows_text(cls, text: str, dataset: str, *, name="CSV", strict=False) -> list[dict[str, str]]:

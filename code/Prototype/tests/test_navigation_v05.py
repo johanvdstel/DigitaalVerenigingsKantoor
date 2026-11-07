@@ -88,11 +88,11 @@ def test_scalar_controls_survive_screen_cleanup(tmp_path):
     assert app.date_input(key='planning-from').value == date(2026, 9, 14)
 
 
-def test_local_files_reload_after_leaving_control(tmp_path, monkeypatch):
+def test_navigation_preserves_loaded_control_until_manual_refresh(tmp_path, monkeypatch):
     from test_duty_control_dashboard_v05 import uploads
     files = uploads(tmp_path)
     reads = []
-    def read(dataset):
+    def read(dataset, explicit_path=None):
         reads.append(dataset)
         return files[dataset].decode('utf-8-sig')
     monkeypatch.setattr('dvk.local_csv_sources.read_export_text', read)
@@ -104,6 +104,8 @@ def test_local_files_reload_after_leaving_control(tmp_path, monkeypatch):
     assert len(reads) == first
     app.button(key='nav-home').click().run()
     app.button(key='nav-control').click().run()
+    assert len(reads) == first
+    app.button(key='refresh-duty-sources').click().run()
     assert len(reads) == first + 5
     assert not app.exception
 
@@ -121,6 +123,7 @@ def test_home_uses_one_consistent_line_per_function(tmp_path):
     assert groups == {
         'Ledendiensten & Vrijwilligersbeleid': [
             '**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.',
+            '**Databronnen** — lokale exportmap instellen en bronnen vernieuwen.',
             '**No-showmanagement** — zelfstandig registreren, historie en intrekken.',
             '**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.',
             '**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.'],
