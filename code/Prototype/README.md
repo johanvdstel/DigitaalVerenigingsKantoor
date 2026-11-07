@@ -220,9 +220,10 @@ De v0.5-ingang is `CkcProgrammaAdapter`, met teamlidmaatschappen uit de CKC Team
 
 ## Lokale Sportlink CSV-exports
 
-Gebruik op macOS de map **Documenten/DVK-Sportlink-exports** in Finder.
-Het interne pad is `$HOME/Documents/DVK-Sportlink-exports/` (ook op Nederlandstalig macOS).
-Maak de map zelf aan en plaats daarin de handmatig geëxporteerde bestanden:
+Kies **Ledendiensten & Vrijwilligersbeleid → Databronnen** om de exportmap in te stellen.
+De voorgestelde map is `~/Development/DVK-Data/Sportlink-Exports/`.
+DVK bewaart de gekozen map in `~/.config/dvk/settings.json`.
+Plaats de handmatig geëxporteerde bestanden in de gekozen map.
 
 | Sportlink-export | Exacte bestandsnaam |
 | --- | --- |
@@ -231,6 +232,7 @@ Maak de map zelf aan en plaats daarin de handmatig geëxporteerde bestanden:
 | Commissies | `Commissies.csv` |
 | Teams | `Teams.csv` |
 | Overzicht per periode | `Overzicht per periode.csv` |
+| Overzicht vorig seizoen (optioneel) | `Overzicht per periode vorig seizoen.csv` |
 
 DVK haalt deze CSV's niet automatisch op en vernieuwt of herschrijft ze niet.
 Vernieuw de exports handmatig in Sportlink; plaats ze daarna onder deze namen in
@@ -336,7 +338,7 @@ Status: geïmplementeerd ter lokale functionele acceptatie; nog niet geaccepteer
 De twee CSV-bestanden vervangen het rechtstreeks lezen van `Shift Catalog.xlsx`.
 Er is geen catalogusbeheerscherm en geen Excel-parser nodig.
 
-Plaats beide bestanden in `~/Documents/DVK-Sportlink-exports/`. Gebruik UTF-8
+Plaats beide bestanden in de ingestelde exportmap. Gebruik UTF-8
 (eventueel met BOM), **komma** als scheidingsteken en één kopregel. CSV met
 puntkomma wordt niet automatisch geraden. Excel mag als editor worden gebruikt;
 controleer bij opslaan dat de komma en UTF-8 behouden blijven. Komma's in waarden

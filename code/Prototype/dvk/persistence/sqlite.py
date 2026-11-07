@@ -10,7 +10,8 @@ from ..import_management import ImportBatch, ImportStatus, SnapshotRecord, Sourc
 from ..no_show import NoShowEvent, SanctionAssessment
 from ..run_context import EngineRun, EngineRunStatus, SourceFetch, SourceFetchStatus
 from ..versioning import ConfigVersion, PolicyVersion, SoftwareVersion
-from .migrations import migrate
+from .migrations import MIGRATIONS, migrate
+from .schema_validation import SchemaValidationError, registered_version, validate_schema
 from .planning_session import SQLitePlanningSessionRepository
 from .planning_records import SQLiteAssignmentProposalRepository, SQLiteDutyAssignmentRepository, SQLiteHumanDecisionRepository, SQLiteTemporaryPlanningRepository
 from .no_show_records import SQLiteNoShowRepository, SQLiteNoShowRevocationRepository, SQLiteSanctionAssessmentRepository
@@ -91,13 +92,26 @@ class SQLiteEngineRunRepository:
 
 
 class SQLiteUnitOfWork:
-    def __init__(self, database_path: str | Path) -> None: self._database_path = str(database_path); self._connection = None; self._committed = False
+    def __init__(self, database_path: str | Path, *, migrate_schema: bool = True) -> None:
+        self._database_path = str(database_path)
+        self._migrate_schema = migrate_schema
+        self._connection = None
+        self._committed = False
     def __enter__(self):
-        self._connection = sqlite3.connect(self._database_path)
+        if self._migrate_schema:
+            self._connection = sqlite3.connect(self._database_path)
+        else:
+            self._connection = sqlite3.connect(Path(self._database_path).absolute().as_uri() + "?mode=rw", uri=True)
         try:
             self._connection.execute("PRAGMA foreign_keys=ON")
-            migrate(self._connection)
-            self._connection.commit()
+            if self._migrate_schema:
+                migrate(self._connection)
+                self._connection.commit()
+            else:
+                version = registered_version(self._connection, MIGRATIONS, len(MIGRATIONS))
+                if version != len(MIGRATIONS):
+                    raise SchemaValidationError("De database gebruikt een oudere versie van het DVK-schema.")
+                validate_schema(self._connection, version, MIGRATIONS)
             self.records = SQLiteRecordRepository(self._connection); self.import_batches = SQLiteImportBatchRepository(self._connection); self.snapshots = SQLiteSnapshotRepository(self._connection); self.source_fetches = SQLiteSourceFetchRepository(self._connection); self.engine_runs = SQLiteEngineRunRepository(self._connection)
             self.planning_sessions = SQLitePlanningSessionRepository(self._connection)
             self.temporary_planning = SQLiteTemporaryPlanningRepository(self._connection)
@@ -139,7 +153,10 @@ class SQLiteDatabase:
             connection.execute("PRAGMA foreign_keys=ON")
             with connection:
                 return migrate(connection)
-    def unit_of_work(self) -> SQLiteUnitOfWork: self.path.parent.mkdir(parents=True, exist_ok=True); return SQLiteUnitOfWork(self.path)
+    def unit_of_work(self, *, migrate_schema: bool = True) -> SQLiteUnitOfWork:
+        if migrate_schema:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        return SQLiteUnitOfWork(self.path, migrate_schema=migrate_schema)
 
 
 def _iso(value): return None if value is None else value.isoformat()

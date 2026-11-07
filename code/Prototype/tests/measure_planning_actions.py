@@ -33,7 +33,10 @@ def main(count, mixed=False, legacy_selection=False, actions="all"):
     functions=tuple({'Rel. code':f'SYNTH-{i}','Functie':'Trainer Senioren'} for i in range(0,count,6)) if mixed else ()
     data=exports(members=members, functions=functions)
     counters={'csv_files':0,'programme_fetches':0,'database_initializations':0}
-    def read(dataset):
+    def read(dataset, explicit_path=None):
+        if explicit_path is not None and Path(explicit_path).name == "Overzicht per periode vorig seizoen.csv":
+            from dvk.sportlink_exports import ExportFileError
+            raise ExportFileError("Synthetic historical file unavailable")
         counters['csv_files']+=1
         return data[dataset].decode('utf-8-sig')
     def fetch(self,**kwargs):
@@ -43,6 +46,7 @@ def main(count, mixed=False, legacy_selection=False, actions="all"):
     def init(self):
         counters['database_initializations']+=1
         return initialize(self)
+    catalog = load_shift_catalog(ROOT / "dvk" / "configuration")
     with tempfile.TemporaryDirectory(prefix='dvk-synthetic-profile-') as directory:
         target=Path(directory)/'streamlit_app.py'
         source=ROOT/'streamlit_app.py'
@@ -66,13 +70,22 @@ finally:
         profile_json.dump({'script_ms':(profile_time.perf_counter()-_started)*1000},_out)
 """.replace('PROFILE_DIRECTORY', repr(directory))
         target.write_text(header + 'try:\n' + textwrap.indent(body, '    ') + footer)
-        with patch.object(element_tree, 'get_widget_state', preserving_editors(element_tree.get_widget_state)), patch('dvk.local_csv_sources.read_export_text',read), patch.object(SportlinkProgrammaClient,'fetch_rows',fetch), patch.object(SQLiteDatabase,'initialize',init):
+        with (patch.dict(os.environ, {"HOME": directory}),
+              patch("dvk.shift_catalog.load_shift_catalog", lambda: catalog),
+              patch.object(element_tree, 'get_widget_state', preserving_editors(element_tree.get_widget_state)),
+              patch('dvk.local_csv_sources.read_export_text', read),
+              patch.object(SportlinkProgrammaClient, 'fetch_rows', fetch),
+              patch.object(SQLiteDatabase, 'initialize', init)):
             app=AppTest.from_file(str(target),default_timeout=60).run()
             app.button(key='nav-planning').click().run()
             app.button(key='activate-planning').click().run()
             db=SQLiteDatabase(Path(directory)/'dvk_v05.sqlite')
-            assert sync(db,load_shift_catalog(),{})[0] is None
+            assert sync(db, catalog, {})[0] is None
             app.run()
+            if any(button.key == "nav-sources" for button in app.button):
+                app.button(key="nav-sources").click().run()
+                app.button(key="load-candidate-sources").click().run()
+                app.button(key="nav-planning").click().run()
             service_ids=ui_table(app, "services_editor-").value.service_id.tolist()
             def timed(kind, action):
                 before=dict(counters); existing=set(Path(directory).glob('profile-*.stats')); start=time.perf_counter()

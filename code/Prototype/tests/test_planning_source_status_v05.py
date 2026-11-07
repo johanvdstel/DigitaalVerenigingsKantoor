@@ -109,14 +109,18 @@ def test_volunteer_failure_preserves_last_success_time_and_usability():
 
 def test_ui_shows_complete_table_and_refresh_preserves_planning(operational_page):
     app, _, observed = operational_page
-    detail = next(e for e in app.expander if e.label == 'Bronstatus en actualiteit')
-    assert len(detail.dataframe[0].value) == 8
-    assert detail.dataframe[0].value.Databron.tolist() == list(indexed())
-    assert detail.dataframe[0].value.columns.tolist() == [
+    app.button(key="nav-sources").click().run()
+    csv_rows, api_rows = (table.value for table in app.dataframe)
+    assert csv_rows.Databron.tolist() + api_rows.Databron.tolist() == list(indexed())
+    assert api_rows.columns.tolist() == [
         'Databron', 'Type', TIME, 'Status', 'Bruikbaarheid', 'Toelichting']
-    historical_row = detail.dataframe[0].value.set_index('Databron').loc[HISTORICAL_FILENAME]
+    historical_row = csv_rows.set_index('Databron').loc[HISTORICAL_FILENAME]
     assert historical_row['Type'] == 'CSV'
+    assert historical_row['Verplicht'] == 'Nee'
+    assert historical_row['Beschikbaarheid'] == 'Ontbreekt'
+    assert len(observed) == 1
     app.button(key='load-candidate-sources').click().run()
+    app.button(key='nav-planning').click().run()
     assert not app.exception
     assert len(observed) == 2
     assert 'selected_service_id' in app.session_state

@@ -5,6 +5,7 @@ Optional --root points to a frozen code-only baseline for an identical compariso
 import argparse
 from functools import lru_cache
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -51,7 +52,7 @@ from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from test_volunteer_planning_integration_v05 import sync, PERIOD, IDENTITY
 _data=synthetic_exports({count!r}, {mixed!r})
 def _read_source(dataset, explicit_path=None):
-    if explicit_path is None:
+    if explicit_path is None or Path(explicit_path).name != 'Overzicht per periode vorig seizoen.csv':
         return _data[dataset].decode('utf-8-sig')
     if {historical!r}:
         return history_text([history_row(f'SYNTH-{{i}}', (i % 3) * 4) for i in range({count!r})])
@@ -79,6 +80,13 @@ _probe_outcome='rerun-or-error'
         wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())):
     try:
 """
+        if "def _render_sources(" in body:
+            wrapper += """        if 'candidate-context' not in st.session_state and _probe_run == 1:
+            from dvk.candidate_context import CandidateContextApplicationService
+            st.session_state['candidate-context'] = CandidateContextApplicationService(IDENTITY).load(
+                period=PERIOD, source_period='2026-2027', client_id='synthetic', exports=_data)
+            st.session_state['candidate-session-id'] = _session.session_id
+"""
         footer = r"""
         _probe_outcome='completed'
     finally:
@@ -95,7 +103,7 @@ _probe_outcome='rerun-or-error'
         subprocess.run([sys.executable,"-B","-m","streamlit","run",str(target),
                         "--server.address","127.0.0.1","--server.port",str(port),
                         "--server.headless","true","--browser.gatherUsageStats","false",
-                        "--server.fileWatcherType","none"],check=True)
+                        "--server.fileWatcherType","none"],check=True, env=os.environ | {"HOME": directory})
 
 
 if __name__ == "__main__":

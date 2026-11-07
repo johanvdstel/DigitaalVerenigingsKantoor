@@ -132,11 +132,11 @@ def test_source_controls_under_diensten_and_no_show_roundtrip(tmp_path, monkeypa
     app, db = page(tmp_path)
     # BL-18 moves Sportlink controls to Diensten, retaining the No-show roundtrip.
     nodes = list(app.main)
-    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Diensten")
-    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 5 — Kandidaten")
+    duties = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 3 — Diensten")
+    candidates = next(i for i,n in enumerate(nodes) if n.type == "markdown" and n.value == "## 4 — Kandidaten")
     sync_button = next(i for i,n in enumerate(nodes) if n.type == "button" and n.label == "Sportlink-inroosteringen synchroniseren")
     assert duties < sync_button < candidates
-    assert any("Leden.csv wordt bij synchroniseren opnieuw" in c.value for c in app.caption)
+    assert any("Leden.csv wordt bij synchroniseren uit de ingestelde exportmap" in c.value for c in app.caption)
     from dvk.sportlink_exports import export_path
     export_path("leden").unlink()
     app.button[ next(i for i,b in enumerate(app.button) if b.label == "Sportlink-inroosteringen synchroniseren") ].click().run()
@@ -167,7 +167,7 @@ def test_moved_sync_uses_existing_service_with_same_arguments_and_messages(tmp_p
     raw = [row(binding.service, people()[0])]
     seen = []
     synthetic = client({binding.task_code: TimeoutError("synthetic-client") if mode == "transport" else raw}, seen)
-    def read_local(dataset):
+    def read_local(dataset, explicit_path=None):
         if mode == "decode":
             raise ValueError("Leden.csv: synthetisch onleesbaar bestand")
         return "synthetic CSV"
@@ -180,6 +180,7 @@ def test_moved_sync_uses_existing_service_with_same_arguments_and_messages(tmp_p
     seed_work(db, binding.service)
     before = snapshot(db)
     app.run()
+    app.button(key="nav-sources").click().run()
     next(c for c in app.checkbox if c.key.startswith("confirm-source-")).check().run()
     next(b for b in app.button if b.label == "Sportlink-inroosteringen synchroniseren").click().run()
     assert not app.exception

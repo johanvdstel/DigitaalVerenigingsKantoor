@@ -4,6 +4,7 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import datetime
+from pathlib import Path
 
 from .duty_control_presenter import EXPORTS, load_duty_dashboard, present_controls, validate_season
 from .model import DutyQualification, PrototypeCase
@@ -39,6 +40,7 @@ class CandidateContext:
     source_files: tuple[str, ...] = ()
     historical_backlog: HistoricalBacklogSource | None = None
     csv_loaded_at: datetime | None = None
+    source_directory: Path | None = None
 
     @property
     def diagnostic_details(self):
@@ -74,12 +76,14 @@ class CandidateContextApplicationService:
             source_period = validate_season(source_period)
         except ValueError as exc:
             raise CandidateSourceError(str(exc)) from None
-        csv_loaded_at = None
+        csv_loaded_at = source_directory = None
+        local_sources = LocalCsvSourceApplicationService()
         try:
             if exports is None:
-                loaded = LocalCsvSourceApplicationService().load()
+                loaded = local_sources.load()
                 exports = loaded.exports
                 csv_loaded_at = loaded.loaded_at
+                source_directory = loaded.directory
             # Reuse the existing strict CSV boundary and complete household context.
             source = load_duty_dashboard(exports, as_of=period.start,
                                          source_period=source_period, isolate_person_errors=True).source
@@ -93,7 +97,7 @@ class CandidateContextApplicationService:
         except TeamMatchdayError as exc:
             raise CandidateSourceError(str(exc)) from None
         now = datetime.now().astimezone()
-        history = LocalCsvSourceApplicationService().historical_backlog(
+        history = local_sources.historical_backlog(
             person_ids=(p.person_id for p in source.persons))
         adapter = CkcProgrammaAdapter(team_memberships=source.team_memberships)
         client = client_factory(adapter)
@@ -103,13 +107,13 @@ class CandidateContextApplicationService:
             return CandidateContext(period, source_period, source, None, now, client.stats,
                                     "Programma API niet beschikbaar: de aanvraag is mislukt of de respons is ongeldig. "
                                     "Wedstrijdcontext is onbekend; laad de kandidaatbronnen opnieuw.",
-                                    tuple(EXPORT_FILENAMES.values()), history, csv_loaded_at)
+                                    tuple(EXPORT_FILENAMES.values()), history, csv_loaded_at, source_directory)
         program = adapter.import_rows(fetched.rows, retrieved_at=now)
         error = None
         if any(signal.severity == "ERROR" for signal in program.signals):
             error = "Wedstrijdcontext niet bruikbaar: controleer de teamkoppeling en wedstrijdbronmeldingen."
         return CandidateContext(period, source_period, source, program, now, client.stats, error,
-                                tuple(EXPORT_FILENAMES.values()), history, csv_loaded_at)
+                                tuple(EXPORT_FILENAMES.values()), history, csv_loaded_at, source_directory)
 
     def propose(self, context, *, service, need, planning_app, proposal_run_id):
         self.authorizer.require(self.identity, Permission.VIEW_PLANNING)

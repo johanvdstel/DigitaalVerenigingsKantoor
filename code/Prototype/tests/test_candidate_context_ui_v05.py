@@ -15,6 +15,12 @@ from test_planning_ui_names_v05 import page
 from test_volunteer_planning_integration_v05 import sync, PERIOD
 
 
+def refresh_candidate_sources(app):
+    app.button(key="nav-sources").click().run()
+    app.button(key="load-candidate-sources").click().run()
+    app.button(key="nav-planning").click().run()
+
+
 @pytest.fixture
 def operational_page(tmp_path, monkeypatch):
     monkeypatch.setenv("SPORTLINK_CLIENT_ID", "synthetic")
@@ -27,7 +33,9 @@ def operational_page(tmp_path, monkeypatch):
         return original(self, **kwargs)
     monkeypatch.setattr(CandidateContextApplicationService, 'load', load)
     app, db = page(tmp_path)
-    assert observed == [PERIOD]  # Automatic on first operational use, not every rerun.
+    assert observed == []
+    refresh_candidate_sources(app)
+    assert observed == [PERIOD]
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
     app.session_state['selected_service_id'] = ui_table(app, "services_editor-").value.iloc[0].service_id
@@ -37,7 +45,7 @@ def operational_page(tmp_path, monkeypatch):
 
 def test_operational_candidates_have_names_hours_and_human_approval(operational_page):
     app, db, observed = operational_page
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert not app.exception
     assert observed == [PERIOD, PERIOD]
     assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
@@ -60,14 +68,14 @@ def test_operational_candidates_have_names_hours_and_human_approval(operational_
 
 def test_failed_refresh_replaces_candidates_with_explicit_program_error(operational_page, monkeypatch):
     app, db, _ = operational_page
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     ctx = app.session_state['candidate-context']
     def failure(*a, **k):
         return replace(ctx, program=None, stats=ProgrammaFetchStats(1, 3, 1),
                        error='Programma API niet beschikbaar: synthetische technische fout')
     monkeypatch.setattr(CandidateContextApplicationService, 'load', failure)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert not app.exception
     assert any('Programma API niet beschikbaar' in e.value for e in app.error)
     assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
@@ -79,12 +87,12 @@ def test_failed_refresh_replaces_candidates_with_explicit_program_error(operatio
 
 def test_failed_csv_refresh_cannot_retain_previous_proposals(operational_page, monkeypatch):
     app, _, _ = operational_page
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     def failure(*a, **k):
         raise CandidateSourceError('Synthetische onleesbare CSV')
     monkeypatch.setattr(CandidateContextApplicationService, 'load', failure)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert not app.exception
     assert any('onleesbare CSV' in e.value for e in app.error)
     assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
@@ -94,11 +102,11 @@ def test_failed_csv_refresh_cannot_retain_previous_proposals(operational_page, m
 def test_period_change_and_demo_switch_do_not_reuse_operational_context(operational_page):
     from datetime import timedelta
     app, _, _ = operational_page
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     app.date_input[0].set_value(PERIOD.start + timedelta(days=7)).run()
     app.button(key='confirm-period-change').click().run()
     assert not app.exception
-    assert app.session_state['candidate-context'].period != PERIOD
+    assert 'candidate-context' not in app.session_state
     use_synthetic_demo(app)
     assert not app.exception
     assert not any(b.key == 'load-candidate-sources' for b in app.button)
@@ -114,7 +122,7 @@ def test_person_warnings_do_not_show_global_csv_refresh_error(operational_page, 
     from test_candidate_context_v05 import context
     ctx = replace(context(data), period=PERIOD)
     monkeypatch.setattr(CandidateContextApplicationService, 'load', lambda *a, **k: ctx)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert not app.exception
     assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
     assert not 'Synthetisch lid M2' in table(app).value.Kandidaat.tolist()
@@ -143,7 +151,7 @@ def test_no_exception_input_and_emergency_visible_with_explicit_approval(
                 for item in result.planned))
         monkeypatch.setattr(CandidateContextApplicationService, 'propose', propose_with_temporary_reason)
     monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a, **k: ctx)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     # Select Saturday, while the only player has Sunday as team matchday.
     saturday = next(b.service for b in load_shift_catalog().bindings(PERIOD)
                     if b.service.starts_at.weekday()==5)
@@ -175,7 +183,7 @@ def test_no_exception_input_and_emergency_visible_with_explicit_approval(
     def broken(*a,**k):
         raise CandidateSourceError('Teams-bronfout: Speeldag ontbreekt of is onbekend.')
     monkeypatch.setattr(CandidateContextApplicationService,'load',broken)
-    app.button(key='load-candidate-sources').click().run()
+    refresh_candidate_sources(app)
     assert any('Speeldag' in e.value for e in app.error)
     assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     assert snapshot(db)==before
