@@ -39,4 +39,4 @@ def test_period_label_and_immediate_range_match_actual_session(tmp_path,mode,end
     assert not app.exception
     with db.unit_of_work() as u:
         assert u.planning_sessions.get().period==expected
-        assert u.sportlink_bookings.refresh_state() is None
+        assert u.sportlink_bookings.refresh_state()["identity"]["total"] == 0

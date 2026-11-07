@@ -30,7 +30,7 @@ def test_four_sections_and_controls_in_agreed_order(operational_page):
     assert not any(e.label == "Databronnen" for e in app.expander)
     assert app.button(key="nav-sources")
     assert any(m.value == "### Datakwaliteit" for m in candidates.markdown)
-    assert any(b.label == "Sportlink-inroosteringen synchroniseren" for b in duties.button)
+    assert not any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
     assert table(duties, "services_editor-")
     assert table(candidates)
     assert any(m.value == "### Actieve tijdelijke DVK-inroosteringen" for m in candidates.markdown)
@@ -90,27 +90,23 @@ def test_matches_table_remains_available_in_collapsed_section(operational_page):
 
 
 OCCUPANCY_WARNING = (
-    "De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. "
-    "Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen."
+    "De Sportlink-bezetting is onbekend voor deze periode. "
+    "Ga naar Databronnen om feitelijke inroosteringen handmatig op te halen."
 )
 
 
-def test_occupancy_warning_immediately_precedes_sync_and_tracks_source(tmp_path):
+def test_occupancy_warning_points_to_manual_sync_and_tracks_source(tmp_path):
     from test_planning_ui_names_v05 import page
     from test_volunteer_planning_integration_v05 import sync
     from dvk.shift_catalog import load_shift_catalog
 
     app, db = page(tmp_path)
     _, _, duties, _ = sections(app)
-    assert not any("Geen gevalideerde Sportlink-bezetting" in w.value for w in app.warning)
-    fetch = next(e for e in duties.expander if e.label == "Feitelijke Sportlink-inroosteringen ophalen")
-    assert fetch.proto.expanded is False
-    children = list(fetch.children.values())
-    button_index = next(i for i, child in enumerate(children)
-                        if child.type == "button" and child.label == "Sportlink-inroosteringen synchroniseren")
-    assert children[button_index - 1].type == "warning"
-    assert children[button_index - 1].value == OCCUPANCY_WARNING
-    assert sum(w.value == OCCUPANCY_WARNING for w in app.warning) == 1
+    assert [w.value for w in duties.warning] == [OCCUPANCY_WARNING]
+    assert not any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
+    app.button(key="nav-sources").click().run()
+    assert any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
+    app.button(key="nav-planning").click().run()
 
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
@@ -139,8 +135,8 @@ def test_catalog_controls_position_text_confirmation_and_no_extra_fetch(operatio
     children = list(duties.children.values())
     catalog_index = next(i for i, c in enumerate(children)
                          if c.type == 'flex_container' and any(b.key == 'reload-catalog' for b in c.button))
-    assert any(e.label == 'Feitelijke Sportlink-inroosteringen ophalen'
-               for e in children[catalog_index + 1].expander)
+    assert any('Laatste geslaagde bronperiode' in c.value
+               for c in children[catalog_index + 1].caption)
     before = len(observed)
     with db.unit_of_work() as u:
         session = u.planning_sessions.get()

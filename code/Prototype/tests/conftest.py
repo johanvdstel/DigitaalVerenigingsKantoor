@@ -11,6 +11,7 @@ def synthetic_home(tmp_path, monkeypatch):
     from dvk.real_data_import import SportlinkRealDataAdapter
     from dvk.programma_client import SportlinkProgrammaClient
     from dvk.programma_team_adapter import CkcProgrammaAdapter
+    from dvk.vrijwilligers_client import SportlinkVrijwilligersClient
     home = tmp_path / "synthetic-home"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("SPORTLINK_CLIENT_ID", "synthetic-test-only")
@@ -29,6 +30,13 @@ def synthetic_home(tmp_path, monkeypatch):
             kwargs["opener"] = lambda *a, **k: io.BytesIO(b"[]")
         original(self, adapter, **kwargs)
     monkeypatch.setattr(SportlinkProgrammaClient, "__init__", init)
+    volunteer_init = SportlinkVrijwilligersClient.__init__
+
+    def init_volunteers(self, adapter, **kwargs):
+        kwargs.setdefault("opener", lambda *a, **k: io.BytesIO(b"[]"))
+        volunteer_init(self, adapter, **kwargs)
+
+    monkeypatch.setattr(SportlinkVrijwilligersClient, "__init__", init_volunteers)
 
 
 @pytest.fixture(autouse=True)

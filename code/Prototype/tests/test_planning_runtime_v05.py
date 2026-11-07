@@ -121,7 +121,7 @@ with db.unit_of_work() as uow:
 
 def ui(tmp_path):
     path = tmp_path / 'streamlit_app.py'
-    path.write_text((ROOT / 'streamlit_app.py').read_text().replace('value=date.today()', 'value=date(2026, 9, 14)'))
+    path.write_text((ROOT / 'streamlit_app.py').read_text().replace('value=datetime.now(TZ).date()', 'value=date(2026, 9, 14)'))
     app = AppTest.from_file(str(path), default_timeout=20).run()
     app.button(key='nav-planning').click().run()
     assert prepare_planning(SQLiteDatabase(tmp_path / 'dvk_v05.sqlite')) is None
