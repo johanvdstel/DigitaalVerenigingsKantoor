@@ -21,6 +21,7 @@ from dvk.planning_source_presenter import planning_source_rows
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.no_show import NoShowEvent, season_id
 from dvk.persistence import SQLiteDatabase
+from dvk.persistence.schema_validation import SchemaValidationError
 from dvk.planning_diagnostics import trace_planning
 from dvk.planning import PlanningPeriod, PlanningSourceStatus
 from dvk.planning_session import PlanningSessionApplicationService
@@ -34,7 +35,9 @@ from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog
 from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding, same_task_group, overlaps_service_date
-from dvk.sportlink_exports import export_location_hint
+from dvk.sportlink_exports import (
+    ExportFileError, default_export_directory, export_location_hint, save_export_directory,
+)
 from dvk.real_data_import import SportlinkRealDataAdapter
 from dvk.shift_catalog import load_shift_catalog
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
@@ -114,7 +117,7 @@ def _cancel_period_change():
 
 def _clear_period_widgets():
     for key in list(st.session_state):
-        if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-key", "candidate-load-error"} or key.startswith(
+        if key in {"services_editor", "selected_service_id", "candidate-context", "candidate-load-error"} or key.startswith(
                 ("proposal-run-", "confirmed-", "pick-", "services_editor-", "service-choice-", "candidate-table-", "candidate-detail-")):
             del st.session_state[key]
 
@@ -169,25 +172,23 @@ def _render_planning():
     settings = st.expander("Instellingen", expanded=False)
     with settings:
         st.markdown("## 1 — Instellingen")
-    data_sources = st.expander("Databronnen", expanded=False)
-    with data_sources:
-        st.markdown("## 2 — Databronnen")
     fixtures = st.expander("Wedstrijden", expanded=False)
     with fixtures:
-        st.markdown("## 3 — Wedstrijden")
+        st.markdown("## 2 — Wedstrijden")
     duties = st.expander("Diensten", expanded=False)
     with duties:
-        st.markdown("## 4 — Diensten")
+        st.markdown("## 3 — Diensten")
         # Fill this early without moving reload validation past source processing.
         catalog_controls = st.container()
         sportlink_source = st.container()
         duty_table = st.container()
     candidates = st.expander("Kandidaten", expanded=False)
     with candidates:
-        st.markdown("## 5 — Kandidaten")
+        st.markdown("## 4 — Kandidaten")
+        candidate_status = st.container()
     database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
     database.initialize()
-    identity = Identity("demo-planner", "Demo planner", frozenset({Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS}))
+    identity = _planner_identity()
     with settings:
         with database.unit_of_work() as uow:
             active_session = PlanningSessionApplicationService(uow, identity).current()
@@ -200,7 +201,6 @@ def _render_planning():
                 st.session_state["planning-mode"] = "Aangepast"
                 st.session_state["planning-from"] = active_period.start
                 st.session_state["planning-until"] = active_period.end
-                _clear_period_widgets()
                 st.rerun()
         if active_session and st.button("Nieuwe planning starten" if needs_resume else "Start nieuwe planning", key="start-new-planning"):
             st.session_state["planning-close-request"] = active_session.session_id
@@ -312,15 +312,16 @@ def _render_planning():
         st.caption("Prototype v0.5 — Planning, kandidaten en menselijke beslissing")
 
     demo = False  # The normal planner always uses operational sources.
-    if st.session_state.get("candidate-source-mode") != demo:
+    if st.session_state.get("candidate-source-mode", demo) != demo:
         st.session_state.pop("candidate-context", None)
-        st.session_state.pop("candidate-load-key", None)
         for key in list(st.session_state):
             if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
                 del st.session_state[key]
     st.session_state["candidate-source-mode"] = demo
     candidate_context = st.session_state.get("candidate-context")
-    if candidate_context is not None and candidate_context.period != period:
+    if candidate_context is not None and (
+            candidate_context.period != period
+            or st.session_state.get("candidate-session-id") != (active_session.session_id if active_session else None)):
         st.session_state.pop("candidate-context", None)
         candidate_context = None
     with database.unit_of_work() as uow:
@@ -329,11 +330,6 @@ def _render_planning():
         source_bookings = source_app.bookings(period) if not demo else ()
         services, needs, matches, statuses = _demo_data(period.start) if demo else source_app.planning_data(period)
         names_by_service = source_app.service_names(period) if not demo else {}
-    with data_sources:
-        if demo:
-            st.info("Demonstratie: diensten, bezetting, kandidaten, wedstrijden en actualiteit zijn synthetisch.")
-        else:
-            st.info("Diensten uit de CKC-catalogus; bezetting uit Sportlink. Kandidaten gebruiken de vijf lokale CKC-exports en het Sportlink-wedstrijdprogramma. Persoonsconflicten met Sportlink-inroosteringen zijn nog niet aangesloten.")
     if not demo and candidate_context is not None and candidate_context.error is None:
         matches = candidate_context.program.matches
     with database.unit_of_work() as uow:
@@ -390,37 +386,12 @@ def _render_planning():
             selected_service_id = previous_service if previous_service in service_by_id else None
 
     candidate_result = None
-    with data_sources:
+    with candidate_status:
         if not demo:
-            st.caption("Historische urenbron: Overzicht per periode vorig seizoen.csv. Positieve achterstanden tellen het volledige lopende seizoen mee, na de voorkeursgroep en de actuele openstaande uren.")
-            st.caption(export_location_hint())
-            with settings:
-                source_period = st.text_input("Seizoen van Overzicht per periode", value=suggested_season(period.start), key="candidate-season")
-            st.caption("Controleer zelf of de vijf handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma; beoordeel de kandidaten altijd in die context.")
-            if candidate_context is not None and candidate_context.source_period != source_period.strip():
-                st.session_state.pop("candidate-context", None)
-                candidate_context = None
-            refresh_candidates = st.button("Brongegevens vernieuwen", key="load-candidate-sources")
-            candidate_load_key = (period, source_period)
-            if refresh_candidates or st.session_state.get("candidate-load-key") != candidate_load_key:
-                st.session_state["candidate-load-key"] = candidate_load_key
-                st.session_state.pop("candidate-load-error", None)
-                st.session_state.pop("candidate-context", None)
-                for key in list(st.session_state):
-                    if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
-                        del st.session_state[key]
-                try:
-                    with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
-                        candidate_context = CandidateContextApplicationService(identity).load(
-                            period=period, source_period=source_period,
-                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
-                    st.session_state["candidate-context"] = candidate_context
-                    st.rerun()
-                except CandidateSourceError as exc:
-                    candidate_context = None
-                    st.session_state["candidate-load-error"] = str(exc)
-            if st.session_state.get("candidate-load-error"):
-                st.error(st.session_state["candidate-load-error"])
+            st.caption("Bronnen laden of vernieuwen kan via Databronnen.")
+            if active_session and st.session_state.get("candidate-session-id") == active_session.session_id:
+                if load_error := st.session_state.get("candidate-load-error"):
+                    st.error(load_error)
             if candidate_context is not None:
                 history = candidate_context.historical_backlog
                 if history is None:
@@ -436,7 +407,7 @@ def _render_planning():
                             st.table([{"Lid": names.get(s.record_key, "Geen gekoppeld actueel lid"),
                                        "Melding": s.message} for s in history.signals])
                 st.caption("Ingelezen bestanden: " + ", ".join(candidate_context.source_files))
-                st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen. DVK controleert de map niet op de achtergrond.")
+                st.caption("Bestanden handmatig gewijzigd? Kies Brongegevens vernieuwen in Databronnen.")
                 stats = candidate_context.stats
                 st.caption(f"Kandidaatbronnen geladen: {candidate_context.fetched_at:%d-%m-%Y %H:%M}. Programma API: {stats.calls} aanvraag, {stats.retries} herhalingen, {stats.failures} definitieve fouten.")
                 if candidate_context.error:
@@ -583,42 +554,8 @@ def _render_planning():
         elif not overview.matches: st.info("Sportlink heeft geen wedstrijden aangeleverd voor de gekozen periode.")
         else: st.dataframe([{"Datum": _datum_met_dag(m.starts_at), "Tijd": m.starts_at.strftime("%H:%M"), "Team": m.team_id, "Thuis/uit": "Thuis" if m.home_away.strip().lower() == "home" else "Uit"} for m in overview.matches], use_container_width=True, hide_index=True, height=230)
     with sportlink_source:
-        with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
-            st.caption(export_location_hint(("leden",)))
-            st.caption("Leden.csv wordt bij synchroniseren opnieuw uit de vaste lokale map gelezen voor persoonskoppeling.")
-            st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
-            replace_confirmed = False
-            replacing = bool(active_session and (active_session.source_revision or temporary_rows))
-            if replacing:
-                replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{active_session.source_revision}")
-                st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
-            if not demo and not source_matches:
-                st.warning("De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen.")
-            if st.button("Sportlink-inroosteringen synchroniseren", disabled=demo or (replacing and not replace_confirmed)):
-                try:
-                    persons = LocalCsvSourceApplicationService().volunteer_persons()
-                    with database.unit_of_work() as uow:
-                        if active_session is None:
-                            active_session = PlanningSessionApplicationService(uow, identity).start(period, catalog=catalog)
-                            st.session_state["planning-resumed"] = active_session.session_id
-                        error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
-                            period=period,
-                            client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
-                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
-                            persons=persons, imported_at=datetime.now().astimezone(),
-                            confirmed=replace_confirmed, source_revision=active_session.source_revision)
-                    if error:
-                        st.error(error)
-                    else:
-                        st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
-                        st.rerun()
-                except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
-                    st.error(str(exc))
-            for signal in st.session_state.get("sportlink-booking-signals", ()):
-                st.error(signal.message)
-            sync_result = st.session_state.pop("sportlink-sync-result", None)
-            if sync_result:
-                st.success(sync_result)
+        _render_volunteer_sync(database, identity, catalog, period, active_session,
+                               temporary_rows, source_matches, disabled=demo)
         if not demo:
             st.caption(f"Gekozen periode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
             if success:
@@ -655,17 +592,158 @@ def _render_planning():
                 st.write("Taakcodes en uitvraagstatus laatste poging: " + "; ".join(
                     f"{row['task_code']} — {row['description']}: {row['status']}"
                     for row in attempt["tasks"]))
-    with data_sources:
-        with st.expander("Bronstatus en actualiteit", expanded=False):
-            st.dataframe(planning_source_rows(
-                context=candidate_context, load_error=st.session_state.get("candidate-load-error"),
-                volunteer_success=success, volunteer_attempt=attempt,
-                volunteer_matching=source_matches, demo=demo),
-                use_container_width=True, hide_index=True, height=360)
+    with candidate_status:
         st.markdown("### Datakwaliteit")
         if overview.data_quality_signals: st.dataframe([{"Ernst": s.severity, "Code": s.code, "Melding": s.message} for s in overview.data_quality_signals], use_container_width=True, hide_index=True, height=360)
         else: st.success("Geen datakwaliteitssignalen voor deze planning.")
         st.caption("Gate 10 ondersteunt expliciete intrekking van no-shows met een verplichte toelichting en afzonderlijke auditregistratie. Gate 8 gebruikt demonstratiedata. Niet selecteren is geen afwijzing.")
+
+
+def _planner_identity():
+    return Identity("demo-planner", "Demo planner", frozenset({
+        Permission.VIEW_PLANNING, Permission.DECIDE_PROPOSAL, Permission.MANAGE_NO_SHOWS,
+    }))
+
+
+def _render_volunteer_sync(database, identity, catalog, period, active_session,
+                           temporary_rows, source_matches, *, disabled=False, from_sources=False):
+    sync_key = f"sync-volunteers-{from_sources}-{period}-{active_session.session_id if active_session else None}-{active_session.source_revision if active_session else None}"
+    with st.expander("Feitelijke Sportlink-inroosteringen ophalen"):
+        st.caption(export_location_hint(("leden",)))
+        st.caption("Leden.csv wordt bij synchroniseren uit de ingestelde exportmap gelezen voor persoonskoppeling.")
+        st.caption("Alle actieve catalogustaakcodes worden opgehaald voor de gekozen periode. Bij succes vervallen alle tijdelijke indelingen. Boekingen zonder betrouwbare persoonskoppeling tellen mee in de bezetting; no-showregistratie is daarop niet beschikbaar.")
+        replace_confirmed = False
+        replacing = bool(active_session and (active_session.source_revision or temporary_rows))
+        if replacing:
+            replace_confirmed = st.checkbox("Ik bevestig dat tijdelijke indelingen mogen vervallen, niet langer nodig zijn en dat noodzakelijke handmatige verwerking in Sportlink is afgehandeld.", key=f"confirm-source-{sync_key}")
+            st.caption("DVK controleert deze verklaring niet. Bij een mislukte synchronisatie blijft de bestaande planning behouden.")
+        if not disabled and not source_matches:
+            st.warning("De actuele bezetting van de vrijwilligersdiensten is nog niet beschikbaar voor deze roosterperiode. Haal de roostergegevens op via de onderstaande knop om de bezetting en resterende behoefte te kunnen bepalen.")
+        if st.button("Sportlink-inroosteringen synchroniseren", key=sync_key, disabled=disabled or (replacing and not replace_confirmed)):
+            try:
+                persons = LocalCsvSourceApplicationService().volunteer_persons()
+                with database.unit_of_work(migrate_schema=not from_sources) as uow:
+                    sessions = PlanningSessionApplicationService(uow, identity)
+                    if sessions.current() != active_session:
+                        raise ValueError("De planningssessie is gewijzigd. Controleer de periode en bevestig opnieuw.")
+                    if active_session is None:
+                        active_session = sessions.start(period, catalog=catalog)
+                        st.session_state["planning-resumed"] = active_session.session_id
+                    error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
+                        period=period,
+                        client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
+                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
+                        persons=persons, imported_at=datetime.now().astimezone(),
+                        confirmed=replace_confirmed, source_revision=active_session.source_revision)
+                if error:
+                    st.error(error)
+                else:
+                    st.session_state["sportlink-sync-result"] = "Sportlink-inroosteringen vernieuwd; tijdelijke DVK-planning vervangen."
+                    st.rerun()
+            except (ValueError, UnicodeError, VrijwilligersFetchError) as exc:
+                st.error(str(exc))
+        for signal in st.session_state.get("sportlink-booking-signals", ()):
+            st.error(signal.message)
+        sync_result = st.session_state.pop("sportlink-sync-result", None)
+        if sync_result:
+            st.success(sync_result)
+
+
+def _render_candidate_refresh(identity, session):
+    period = session.period
+    st.caption("Controleer of de handmatig vernieuwde exports bij dit seizoen horen. Sportlink is de bron voor het wedstrijdprogramma.")
+    source_period = st.text_input("Seizoen van Overzicht per periode",
+                                 value=suggested_season(period.start), key="candidate-season")
+    st.caption("Het historische urenbestand is optioneel. Controleer zelf of het bij het vorige seizoen hoort.")
+    if st.button("Brongegevens vernieuwen", key="load-candidate-sources"):
+        st.session_state.pop("candidate-load-error", None)
+        st.session_state.pop("candidate-context", None)
+        st.session_state["candidate-session-id"] = session.session_id
+        for key in list(st.session_state):
+            if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
+                del st.session_state[key]
+        try:
+            with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
+                st.session_state["candidate-context"] = CandidateContextApplicationService(identity).load(
+                    period=period, source_period=source_period,
+                    client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
+        except CandidateSourceError as exc:
+            st.session_state["candidate-load-error"] = str(exc)
+
+
+def _render_sources():
+    st.subheader("Databronnen")
+    local = LocalCsvSourceApplicationService()
+    try:
+        directory = local.directory
+        st.caption(f"Ingestelde exportmap: {directory}")
+    except ExportFileError as exc:
+        directory = None
+        st.error(str(exc))
+
+    with st.form("export-settings"):
+        value = st.text_input("Sportlink-exportmap", value=str(directory) if directory else "")
+        if st.form_submit_button("Exportmap opslaan"):
+            try:
+                saved = save_export_directory(value)
+            except ExportFileError as exc:
+                st.error(str(exc))
+            else:
+                st.session_state["export-settings-result"] = f"Exportmap opgeslagen: {saved}"
+                st.rerun()
+    if message := st.session_state.pop("export-settings-result", None):
+        st.success(message)
+
+    identity = _planner_identity()
+    database = SQLiteDatabase(Path(__file__).with_name("dvk_v05.sqlite"))
+    session = catalog = success = attempt = None
+    matching = False
+    temporary_rows = ()
+    if database.path.is_file():
+        try:
+            with database.unit_of_work(migrate_schema=False) as uow:
+                sessions = PlanningSessionApplicationService(uow, identity)
+                session = sessions.current()
+                if session:
+                    success, attempt, matching = VolunteerPlanningApplicationService(
+                        uow, identity, session.catalog).source(session.period)
+                    try:
+                        catalog = sessions.catalog()
+                    except ValueError as exc:
+                        st.warning(str(exc))
+                    temporary_rows = PlanningApplicationService(identity, uow=uow).active_planning()
+        except SchemaValidationError:
+            session = None
+            st.warning("De opgeslagen planning gebruikt een afwijkend databaseschema. Open Ledendienst Planning om dit te controleren.")
+        except sqlite3.DatabaseError as exc:
+            session = None
+            _show_planning_storage_error(exc)
+
+    if session:
+        period = session.period
+        st.caption(f"Actieve planningsperiode: {period.start:%d-%m-%Y} t/m {period.end:%d-%m-%Y}")
+        _render_candidate_refresh(identity, session)
+        if catalog is not None:
+            _render_volunteer_sync(database, identity, catalog, period, session,
+                                   temporary_rows, matching, from_sources=True)
+    else:
+        st.info("Start een planningssessie via Ledendienst Planning om kandidaatbronnen of Sportlink-inroosteringen voor die periode op te halen.")
+
+    load_error = st.session_state.get("candidate-load-error")
+    if load_error:
+        st.error(load_error)
+    context = st.session_state.get("candidate-context")
+    availability = local.availability() if directory is not None else {}
+    rows = planning_source_rows(context=context, load_error=load_error,
+                                volunteer_success=success, volunteer_attempt=attempt,
+                                volunteer_matching=matching, availability=availability)
+    st.markdown("### Lokale CSV-bronnen")
+    st.caption("Beschikbaarheid hoort bij de ingestelde map. Inleesstatus toont het laatst bekende resultaat van de kandidaatbronnen voor deze browser.")
+    if context and context.source_directory and context.source_directory != directory:
+        st.info(f"De getoonde inleesstatus komt uit de eerder gebruikte map: {context.source_directory}.")
+    st.dataframe([row for row in rows if row["Type"] == "CSV"], hide_index=True, height=250)
+    st.markdown("### API-bronnen")
+    st.dataframe([row for row in rows if row["Type"] == "API"], hide_index=True, height=115)
 
 
 def _render_no_show_management():
@@ -906,31 +984,31 @@ def _render_planning_screen(render=_render_planning):
     try:
         render()
     except sqlite3.DatabaseError as exc:
-        # Known schema/storage failures may block planning, but never the CSV control.
-        # Unknown SQL errors and programming errors must remain visible to developers.
-        storage_codes = {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY,
-                         sqlite3.SQLITE_CANTOPEN, sqlite3.SQLITE_IOERR, sqlite3.SQLITE_FULL,
-                         sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}
-        missing_schema = isinstance(exc, sqlite3.OperationalError) and str(exc).startswith(
-            ("no such table:", "no such column:"))
-        if not missing_schema and (getattr(exc, "sqlite_errorcode", 0) & 0xff) not in storage_codes:
-            raise
-        st.error("De planning en no-showregistratie zijn niet beschikbaar door een databaseprobleem. "
-                 "Laat de database afzonderlijk controleren. Open Taakplichtcontrole via de zijbalk; die blijft beschikbaar.")
+        _show_planning_storage_error(exc)
 
+
+def _show_planning_storage_error(exc):
+    # Known schema/storage failures may block planning, but never the CSV control.
+    # Unknown SQL errors and programming errors must remain visible to developers.
+    storage_codes = {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY,
+                     sqlite3.SQLITE_CANTOPEN, sqlite3.SQLITE_IOERR, sqlite3.SQLITE_FULL,
+                     sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB}
+    missing_schema = isinstance(exc, sqlite3.OperationalError) and str(exc).startswith(
+        ("no such table:", "no such column:"))
+    if not missing_schema and (getattr(exc, "sqlite_errorcode", 0) & 0xff) not in storage_codes:
+        raise exc
+    st.error("De planning en no-showregistratie zijn niet beschikbaar door een databaseprobleem. "
+             "Laat de database afzonderlijk controleren. Open Taakplichtcontrole via de zijbalk; die blijft beschikbaar.")
 
 # Only retain scalar input values. Uploads and action/selection widgets follow
 # Streamlit's normal cleanup when their screen is no longer rendered.
 for _key in ("planning-mode", "planning-from", "planning-until",
-             "duty-control-date", "duty-control-period", "duty-control-filter"):
+             "duty-control-date", "duty-control-period", "duty-control-filter", "candidate-season"):
     if _key in st.session_state:
         st.session_state[_key] = st.session_state[_key]
 
 
 def _navigate(screen):
-    if screen != st.session_state.get("dvk-screen"):
-        for key in ("candidate-load-key", "duty-load-key"):
-            st.session_state.pop(key, None)
     st.session_state["dvk-screen"] = screen
 
 
@@ -940,6 +1018,7 @@ def _render_navigation():
         st.button("Startscherm", key="nav-home", on_click=_navigate, args=("home",))
         st.subheader("Ledendiensten & Vrijwilligersbeleid")
         st.button("Ledendienst Planning", key="nav-planning", on_click=_navigate, args=("planning",))
+        st.button("Databronnen", key="nav-sources", on_click=_navigate, args=("sources",))
         st.button("No-showmanagement", key="nav-no-shows", on_click=_navigate, args=("no-shows",))
         st.button("Taakplichtcontrole", key="nav-control", on_click=_navigate, args=("control",))
         st.button("Rooster Generator — extern, nog niet geïntegreerd", disabled=True, key="nav-rooster")
@@ -956,6 +1035,7 @@ def _render_home():
     st.write("Kies een scherm via de zijbalk. Via Startscherm keer je altijd terug naar dit overzicht.")
     st.markdown("### Ledendiensten & Vrijwilligersbeleid")
     st.write("**Ledendienst Planning** — beschikbaar als prototype v0.5, in ontwikkeling.")
+    st.write("**Databronnen** — lokale exportmap instellen en bronnen vernieuwen.")
     st.write("**No-showmanagement** — zelfstandig registreren, historie en intrekken.")
     st.write("**Taakplichtcontrole** — beschikbare read-only functie binnen Ledendienst Planning.")
     st.write("**Rooster Generator** — operationele externe toepassing, nog niet geïntegreerd in DVK.")
@@ -966,7 +1046,7 @@ def _render_home():
     st.markdown("### DVK Beheer")
     st.write("**Toegangsbeheer** — toekomstig, niet beschikbaar.")
     st.write("**Tabelonderhoud** — toekomstig, niet beschikbaar.")
-    st.info("CSV-bronnen worden bij gebruik uit de vaste lokale map geladen. Gebruik Brongegevens vernieuwen nadat u exports heeft vervangen. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
+    st.info("CSV-bronnen komen uit de exportmap die is ingesteld in Databronnen. Gebruik Brongegevens vernieuwen nadat u exports heeft vervangen. Peildatum, seizoen en filter blijven binnen deze sessie behouden.")
 
 
 def _render_duty_control():
@@ -1003,6 +1083,13 @@ def _render_duty_control():
         loaded_control = st.session_state.get("local-duty-control")
         if loaded_control is not None:
             dashboard = loaded_control.dashboard
+            try:
+                current_directory = default_export_directory()
+            except ExportFileError:
+                current_directory = None
+            loaded_directory = loaded_control.sources.directory
+            if loaded_directory and loaded_directory != current_directory:
+                st.info(f"De getoonde gegevens komen uit de eerder gebruikte map: {loaded_directory}. Kies Brongegevens vernieuwen om de ingestelde map te gebruiken.")
             st.caption("Ingelezen bestanden: " + ", ".join(loaded_control.sources.filenames))
             st.caption(f"Bronnen laatst geladen: {loaded_control.sources.loaded_at:%d-%m-%Y %H:%M:%S}. Na vervangen van exports: Brongegevens vernieuwen.")
             st.markdown("#### Selectieverantwoording")
@@ -1048,6 +1135,8 @@ _render_navigation()
 _screen = st.session_state.get("dvk-screen", "home")
 if _screen == "planning":
     _render_planning_screen()
+elif _screen == "sources":
+    _render_sources()
 elif _screen == "no-shows":
     _render_planning_screen(_render_no_show_management)
 elif _screen == "control":

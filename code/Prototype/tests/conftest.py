@@ -14,7 +14,7 @@ def synthetic_home(tmp_path, monkeypatch):
     home = tmp_path / "synthetic-home"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("SPORTLINK_CLIENT_ID", "synthetic-test-only")
-    folder = home / "Documents" / "DVK-Sportlink-exports"
+    folder = home / "Development" / "DVK-Data" / "Sportlink-Exports"
     folder.mkdir(parents=True)
     for filename in ("shift_definitions.csv", "shift_week_pattern.csv"):
         shutil.copyfile(Path(__file__).parents[1] / "dvk" / "configuration" / filename, folder / filename)

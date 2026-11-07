@@ -260,7 +260,7 @@ def test_default_paths_use_existing_import_boundary_without_real_files(monkeypat
     observed = []
     data = exports()
     def read(dataset, explicit_path=None):
-        if explicit_path is not None:
+        if explicit_path.name == "Overzicht per periode vorig seizoen.csv":
             from dvk.sportlink_exports import ExportFileError
             raise ExportFileError("Synthetic historical file missing")
         observed.append(dataset)

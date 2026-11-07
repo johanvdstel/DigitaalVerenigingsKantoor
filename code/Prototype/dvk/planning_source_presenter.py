@@ -11,7 +11,7 @@ def _time(value):
 
 
 def planning_source_rows(*, context=None, load_error=None, volunteer_success=None,
-                         volunteer_attempt=None, volunteer_matching=False, demo=False):
+                         volunteer_attempt=None, volunteer_matching=False, demo=False, availability=None):
     rows = []
     def add(name, kind, moment, status, usable, note=''):
         rows.append({'Databron': name, 'Type': kind, 'Laatst ingelezen door DVK': _time(moment),
@@ -58,6 +58,14 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
             note += ' ' + context.error
         add('Sportlink Programma', 'API', context.fetched_at, 'Technisch geslaagd',
             'Niet bruikbaar; zie bronmeldingen' if context.error else 'Beschikbaar', note)
+    if availability is not None:
+        for row in rows:
+            if row["Type"] == "CSV":
+                name = row["Databron"]
+                row["Beschikbaarheid"] = availability.get(name, "Onbekend")
+                row["Verplicht"] = "Nee" if name == HISTORICAL_FILENAME else "Ja"
+                if load_error and row["Toelichting"] == load_error and name not in load_error:
+                    row["Toelichting"] = "Geen afzonderlijk inleesresultaat."
     if demo:
         for row in rows:
             row.update({'Laatst ingelezen door DVK': 'Onbekend', 'Status': 'Demonstratie',

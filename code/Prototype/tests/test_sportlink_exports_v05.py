@@ -35,7 +35,7 @@ def standard_exports(tmp_path, local_home):
     explicit = tmp_path / "legacy-explicit"
     explicit.mkdir()
     paths = exports(explicit)  # Existing accepted, synthetic fixture stays unchanged.
-    folder = local_home / "Documents" / "DVK-Sportlink-exports"
+    folder = local_home / "Development" / "DVK-Data" / "Sportlink-Exports"
     folder.mkdir(parents=True)
     for dataset, argument in ARGUMENTS.items():
         shutil.copyfile(paths[argument], folder / EXPORT_FILENAMES[dataset])
@@ -43,7 +43,7 @@ def standard_exports(tmp_path, local_home):
 
 
 def test_home_relative_central_map_and_all_five_exact_filenames(local_home):
-    assert default_export_directory() == local_home / "Documents" / "DVK-Sportlink-exports"
+    assert default_export_directory() == local_home / "Development" / "DVK-Data" / "Sportlink-Exports"
     assert EXPORT_FILENAMES == {
         "leden": "Leden.csv", "functies": "Functies.csv", "commissies": "Commissies.csv",
         "teams": "Teams.csv", "vrijwilligers_periode": "Overzicht per periode.csv",
@@ -120,8 +120,11 @@ def test_unreadable_files_are_explicit_without_empty_data_fallback(local_home, m
         path.write_bytes(b"\xff\xfeinvalid-utf8")
     else:
         path.write_text("synthetic", encoding="utf-8")
-        def denied(*args, **kwargs):
-            raise PermissionError("synthetic denial")
+        original = Path.read_text
+        def denied(self, *args, **kwargs):
+            if self == path:
+                raise PermissionError("synthetic denial")
+            return original(self, *args, **kwargs)
         monkeypatch.setattr(Path, "read_text", denied)
     with pytest.raises(ExportFileError, match="niet leesbaar") as error:
         SportlinkRealDataAdapter.read_rows(None, "teams")
