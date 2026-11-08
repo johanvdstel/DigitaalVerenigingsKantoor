@@ -313,3 +313,19 @@ Bij een nieuwe planning is de huidige kalenderweek de standaard en kan de planne
 **Status:** CKC heeft de afgesproken read-only omgevingscontrole functioneel geaccepteerd. De actieve SQLite-database `~/Development/DigitaalVerenigingsKantoor/code/Prototype/dvk_v05.sqlite` is lokaal aangetroffen (14 MB, wijzigingsdatum 8 november 2026). In `~/Development/DVK-Data/Sportlink-Exports/` zijn de vijf verplichte CSV-bestanden en het optionele historische urenbestand aanwezig, evenals beide CSV-bestanden van de dienstencatalogus. Een recursieve zoekactie in Python-bronbestanden onder `code/Prototype`, met uitsluiting van virtuele omgeving en caches, gaf geen directe verwijzingen naar `Documents/`, `~/Documents` of `/Users/.../Documents/`. Dit is geen volledige runtime-audit van alle configuratiepaden; de controles geven geen aanleiding tot codewijziging of databaseverplaatsing. Oude mappen worden niet opgeruimd zonder afzonderlijke expliciete toestemming.
 
 **Vervolg:** Iteratie 9A.5 — administratieve afronding en voorbereiding van Iteratie 10. Iteratie 10 blijft de integrale functionele acceptatie van prototype v0.5; geen productieacceptatie of Sportlink-writeback.
+
+## Iteratie 9A.5 — Afronding en acceptatievoorbereiding (8 november 2026)
+
+**Afgesproken werkwijze:** bestaande lokale acceptaties zijn geïnventariseerd. Vier oude DVK-mappen in `~/Documents/` (`DigitaalVerenigingsKantoor`, `DVK-Iteratie2`, `DVK-Sportlink-exports`, `DVK-lokale-backups`) zijn na afzonderlijke expliciete toestemming door de gebruiker naar de macOS-Prullenmand verplaatst; niet definitief gewist. Actieve code, database en exportgegevens onder `~/Development/` blijven leidend. In de oude repository waren twee gewijzigde bestanden en een oude SQLite-database aangetroffen; het risico van verlies van unieke historische inhoud is bewust aanvaard.
+
+**Iteratie 10 — vastgesteld concept van integrale functionele acceptatie, vanuit de normale taakuitvoering van de planner:**
+1. Nieuwe planningsperiode voorbereiden: periode, brongegevens, wedstrijden en bezetting.
+2. Openstaande ledendiensten invullen: kandidaten, taakplicht, prioriteiten en beleidsregels.
+3. Planning onderbreken en hervatten: bewaarde context en tijdelijke indelingen.
+4. Afwijkingen verwerken: bronproblemen, bezettingswijzigingen en vervanging.
+5. Planning als geheel beoordelen: overzicht, volledigheid, consistentie en bruikbaarheid.
+6. Afzonderlijk als laatste: no-showmanagement, registratie, intrekking, sancties en vervangende diensten.
+
+Rondes 1–5 vormen één herkenbare CKC-planningsopgave; ronde 6 is een zelfstandig administratief proces. Per ronde: geslaagd / geslaagd met aandachtspunt / niet geslaagd. Hergebruik eerdere detailacceptaties; alleen gerichte herstel- en heracceptatietests bij gebreken. Geen nieuwe functionaliteit, geen Sportlink-writeback en geen productieacceptatie. Tijdelijke DVK-indelingen zijn niet gelijk aan definitieve Sportlink-verwerking.
+
+**Vervolg na Iteratie 10:** afzonderlijke **Iteratie 11 — Planner Dashboard**, overeenkomstig de eerdere bespreking 'Dashboard artist impression': het planningsscherm omvormen tot één overzichtelijk dashboard met behoud van geaccepteerde planningslogica. Eerst afzonderlijk ontwerp, implementatie en functionele acceptatie; pas **daarna BL-13 (RPA Sportlink)**. Dashboardherontwerp behoort niet tot de scope of acceptatiecriteria van Iteratie 10.
