@@ -36,6 +36,7 @@ from dvk.demo_data_v05 import demo_candidate_cases, demo_previous_season_backlog
 from dvk.workstream_model import DutyService, Match, TeamMembership
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchError
 from dvk.vrijwilligers_adapter import SportlinkVrijwilligersAdapter, ServiceBinding, same_task_group, overlaps_service_date
+from dvk.sportlink_config import SportlinkConfigError, load_sportlink_client_id
 from dvk.sportlink_exports import (
     ExportFileError, default_export_directory, export_location_hint, save_export_directory,
 )
@@ -43,7 +44,6 @@ from dvk.real_data_import import SportlinkRealDataAdapter
 from dvk.shift_catalog import load_shift_catalog
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from dvk.duty_control_presenter import EXPORTS, FILTERS, load_duty_dashboard, suggested_season, validate_season
-import os
 
 DAGEN = ("ma", "di", "wo", "do", "vr", "za", "zo")
 MATCH_LABELS = {"no_match_context": "Geen wedstrijd", "no_match_that_day": "Geen wedstrijd", "home_match_overlaps_service": "Thuiswedstrijd overlapt", "home_match_same_day": "Thuiswedstrijd", "away_match_overlaps_service": "Uitwedstrijd overlapt", "away_match_same_day": "Uitwedstrijd"}
@@ -323,7 +323,7 @@ def _render_planning():
                     try:
                         session = NewPlanningApplicationService(database, identity).start(
                             period=period, catalog=catalog, source_period=source_period,
-                            client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""), progress=progress.write,
+                            client_id=_sportlink_client_id, progress=progress.write,
                         )
                     except ValueError as exc:
                         st.error(str(exc))
@@ -664,7 +664,7 @@ def _render_volunteer_sync(database, identity, catalog, period, active_session,
                     error = VolunteerPlanningApplicationService(uow, identity, catalog).synchronize(
                         period=period,
                         client=SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
-                        client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""),
+                        client_id=_sportlink_client_id,
                         persons=persons, imported_at=datetime.now().astimezone(),
                         confirmed=replace_confirmed, source_revision=active_session.source_revision)
                 if error:
@@ -718,7 +718,7 @@ def _render_candidate_refresh(database, identity, session):
             with st.spinner("Lokale CSV-bronnen en wedstrijdprogramma laden…"):
                 context = CandidateContextApplicationService(identity).load(
                     period=period, source_period=source_period,
-                    client_id=os.environ.get("SPORTLINK_CLIENT_ID", ""))
+                    client_id=_sportlink_client_id)
         except CandidateSourceError as exc:
             error = str(exc)
         sources = PlanningCandidateSources(context, error, st.session_state.get("initial-volunteer-error"))
@@ -833,7 +833,7 @@ def _render_no_show_management():
     if catalog is not None:
         source = NoShowSourceApplicationService(identity,
             SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter()),
-            os.environ.get("SPORTLINK_CLIENT_ID", ""), catalog, persons)
+            _sportlink_client_id, catalog, persons)
     context, selected, inputs = None, None, None
     if mode == "Sportlink":
         st.caption("Feitelijke Sportlink-inroosteringen; deze raadpleging verandert geen planning.")
@@ -1194,6 +1194,12 @@ def _render_duty_control():
                               for s in dashboard.source.signals], hide_index=True, use_container_width=True, height=360)
 
 
+
+try:
+    _sportlink_client_id = load_sportlink_client_id()
+except SportlinkConfigError as exc:
+    _sportlink_client_id = ""
+    st.error(str(exc))
 
 _render_navigation()
 _screen = st.session_state.get("dvk-screen", "home")

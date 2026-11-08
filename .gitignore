@@ -14,3 +14,6 @@ Overzicht per periode *.csv
 
 # macOS Git may match Teams.csv case-insensitively; retain the accepted fixture.
 !/code/Prototype/testdata/v03_import/teams.csv
+
+# Local Sportlink API credentials.
+sportlink.env
