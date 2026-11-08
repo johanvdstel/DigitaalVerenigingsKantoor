@@ -140,3 +140,7 @@ CKC heeft Iteratie 9A.3 functioneel geaccepteerd op codecommit `3a64213d47eb35b2
 ### Iteratie 9A.4 — Lokale ontwikkelomgeving gecontroleerd (8 november 2026)
 
 CKC heeft de beperkte lokale omgevingscontrole functioneel geaccepteerd. De SQLite-database staat onder `~/Development/DigitaalVerenigingsKantoor/code/Prototype/`; de verwachte Sportlink-CSV's en beide actieve dienstencatalogus-CSV's zijn aanwezig onder `~/Development/DVK-Data/Sportlink-Exports/`. Een zoekactie in Python-bronbestanden vond geen vaste verwijzingen naar de oude Documenten-map. Geen databaseverplaatsing, migratie of codewijziging nodig op basis van deze controle. Oude mappen worden alleen na afzonderlijke toestemming opgeruimd. Hierna volgt Iteratie 9A.5, daarna Iteratie 10 (integrale functionele acceptatie v0.5).
+
+### Iteratie 9A.5 en vervolgvolgorde (8 november 2026)
+
+De vier oude DVK-mappen onder `~/Documents/` zijn met expliciete toestemming naar de Prullenmand verplaatst. Iteratie 10 volgt de praktijkstroom van de planner: periode voorbereiden, diensten invullen, onderbreken/hervatten, afwijkingen verwerken, planning integraal beoordelen, en als afzonderlijke laatste ronde no-showmanagement. Eerdere acceptaties worden hergebruikt; geen Sportlink-writeback of productieacceptatie. Na Iteratie 10 volgt **Iteratie 11 — Planner Dashboard** (één overzichtelijk planningsdashboard volgens de eerdere artist impression), met eigen acceptatie, en pas daarna **BL-13 — RPA Sportlink**. Zie [prototypeplanning](DVK-PROTOTYPE-PLANNING.md) voor het acceptatieplan.
