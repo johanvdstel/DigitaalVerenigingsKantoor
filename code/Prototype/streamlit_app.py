@@ -309,6 +309,9 @@ def _render_planning():
                 _restore_candidate_sources(sessions, active_session.session_id)
         if active_session:
             st.session_state["planning-resumed"] = active_session.session_id
+            if active_session.initial_load_pending:
+                st.warning("De eerste automatische bronlading is niet volledig afgerond. "
+                           "Ga naar Ledendiensten → Databronnen om ontbrekende bronnen alsnog te laden.")
         else:
             suggested = suggested_season(period.start)
             source_period = st.text_input(
@@ -680,8 +683,13 @@ def _render_volunteer_sync(database, identity, catalog, period, active_session,
 
 
 def _set_candidate_sources(session_id, sources):
-    st.session_state["candidate-session-id"] = session_id
+    if (st.session_state.get("candidate-session-id") != session_id
+            or st.session_state.get("candidate-context") != sources.context):
+        for key in list(st.session_state):
+            if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
+                del st.session_state[key]
     for key, value in (
+        ("candidate-session-id", session_id),
         ("candidate-context", sources.context),
         ("candidate-load-error", sources.error),
         ("initial-volunteer-error", sources.initial_volunteer_error),
@@ -693,11 +701,8 @@ def _set_candidate_sources(session_id, sources):
 
 
 def _restore_candidate_sources(sessions, session_id):
-    if st.session_state.get("candidate-session-id") != session_id:
-        stored = sessions.candidate_sources(session_id)
-        _set_candidate_sources(session_id, stored if stored is not None else PlanningCandidateSources())
-        if stored is None:
-            st.session_state.pop("candidate-session-id", None)
+    stored = sessions.candidate_sources(session_id)
+    _set_candidate_sources(session_id if stored is not None else None, stored or PlanningCandidateSources())
 
 
 def _render_candidate_refresh(database, identity, session):
@@ -724,9 +729,6 @@ def _render_candidate_refresh(database, identity, session):
             st.error(str(exc))
             return
         _set_candidate_sources(session.session_id, sources)
-        for key in list(st.session_state):
-            if key.startswith(("proposal-run-", "confirmed-", "pick-", "candidate-table-", "candidate-detail-")):
-                del st.session_state[key]
 
 
 def _render_sources():

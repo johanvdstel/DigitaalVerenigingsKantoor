@@ -1,6 +1,7 @@
 """Automatic start and durable resume with synthetic Sportlink inputs only."""
 from datetime import datetime, timedelta
 from pathlib import Path
+import os
 import subprocess
 import sys
 
@@ -161,17 +162,22 @@ with SQLiteDatabase(sys.argv[1]).unit_of_work(migrate_schema=False) as uow:
     assert child.strip() == "SYNTH 4"
 
 
-@pytest.mark.parametrize("fault", ["missing-csv", "missing-members", "programma", "vrijwilligers"])
+@pytest.mark.parametrize("fault", [
+    "missing-csv", "missing-members", "invalid-csv", "programma", "invalid-programma", "vrijwilligers",
+])
 def test_partial_sources_stay_explicit_and_only_safe_results_are_used(sources, tmp_path, monkeypatch, fault):
     folder, calls = sources
     if fault == "missing-csv":
         (folder / "Functies.csv").unlink()
     elif fault == "missing-members":
         (folder / "Leden.csv").unlink()
-    elif fault == "programma":
+    elif fault == "invalid-csv":
+        (folder / "Functies.csv").write_text("Verkeerde kolom\nsynthese\n")
+    elif fault in {"programma", "invalid-programma"}:
         def fail_program(self, **kwargs):
             calls.append(("program", None))
-            raise ProgrammaFetchError("synthetic failure")
+            cause = "invalid_response" if fault == "invalid-programma" else "transport"
+            raise ProgrammaFetchError("synthetic-private", cause=cause)
         monkeypatch.setattr(SportlinkProgrammaClient, "fetch_rows", fail_program)
     else:
         def fail_volunteers(self, *, task_code, **kwargs):
@@ -195,20 +201,107 @@ def test_partial_sources_stay_explicit_and_only_safe_results_are_used(sources, t
         assert volunteers == "Niet opgehaald"
         assert "Leden.csv" in rows.loc["Sportlink Vrijwilligers", "Toelichting"]
         assert calls == [("csv", "Leden.csv")]
-    if fault == "programma":
+    if fault == "invalid-csv":
+        assert program == "Niet opgehaald"
+        assert rows.loc["Functies.csv", "Status"] == "Niet beschikbaar"
+        assert "ontbrekende verplichte kolommen" in rows.loc["Functies.csv", "Toelichting"]
+    if fault in {"programma", "invalid-programma"}:
         assert program == "Aanvraag mislukt"
         assert rows.loc["Leden.csv", "Status"] == "Ingelezen"
-    if fault in {"missing-csv", "programma"}:
+        diagnosis = "ongeldige respons" if fault == "invalid-programma" else "verbinding of gegevensoverdracht"
+        assert diagnosis in rows.loc["Sportlink Programma", "Toelichting"]
+        assert "synthetic-private" not in rows.loc["Sportlink Programma", "Toelichting"]
+    if fault not in {"missing-members", "vrijwilligers"}:
         assert volunteers == "Geslaagd, geen inroosteringen"
     if fault == "vrijwilligers":
         assert volunteers == "Laatste verversing mislukt"
         assert program == "Geslaagd, geen operationele wedstrijden"
         assert "Geen gevalideerde bron gepubliceerd" in rows.loc["Sportlink Vrijwilligers", "Toelichting"]
-    has_valid_occupancy = fault in {"missing-csv", "programma"}
-    assert set(table(app, "services_editor-").value["Sportlink"]) == (
-        {"geen namen"} if has_valid_occupancy else {"Onbekend"})
+    has_valid_occupancy = fault not in {"missing-members", "vrijwilligers"}
+    service_rows = table(app, "services_editor-").value
+    assert set(service_rows["Sportlink"]) == ({"geen namen"} if has_valid_occupancy else {"Onbekend"})
+    app.session_state["selected_service_id"] = service_rows.iloc[0].service_id
+    app.run()
+    assert not app.exception
+    assert any("Kandidaten zijn beschikbaar na een geslaagde bronimport" in item.value for item in app.info)
     assert not any(frame.key and frame.key.startswith("candidate-table-") for frame in app.dataframe)
+    assert not any("eerste automatische bronlading" in item.value for item in app.warning)
+    with database.unit_of_work() as uow:
+        sessions = PlanningSessionApplicationService(uow, IDENTITY)
+        current = sessions.current()
+        assert not current.initial_load_pending and sessions.candidate_sources(current.session_id) is not None
     assert bool(snapshot(database)[2]) == has_valid_occupancy
+
+
+@pytest.mark.parametrize("stop_at", ["before-volunteers", "before-context-commit"])
+def test_interrupted_initial_load_is_visible_after_process_restart(sources, tmp_path, stop_at):
+    _, calls = sources
+    db_path = tmp_path / "dvk_v05.sqlite"
+    child = subprocess.run([sys.executable, "-c", """
+import os
+import sys
+from unittest.mock import patch
+
+from dvk.new_planning import NewPlanningApplicationService
+from dvk.persistence import SQLiteDatabase
+from dvk.persistence.planning_session import SQLitePlanningSessionRepository
+from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
+from dvk.shift_catalog import load_shift_catalog
+from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchResult
+from test_volunteer_planning_integration_v05 import IDENTITY, PERIOD, people, row
+
+database = SQLiteDatabase(sys.argv[1])
+stop_at = sys.argv[2]
+catalog = load_shift_catalog()
+binding = catalog.bindings(PERIOD)[0]
+
+def volunteers(self, *, task_code, **kwargs):
+    booking = dict(row(binding.service, people()[0]), naam="Afgeschermd")
+    return VrijwilligersFetchResult(task_code, (booking,) if task_code == binding.task_code else ())
+
+def progress(message):
+    if stop_at == "before-volunteers" and message.startswith("Feitelijke"):
+        os._exit(42)
+
+save = SQLitePlanningSessionRepository.save_candidate_sources
+def save_and_exit(self, *args):
+    save(self, *args)
+    os._exit(43)
+
+if stop_at == "before-context-commit":
+    SQLitePlanningSessionRepository.save_candidate_sources = save_and_exit
+
+with (
+    patch.object(SportlinkProgrammaClient, "fetch_rows", return_value=ProgrammaFetchResult(())),
+    patch.object(SportlinkVrijwilligersClient, "fetch_rows", volunteers),
+):
+    NewPlanningApplicationService(database, IDENTITY).start(
+        period=PERIOD, catalog=catalog, source_period="2026-2027", client_id="synthetic", progress=progress,
+    )
+""", str(db_path), stop_at], env={**os.environ, "PYTHONPATH": os.pathsep.join(sys.path)})
+    assert child.returncode == (42 if stop_at == "before-volunteers" else 43)
+
+    app, database = open_page(tmp_path)
+    before = snapshot(database)
+    has_valid_occupancy = stop_at == "before-context-commit"
+    assert bool(before[2]) == has_valid_occupancy
+    assert len(before[0]) == int(has_valid_occupancy)
+    if has_valid_occupancy:
+        assert before[0][0].volunteer_name == "Afgeschermd"
+    with database.unit_of_work() as uow:
+        sessions = PlanningSessionApplicationService(uow, IDENTITY)
+        current = sessions.current()
+        assert current.initial_load_pending
+        assert sessions.candidate_sources(current.session_id) is None
+
+    app.button(key="nav-planning").click().run()
+    app.button(key="resume-planning").click().run()
+    assert not app.exception and not calls
+    assert any("niet volledig afgerond" in item.value and "Databronnen" in item.value for item in app.warning)
+    assert any("Wedstrijdcontext onbekend" in item.value for item in app.info)
+    status = statuses(app).loc["Sportlink Vrijwilligers", "Status"]
+    assert status == ("Technisch geslaagd" if has_valid_occupancy else "Niet opgehaald")
+    assert snapshot(database) == before
 
 
 def test_start_refuses_existing_work_before_reading_sources(sources, tmp_path):

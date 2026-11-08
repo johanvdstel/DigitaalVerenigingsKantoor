@@ -22,12 +22,15 @@ class NewPlanningApplicationService:
         # The session service rejects an existing planning under the write lock.
         # Source collection starts only after this attempt owns the new session.
         with self.database.unit_of_work() as uow:
-            session = PlanningSessionApplicationService(uow, self.identity).start(period, catalog=catalog)
+            session = PlanningSessionApplicationService(uow, self.identity).start(
+                period, catalog=catalog, initial_load_pending=True,
+            )
 
         sources = self._load(session, catalog, source_period, client_id, progress)
         with self.database.unit_of_work() as uow:
-            PlanningSessionApplicationService(uow, self.identity).save_candidate_sources(session.session_id, sources)
-        return session
+            return PlanningSessionApplicationService(uow, self.identity).save_candidate_sources(
+                session.session_id, sources, completes_initial_load=True,
+            )
 
     def _load(self, session, catalog, source_period, client_id, progress):
         period = session.period

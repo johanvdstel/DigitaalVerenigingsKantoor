@@ -15,6 +15,10 @@ from .programma_adapter import SportlinkProgrammaAdapter
 class ProgrammaFetchError(RuntimeError):
     """Programma could not be retrieved safely; messages contain no request data."""
 
+    def __init__(self, message, *, cause=None):
+        super().__init__(message)
+        self.cause = cause
+
 
 @dataclass(frozen=True)
 class ProgrammaFetchResult:
@@ -66,7 +70,7 @@ class SportlinkProgrammaClient:
             except (ssl.SSLError, URLError) as exc:
                 if isinstance(exc, ssl.SSLError) or isinstance(getattr(exc, "reason", None), ssl.SSLError):
                     self._stats.failures += 1
-                    raise ProgrammaFetchError("Sportlink Programma SSL-certificaatfout") from None
+                    raise ProgrammaFetchError("Sportlink Programma SSL-certificaatfout", cause="transport") from None
                 error = "Sportlink Programma connection failure"
             except (TimeoutError, OSError, IncompleteRead):
                 error = "Sportlink Programma transport failure"
@@ -82,10 +86,12 @@ class SportlinkProgrammaClient:
                         raise ValueError("response is not a list of objects")
                 except (UnicodeDecodeError, ValueError):
                     self._stats.failures += 1
-                    raise ProgrammaFetchError("Sportlink Programma returned invalid JSON or an invalid response") from None
+                    raise ProgrammaFetchError(
+                        "Sportlink Programma returned invalid JSON or an invalid response", cause="invalid_response",
+                    ) from None
                 return ProgrammaFetchResult(tuple(data))
             if attempt < 4:
                 self._stats.retries += 1
                 self.sleeper(1.5)
         self._stats.failures += 1
-        raise ProgrammaFetchError(error + " na vier pogingen") from None
+        raise ProgrammaFetchError(error + " na vier pogingen", cause="transport") from None

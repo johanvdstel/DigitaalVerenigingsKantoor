@@ -125,10 +125,12 @@ class VolunteerPlanningApplicationService:
         except VrijwilligersFetchError as exc:
             # Client messages are fixed categories: never persist exception URLs.
             category = str(exc)
-            if "HTTP " in category:
+            if category.startswith("Sportlink Vrijwilligers HTTP "):
                 message = "Sportlink weigert de uitvraag; controleer toegang en lokale instellingen."
-            elif "connection failure" in category or "transport failure" in category:
+            elif "connection failure" in category:
                 message = "Sportlink is niet bereikbaar of antwoordt niet op tijd; probeer later opnieuw."
+            elif "transport failure" in category:
+                message = "De gegevensoverdracht met Sportlink is mislukt; probeer later opnieuw."
             else:
                 message = "Sportlink gaf geen geldige bronrespons; de verversing is niet gepubliceerd."
             self._attempt(state, "Mislukt", message, attempt_tasks)

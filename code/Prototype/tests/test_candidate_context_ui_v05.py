@@ -5,6 +5,7 @@ from dataclasses import replace
 from ui_table_events import table, pick
 
 import pytest
+from streamlit.testing.v1 import AppTest
 
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.programma_client import ProgrammaFetchStats
@@ -12,7 +13,7 @@ from dvk.application_services import PlanningApplicationService
 from dvk.shift_catalog import load_shift_catalog
 from test_candidate_context_v05 import IDENTITY, exports, factory
 from test_planning_ui_names_v05 import page
-from test_volunteer_planning_integration_v05 import sync, PERIOD
+from test_volunteer_planning_integration_v05 import PERIOD, seed_work, snapshot, sync
 
 
 def refresh_candidate_sources(app):
@@ -97,6 +98,44 @@ def test_failed_csv_refresh_cannot_retain_previous_proposals(operational_page, m
     assert any('onleesbare CSV' in e.value for e in app.error)
     assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     assert 'candidate-context' not in app.session_state
+
+
+def test_failed_candidate_refresh_reaches_other_browser_on_rerun(operational_page, monkeypatch):
+    first, db, observed = operational_page
+    assert table(first).value.Kandidaat.tolist()
+    seed_work(db, load_shift_catalog().bindings(PERIOD)[0].service)
+    before = snapshot(db)
+    proposal_run_key = f"proposal-run-{first.session_state['selected_service_id']}"
+    assert proposal_run_key in first.session_state
+
+    second = AppTest.from_file(str(db.path.with_name("streamlit_app.py")), default_timeout=20).run()
+    second.button(key="nav-planning").click().run()
+    second.button(key="resume-planning").click().run()
+    assert not second.exception
+    calls = []
+
+    def failure(*args, **kwargs):
+        calls.append(kwargs["period"])
+        raise CandidateSourceError("Synthetische onleesbare CSV")
+
+    monkeypatch.setattr(CandidateContextApplicationService, "load", failure)
+    refresh_candidate_sources(second)
+    assert not second.exception and calls == [PERIOD]
+    assert any("onleesbare CSV" in item.value for item in second.error)
+
+    def unexpected_source_call(*args, **kwargs):
+        pytest.fail("Een rerun mag geen nieuwe CSV- of API-bron ophalen.")
+
+    monkeypatch.setattr("dvk.local_csv_sources.read_export_text", unexpected_source_call)
+    monkeypatch.setattr("dvk.programma_client.SportlinkProgrammaClient.fetch_rows", unexpected_source_call)
+    monkeypatch.setattr("dvk.vrijwilligers_client.SportlinkVrijwilligersClient.fetch_rows", unexpected_source_call)
+    first.run()
+    assert not first.exception and calls == [PERIOD] and observed == [PERIOD]
+    assert first.session_state["selected_service_id"]
+    assert any("onleesbare CSV" in item.value for item in first.error)
+    assert not any(node.key and node.key.startswith("candidate-table-") for node in first.dataframe)
+    assert proposal_run_key not in first.session_state
+    assert snapshot(db) == before
 
 
 def test_period_change_and_demo_switch_do_not_reuse_operational_context(operational_page):
