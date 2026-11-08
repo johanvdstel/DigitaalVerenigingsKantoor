@@ -4,6 +4,7 @@ from sportlink_fixtures import source_revision
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
 from io import BytesIO
+from http.client import IncompleteRead
 import json
 from pathlib import Path
 from urllib.error import URLError
@@ -143,17 +144,28 @@ def test_all_codes_once_and_empty_success_is_known_zero(db, catalog):
         assert statuses[0].fetched_at == NOW
 
 
-@pytest.mark.parametrize("bad", [b'{"error":"synthetic"}', b'', URLError("URL with synthetic-secret"), TimeoutError("synthetic-secret")])
-def test_second_code_failure_keeps_every_booking_and_work(db,catalog,bad):
+@pytest.mark.parametrize("bad, message", [
+    (b'{"error":"synthetic"}', "geen geldige bronrespons"),
+    (b'{"error":"synthetic","items":[]}', "geen geldige bronrespons"),
+    (b'', "geen geldige bronrespons"),
+    (URLError("URL with synthetic-secret"), "niet bereikbaar"),
+    (TimeoutError("synthetic-secret"), "niet bereikbaar"),
+    (IncompleteRead(b"synthetic-secret", 20), "gegevensoverdracht met Sportlink is mislukt"),
+])
+def test_second_code_failure_keeps_every_booking_and_work(db, catalog, bad, message):
     service = catalog.bindings(PERIOD)[0].service
     assert sync(db,catalog,{"A":[row(service,people()[0])]})[0] is None
     seed_work(db,service)
     before = snapshot(db)
     error, seen = sync(db,catalog,{"B":bad})
-    assert error and "synthetic-secret" not in error
+    assert message in error and "synthetic-secret" not in error
     assert len(seen) == 2 and snapshot(db) == before
     with db.unit_of_work() as uow:
-        assert uow.sportlink_bookings.refresh_state("attempt")["status"] == "Mislukt"
+        session = uow.planning_sessions.get()
+        attempt = uow.sportlink_bookings.refresh_state("attempt")
+        assert session.source_revision == before[2]["source_revision"]
+        assert attempt["status"] == "Mislukt" and attempt["message"] == error
+        assert VolunteerPlanningApplicationService(uow, IDENTITY, catalog).source(PERIOD)[2]
 
 
 def test_more_than_50_people_correct_week_and_zero_other_service(db,catalog):

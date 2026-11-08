@@ -23,11 +23,13 @@ class SQLitePlanningSessionRepository:
             return None
         data = json.loads(row[0])
         return PlanningSession(data['session_id'], PlanningPeriod(date.fromisoformat(data['start']),
-                               date.fromisoformat(data['end'])), data['source_revision'], _catalog(data.get('catalog')))
+                               date.fromisoformat(data['end'])), data['source_revision'], _catalog(data.get('catalog')),
+                               initial_load_pending=data.get('initial_load_pending', False))
 
     def save(self, session):
         payload = dict(session_id=session.session_id, start=session.period.start.isoformat(),
                        end=session.period.end.isoformat(), source_revision=session.source_revision,
+                       initial_load_pending=session.initial_load_pending,
                        catalog=asdict(session.catalog) if session.catalog else None)
         self._connection.execute('INSERT OR REPLACE INTO dvk_records VALUES (?, ?)', (KEY, json.dumps(payload, default=lambda value: value.isoformat())))
 

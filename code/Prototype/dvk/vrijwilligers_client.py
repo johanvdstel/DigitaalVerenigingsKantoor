@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from http.client import IncompleteRead
 from typing import Callable
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -45,7 +46,7 @@ class SportlinkVrijwilligersClient:
             raise VrijwilligersFetchError(f"Sportlink Vrijwilligers HTTP {exc.code}") from exc
         except (URLError, TimeoutError) as exc:
             raise VrijwilligersFetchError("Sportlink Vrijwilligers connection failure") from None
-        except OSError as exc:
+        except (OSError, IncompleteRead):
             raise VrijwilligersFetchError("Sportlink Vrijwilligers transport failure") from None
         if not payload:
             raise VrijwilligersFetchError("Sportlink Vrijwilligers returned an empty HTTP body")
@@ -54,6 +55,8 @@ class SportlinkVrijwilligersClient:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise VrijwilligersFetchError("Sportlink Vrijwilligers returned invalid JSON") from exc
         if isinstance(data, dict):
+            if any(key in data for key in ("error", "errors", "fout")):
+                raise VrijwilligersFetchError("Sportlink Vrijwilligers returned an error object")
             data = data.get("items")
         if not isinstance(data, list):
             raise VrijwilligersFetchError("Sportlink Vrijwilligers response is not a list or items envelope")

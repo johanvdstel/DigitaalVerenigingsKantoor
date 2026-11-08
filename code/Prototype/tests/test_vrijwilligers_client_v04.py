@@ -1,4 +1,5 @@
 import json
+from http.client import IncompleteRead
 from urllib.error import HTTPError, URLError
 
 import pytest
@@ -51,7 +52,10 @@ def test_vrij01_client_accepts_only_supported_collections(payload, expected):
 
 
 @pytest.mark.parametrize("payload, message", [
-    (b'{"error":"synthetic"}', "not a list or items envelope"),
+    (b'{"error":"synthetic"}', "error object"),
+    (b'{"error":"synthetic","items":[]}', "error object"),
+    (b'{"errors":["synthetic"],"items":[]}', "error object"),
+    (b'{"fout":"synthetic","items":[]}', "error object"),
     (b'{}', "not a list or items envelope"),
     (b'{"items":null}', "not a list or items envelope"),
     (b'{"items":{}}', "not a list or items envelope"),
@@ -88,6 +92,19 @@ def test_vrij01_client_reports_transport_errors(failure, message):
     client = SportlinkVrijwilligersClient(SportlinkVrijwilligersAdapter(), opener=unavailable)
     with pytest.raises(VrijwilligersFetchError, match=message):
         client.fetch_rows(client_id="x", task_code="741")
+
+
+def test_vrij01_client_reports_interrupted_http_read():
+    class InterruptedResponse(Response):
+        def read(self):
+            raise IncompleteRead(b"synthetic-private-body", 20)
+
+    client = SportlinkVrijwilligersClient(
+        SportlinkVrijwilligersAdapter(), opener=lambda *a, **k: InterruptedResponse(b""),
+    )
+    with pytest.raises(VrijwilligersFetchError, match="transport failure") as failure:
+        client.fetch_rows(client_id="synthetic", task_code="741")
+    assert "synthetic-private-body" not in str(failure.value)
 
 
 def test_r13_client_rejects_invalid_json():

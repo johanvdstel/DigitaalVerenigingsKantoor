@@ -106,9 +106,13 @@ class CandidateContextApplicationService:
             before_programma()
         try:
             fetched = client.fetch_rows(client_id=client_id)
-        except (ProgrammaFetchError, ValueError):
+        except (ProgrammaFetchError, ValueError) as exc:
+            cause = {
+                "invalid_response": "Sportlink gaf een ongeldige respons.",
+                "transport": "De verbinding of gegevensoverdracht met Sportlink is mislukt.",
+            }.get(getattr(exc, "cause", None), "De aanvraag is mislukt.")
             return CandidateContext(period, source_period, source, None, now, client.stats,
-                                    "Programma API niet beschikbaar: de aanvraag is mislukt of de respons is ongeldig. "
+                                    f"Programma API niet beschikbaar: {cause} "
                                     "Wedstrijdcontext is onbekend; laad de kandidaatbronnen opnieuw.",
                                     tuple(EXPORT_FILENAMES.values()), history, csv_loaded_at, source_directory)
         program = adapter.import_rows(fetched.rows, retrieved_at=now)

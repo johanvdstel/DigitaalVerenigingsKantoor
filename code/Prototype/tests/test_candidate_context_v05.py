@@ -119,6 +119,14 @@ def test_transport_failure_is_retried_and_success_is_normal_context(failure):
     assert propose(ctx).planned
 
 
+def test_invalid_programma_response_has_specific_safe_diagnosis():
+    ctx = context(client_factory=factory(b"synthetic-private-invalid-json"))
+    assert "Sportlink gaf een ongeldige respons." in ctx.error
+    assert "synthetic-private" not in ctx.error
+    with pytest.raises(CandidateSourceError):
+        propose(ctx)
+
+
 def test_definitive_failure_is_visible_and_proposals_are_blocked_without_request_details():
     waits = []
     def make(adapter):
@@ -127,6 +135,7 @@ def test_definitive_failure_is_visible_and_proposals_are_blocked_without_request
         return SportlinkProgrammaClient(adapter, opener=opener, sleeper=waits.append)
     ctx = context(client_factory=make)
     assert 'Programma API niet beschikbaar' in ctx.error
+    assert 'De verbinding of gegevensoverdracht met Sportlink is mislukt.' in ctx.error
     assert 'private' not in ctx.error
     assert (ctx.stats.calls, ctx.stats.retries, ctx.stats.failures) == (1, 3, 1)
     assert waits == [1.5] * 3

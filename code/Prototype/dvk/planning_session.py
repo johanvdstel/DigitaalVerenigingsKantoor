@@ -1,7 +1,7 @@
 """Durable single-session lifecycle; no browser/process lifetime business rules."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 from uuid import uuid4
 from zoneinfo import ZoneInfo
@@ -22,6 +22,7 @@ class PlanningSession:
     period: PlanningPeriod
     source_revision: str | None = None
     catalog: ShiftCatalog | None = None
+    initial_load_pending: bool = False
 
 
 @dataclass(frozen=True)
@@ -82,17 +83,25 @@ class PlanningSessionApplicationService:
         Authorizer().require(self.identity, Permission.VIEW_PLANNING)
         return self.uow.planning_sessions.candidate_sources(session_id)
 
-    def save_candidate_sources(self, session_id, sources):
+    def save_candidate_sources(self, session_id, sources, *, completes_initial_load=False):
         Authorizer().require(self.identity, Permission.DECIDE_PROPOSAL)
         self.uow.begin_planning_write()
         current = self.uow.planning_sessions.get()
         if current is None or current.session_id != session_id or (
                 sources.context is not None and sources.context.period != current.period):
             raise ValueError("De planningssessie is tijdens het laden gewijzigd.")
-        self.uow.planning_sessions.save_candidate_sources(session_id, sources)
-        self.uow.commit()
+        try:
+            self.uow.planning_sessions.save_candidate_sources(session_id, sources)
+            if completes_initial_load:
+                current = replace(current, initial_load_pending=False)
+                self.uow.planning_sessions.save(current)
+            self.uow.commit()
+        except BaseException:
+            self.uow.rollback()
+            raise
+        return current
 
-    def start(self, period, *, confirmed=False, expected_session_id=None, catalog=None):
+    def start(self, period, *, confirmed=False, expected_session_id=None, catalog=None, initial_load_pending=False):
         Authorizer().require(self.identity, Permission.DECIDE_PROPOSAL)
         self.uow.begin_planning_write()
         current = self.uow.planning_sessions.get()
@@ -102,7 +111,10 @@ class PlanningSessionApplicationService:
             raise ValueError('De planning is gewijzigd; open de planning opnieuw.')
         try:
             self._clear()
-            session = PlanningSession(str(uuid4()), period, catalog=catalog if catalog is not None else (current.catalog if current else None))
+            session = PlanningSession(
+                str(uuid4()), period, catalog=catalog if catalog is not None else (current.catalog if current else None),
+                initial_load_pending=initial_load_pending,
+            )
             self.uow.planning_sessions.save(session)
             self.uow.commit()
         except BaseException:
