@@ -1,6 +1,12 @@
 """Dutch presentation of already calculated candidate priority; no policy decisions."""
 
 
+KICKOFF_PRIORITY_LABELS = {
+    "jeugdthuisaftrap binnen dienst": "Aftrap tijdens de dienst geeft voorrang binnen de jeugd-thuisgroep",
+    "jeugdthuisaftrap vóór dienst": "Aftrap vóór de dienst geeft lagere prioriteit binnen de jeugd-thuisgroep",
+}
+
+
 def priority_explanation(proposal) -> str:
     parts = [f"Openstaande uren: {proposal.E}."]
     for rule in proposal.applied_priority_rules:
@@ -25,6 +31,8 @@ def priority_explanation(proposal) -> str:
                 "preferred": "Wedstrijdcontext geeft deze kandidaat voorrang vóór de noodgroepen; binnen de groep bepalen de uren de volgorde.",
                 "avoid": "Wedstrijdcontext geeft deze kandidaat een plaats in de noodgroep uitwedstrijd zonder wedstrijdconflict.",
             }[rule.split("=", 1)[1]])
+        elif rule in KICKOFF_PRIORITY_LABELS:
+            parts.append(KICKOFF_PRIORITY_LABELS[rule] + ".")
         elif rule == "jeugd thuis zonder overlap: noodgroep zonder wedstrijd":
             parts.append("Jeugdteam met een niet-overlappende thuiswedstrijd: ingedeeld in de prioriteringscategorie zonder wedstrijd; het team speelt wel thuis.")
         elif rule == "andere teamspeeldag: laatste noodgroep":

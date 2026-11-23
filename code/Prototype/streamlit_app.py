@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dvk.candidate_presenter import priority_explanation
+from dvk.candidate_presenter import KICKOFF_PRIORITY_LABELS, priority_explanation
 
 from datetime import date, datetime, time, timedelta
 from hashlib import sha256
@@ -87,7 +87,7 @@ def _vriendelijke_waarom(proposal) -> str:
     for rule in proposal.applied_priority_rules:
         if rule in {"higher_current_E", "previous_season_backlog_before_december"}:
             continue
-        label = RULE_LABELS.get(rule)
+        label = KICKOFF_PRIORITY_LABELS.get(rule) or RULE_LABELS.get(rule)
         if label and label not in details:
             details.append(label)
     return "; ".join(details) if details else "—"

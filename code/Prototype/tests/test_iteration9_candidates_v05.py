@@ -6,11 +6,13 @@ separate from the new team-based selection categories.
 from dataclasses import replace
 from datetime import date, datetime, timedelta
 from itertools import permutations
+from types import SimpleNamespace
 
 import pytest
 
 from dvk.candidate_selection import assess_candidate, is_youth_team
 from dvk.candidate_presenter import priority_explanation
+from dvk.planning_workqueue import TemporaryPlanning
 from dvk.prioritization import prioritize_candidates
 from dvk.proposals import create_assignment_proposal
 from dvk.recommendation_planner import plan_recommendations
@@ -210,3 +212,112 @@ def test_bl20_ranks_offer_only_shortage_and_keep_regular_away_ahead():
         assert [p.proposal.priority_rank for p in result.planned] == list(range(1,len(expected)+1))
         if minimum==2:
             assert EMERGENCY_MATCHDAY_REASON in result.planned[-1].proposal.uncertainties
+
+
+@pytest.mark.parametrize(('start', 'expected', 'groups'), [
+    ((8, 30), ['EARLY', 'LATE'], ['youth_home', 'neutral']),
+    ((10, 0), ['LATE', 'EARLY'], ['youth_home', 'youth_home']),
+])
+def test_kickoff_preference_for_example_services(start, expected, groups):
+    s = slot(*start)
+    s = replace(s, ends_at=s.starts_at + timedelta(minutes=90))
+    cases = (member('EARLY', hours=20), member('LATE', hours=1))
+    teams = (TeamMembership('EARLY', 'O17-1'), TeamMembership('LATE', 'MO15-1'))
+    matches = (
+        Match('EARLY', 'O17-1', s.starts_at.replace(hour=9, minute=0), 'home'),
+        Match('LATE', 'MO15-1', s.starts_at.replace(hour=10, minute=15), 'home'),
+    )
+    assessments = tuple(assess_candidate(case, s, teams, matches, s.starts_at.date()) for case in cases)
+    ranked = prioritize_candidates(assessments, cases, s.starts_at.date(), {'EARLY': 30})
+    assert [p.person_id for p in ranked] == expected
+    assert [p.match_preference for p in ranked] == groups
+    assert [p.youth_home_kickoff_in_service for p in ranked] == [True, False]
+
+
+@pytest.mark.parametrize(('offset', 'group', 'preferred'), [
+    (-1, 'youth_home', False),
+    (0, 'youth_home', True),
+    (179, 'youth_home', True),
+    (180, 'neutral', False),
+])
+def test_kickoff_preference_boundaries_use_whole_service(offset, group, preferred):
+    s = slot(12, 29)
+    match = Match('Y', 'O17-1', s.starts_at + timedelta(minutes=offset), 'home')
+    a = assess_candidate(member(), s, (TeamMembership('I9', match.team_id),), (match,), s.starts_at.date())
+    assert (a.eligible, a.preference, a.youth_home_kickoff_in_service) == (True, group, preferred)
+
+
+@pytest.mark.parametrize(('day_offset', 'hour', 'minute', 'team', 'side'), [
+    (-1, 10, 0, 'O17-1', 'home'),
+    (1, 10, 0, 'O17-1', 'home'),
+    (0, 12, 30, 'O17-1', 'home'),
+    (0, 10, 0, 'O23', 'home'),
+    (0, 10, 0, 'O17-1', 'away'),
+])
+def test_kickoff_during_service_has_no_preference_outside_youth_home(day_offset, hour, minute, team, side):
+    base = slot(hour, minute)
+    shift = timedelta(days=day_offset)
+    s = replace(base, starts_at=base.starts_at + shift, ends_at=base.ends_at + shift)
+    match = Match('M', team, s.starts_at, side)
+    a = assess_candidate(member(), s, (TeamMembership('I9', team),), (match,), s.starts_at.date())
+    assert a.preference != 'youth_home'
+    assert not a.youth_home_kickoff_in_service
+
+
+@pytest.mark.parametrize('conflict', [False, True])
+def test_kickoff_preference_selects_matching_context_after_all_conflict_checks(conflict):
+    s = slot()
+    case = member()
+    teams = tuple(TeamMembership('I9', team) for team in ('O15-1', 'O17-1', 'O23'))
+    matches = (
+        Match('EARLIER_TEAM', 'O15-1', s.starts_at - timedelta(minutes=15), 'home'),
+        Match('EARLIER_MATCH', 'O17-1', s.starts_at - timedelta(minutes=10), 'home'),
+        Match('DURING', 'O17-1', s.starts_at, 'home'),
+        Match('AWAY', 'O23', s.starts_at if conflict else s.ends_at, 'away'),
+    )
+    for team_order in permutations(teams):
+        for match_order in permutations(matches):
+            a = assess_candidate(case, s, team_order, match_order, s.starts_at.date())
+            if conflict:
+                assert not a.eligible and a.match_id == 'AWAY'
+            else:
+                assert a.eligible and a.preference == 'youth_home'
+                assert (a.team_id, a.match_id) == ('O17-1', 'DURING')
+                p, = prioritize_candidates((a,), (case,), s.starts_at.date())
+                proposal = create_assignment_proposal('P', s, case, a, p, match_order)
+                assert proposal.match_starts_at == s.starts_at
+                assert 'Aftrap tijdens de dienst geeft voorrang' in priority_explanation(proposal)
+
+
+def test_kickoff_preference_preserves_tie_breakers_and_recommendations():
+    s = slot()
+    cases = (member('HIGH', hours=11), member('HISTORY'), member('B'), member('A'), member('BEFORE'))
+    _, _, _, base = assess(kickoff=11)
+    assessments = tuple(replace(base, person_id=c.person.person_id) for c in cases[:-1])
+    assessments += (replace(base, person_id='BEFORE', youth_home_kickoff_in_service=False),)
+    ranked = prioritize_candidates(assessments, cases, s.starts_at.date(), {'HISTORY': 8})
+    assert [p.person_id for p in ranked] == ['HIGH', 'HISTORY', 'A', 'B', 'BEFORE']
+    equal_hours = prioritize_candidates(assessments[2:], cases, s.starts_at.date())
+    assert [p.person_id for p in plan_recommendations(equal_hours, (s,)).recommended] == ['A', 'B']
+
+
+def test_kickoff_preference_does_not_change_bl20_or_same_day_emergency_order():
+    s = slot()
+    _, _, match, base = assess(kickoff=11)
+    cases = (member('I9', hours=1), member('OTHER', hours=20))
+    other = replace(base, person_id='OTHER', youth_home_kickoff_in_service=False)
+    ranked = prioritize_candidates((base, other), cases, s.starts_at.date(),
+                                   other_weekend_person_ids=frozenset({'I9', 'OTHER'}))
+    assert [p.person_id for p in ranked] == ['OTHER', 'I9']
+    assert all(p.match_preference == 'other_weekend' and not p.youth_home_kickoff_in_service for p in ranked)
+    assert all(not any(rule.startswith('jeugdthuisaftrap') for rule in p.explanation) for p in ranked)
+
+    booked = replace(s, service_id='BOOKED', ends_at=s.starts_at,
+                     starts_at=s.starts_at - timedelta(hours=1))
+    teams = (TeamMembership('I9', match.team_id),)
+    a = assess_candidate(cases[0], s, teams, (match,), s.starts_at.date(),
+                         active_planning=(TemporaryPlanning(SimpleNamespace(person_id='I9'), booked),))
+    assert (a.eligible, a.preference, a.planning_relation) == (True, 'avoid', 'same_day_emergency')
+    p, = prioritize_candidates((a,), cases, s.starts_at.date())
+    assert not p.youth_home_kickoff_in_service
+    assert not any(rule.startswith('jeugdthuisaftrap') for rule in p.explanation)

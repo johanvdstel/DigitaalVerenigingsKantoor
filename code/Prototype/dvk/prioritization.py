@@ -24,7 +24,7 @@ def prioritize_candidates(
     *, apply_previous_season: bool = True,
     other_weekend_person_ids: frozenset[str] = frozenset(),
 ) -> tuple[CandidatePriority, ...]:
-    """Rank candidates: group, current E, positive previous-season backlog, person key.
+    """Rank by group, youth home kickoff preference, E, positive backlog and person key.
 
     No weighted score is invented. The sort is lexicographic so each ordering
     decision remains directly explainable from the policy rules.
@@ -43,15 +43,18 @@ def prioritize_candidates(
         if remaining <= 0:
             continue
         previous = max(0, backlog.get(assessment.person_id, 0)) if consider_previous else 0
-        preference = PREFERENCE_ORDER.get(assessment.preference, 0)
-        rows.append((assessment, remaining, previous, preference))
+        other_weekend = assessment.person_id in other_weekend_person_ids
+        group = "other_weekend" if other_weekend else assessment.preference
+        preference = PREFERENCE_ORDER.get(group, 0)
+        kickoff_preference = group == "youth_home" and assessment.youth_home_kickoff_in_service
+        sort_key = (other_weekend, -preference, -kickoff_preference,
+                    -remaining, -previous, assessment.person_id)
+        rows.append((sort_key, assessment, remaining, previous, group, kickoff_preference))
 
-    rows.sort(key=lambda row: (row[0].person_id in other_weekend_person_ids,
-                               -row[3] if row[0].person_id not in other_weekend_person_ids else 0,
-                               -row[1], -row[2], row[0].person_id))
+    rows.sort(key=lambda row: row[0])
 
     result = []
-    for rank, (assessment, remaining, previous, _) in enumerate(rows, start=1):
+    for rank, (_, assessment, remaining, previous, group, kickoff_preference) in enumerate(rows, start=1):
         explanation = [f"actuele E={remaining}"]
         known = assessment.person_id in backlog
         if not apply_previous_season:
@@ -64,6 +67,9 @@ def prioritize_candidates(
             explanation.append(f"achterstand vorig seizoen={previous}")
         explanation.append("wedstrijdvoorkeur=" + ("same_day_emergency"
                            if assessment.planning_relation == "same_day_emergency" else assessment.preference))
+        if group == "youth_home":
+            explanation.append("jeugdthuisaftrap binnen dienst" if kickoff_preference
+                               else "jeugdthuisaftrap vóór dienst")
         if assessment.person_id in other_weekend_person_ids:
             explanation.append("andere teamspeeldag: laatste noodgroep")
         if assessment.home_away == "home" and assessment.preference == "neutral":
@@ -76,8 +82,9 @@ def prioritize_candidates(
                 remaining,
                 previous,
                 consider_previous and known,
-                "other_weekend" if assessment.person_id in other_weekend_person_ids else assessment.preference,
+                group,
                 tuple(explanation),
+                youth_home_kickoff_in_service=kickoff_preference,
             )
         )
     return tuple(result)

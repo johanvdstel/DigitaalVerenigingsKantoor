@@ -175,6 +175,7 @@ def _assess_candidate(case, service, team_memberships, matches, today, qualifica
                     match_id=match.match_id if match else None))
                 continue
             relation, side, preference, reason = "no_match_that_day", None, "neutral", None
+            kickoff_in_service = False
             if match:
                 side = match.home_away.lower()
                 if side not in {"home", "away"}:
@@ -189,6 +190,7 @@ def _assess_candidate(case, service, team_memberships, matches, today, qualifica
                     preference = "none"
                 elif youth_home_overlap:
                     preference = "youth_home"
+                    kickoff_in_service = service.starts_at <= match.starts_at < service.ends_at
                 elif side == "away":
                     preference = "avoid"
                 elif youth:
@@ -198,12 +200,14 @@ def _assess_candidate(case, service, team_memberships, matches, today, qualifica
                     preference = "preferred"
             outcomes.append(CandidateAssessment(person_id, service.service_id, reason is None,
                                                 executor, team_id, side, relation, preference, reason,
-                                                match_id=match.match_id if match else None))
-    # Every relevant match can veto; otherwise take the best group. Sorted team
-    # and match keys also make the selected explanatory context deterministic.
+                                                match_id=match.match_id if match else None,
+                                                youth_home_kickoff_in_service=kickoff_in_service))
+    # Every relevant match can veto. Otherwise select the best group and show
+    # the match that gives the time preference when one exists.
     conflicts = [outcome for outcome in outcomes if not outcome.eligible]
-    return conflicts[0] if conflicts else max(outcomes, key=lambda a: (PREFERENCE_ORDER[a.preference],
-                                                                   a.match_id is not None))
+    return conflicts[0] if conflicts else max(outcomes, key=lambda a: (
+        PREFERENCE_ORDER[a.preference], a.youth_home_kickoff_in_service, a.match_id is not None,
+    ))
 
 
 def assess_candidate(
