@@ -372,3 +372,56 @@ def test_explicit_qualification_remains_person_bound_and_false_excludes():
     assert not assessment.eligible and assessment.exclusion_reason == 'synthetic-exemption'
     with pytest.raises(ValueError, match='different person'):
         assess_candidate(case, service(), (), (), DAY, qualification=replace(no, person_id='OTHER'))
+
+
+def test_friendly_team_2_keeps_program_usable_and_conflicts_on_actual_day():
+    from dvk.planning_source_presenter import planning_source_rows
+    from dvk.team_matchday import other_weekend_persons
+    from test_iteration1_candidates_v05 import team_data
+
+    data = team_data(['Algemeen/Zaterdag', 'Algemeen/Zondag', 'Zaterdag'],
+                     names=['2', '2', 'O17-1'])
+    regular = [row(wedstrijdcode=f'SYN-{i}', wedstrijddatum='2026-10-24T18:00:00+02:00')
+               for i in range(59)]
+    friendly = row('CKC 2', wedstrijdcode='FRIENDLY', wedstrijddatum='2026-10-24T11:00:00+02:00',
+                   competitiesoort='Oefenwedstrijd', thuisteamid='-1')
+    cancelled = row('CKC Onbekend', wedstrijdcode='CANCELLED', status='Afgelast')
+    ctx = context(data, regular + [friendly, cancelled])
+
+    assert ctx.error is None
+    assert len(ctx.program.matches) == 60
+    assert len(ctx.program.links) == 61
+    assert ctx.program.matches[-1].team_id == '2 / Algemeen/Zaterdag'
+    assert other_weekend_persons(ctx.source.team_memberships, service()) == frozenset({'M2'})
+    result = propose(ctx)
+    assessments = {a.person_id: a for a in result.assessments}
+    assert not assessments['M1'].eligible
+    assert assessments['M1'].match_id == 'FRIENDLY'
+    assert assessments['M2'].eligible
+    assert [p.proposal.person_id for p in result.planned] == ['M3']
+    assert any('60' in str(item) and 'Beschikbaar' in str(item)
+               for item in planning_source_rows(context=ctx))
+    assert any(d.code == 'NON_OPERATIONAL_PROGRAM_MATCH'
+               and ('Wedstrijdstatus', 'Afgelast') in d.values for d in ctx.diagnostic_details)
+
+
+def test_candidate_source_snapshots_decode_old_links_and_retain_new_audit():
+    from dvk.persistence.candidate_sources import decode_sources, encode_sources
+    from dvk.planning_session import PlanningCandidateSources
+
+    ctx = context(rows=[row(), row('CKC Onbekend', wedstrijdcode='EXCLUDED', status='Afgelast')])
+    sources = PlanningCandidateSources(ctx)
+    snapshot = encode_sources('synthetic-session', sources)
+    resumed = decode_sources(snapshot, 'synthetic-session').context
+    assert resumed.program.links == ctx.program.links
+    assert resumed.program.matches == ctx.program.matches
+
+    # Legacy snapshots have no linking method or raw status/date fields.
+    legacy = json.loads(snapshot)
+    links = legacy['context']['program']['links']
+    links.pop()
+    for field in ('method', 'operational', 'source_status', 'source_match_datetime'):
+        del links[0][field]
+    previous = decode_sources(json.dumps(legacy), 'synthetic-session').context
+    assert previous.program.links[0].method is None
+    assert previous.program.matches == ctx.program.matches

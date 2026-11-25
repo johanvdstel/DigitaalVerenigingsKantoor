@@ -37,6 +37,8 @@ def source_diagnostics(source, program=None):
             links = tuple(link for link in program.links if link.record_key == signal.record_key)
             values = tuple((field, value) for link in links for field, value in (
                 ("Oorspronkelijke teamnaam", link.original_team_name or ""),
-                ("Competitie", link.competition), ("Competitiesoort", link.competition_type)))
+                ("Competitie", link.competition), ("Competitiesoort", link.competition_type),
+                ("Wedstrijdstatus", link.source_status or ""),
+                ("Wedstrijddatum", link.source_match_datetime or "")))
             result.append(SourceDiagnostic(signal.code, "Programma API", signal.message, "", "", None, values))
     return tuple(result)

@@ -41,6 +41,7 @@ def adapter(*teams):
 @pytest.mark.parametrize("kind", ["regulier", "beker", "Rijnmond Cup"])
 def test_competition_ids_never_determine_shared_identity(source_id, kind):
     result = adapter().import_rows([row(thuisteamid=source_id, competitiesoort=kind)])
+    assert result.links[0].method == "unique_name"
     assert result.matches[0].team_id == result.team_memberships[0].team_id == "O17-1"
     assert result.links[0].source_team_id == source_id
 
@@ -118,35 +119,54 @@ def test_missing_target_cannot_invent_cup_team_or_publish_partial_planning_conte
         _ = result.matches
 
 
-def test_fifteen_team_2_matches_use_competition_description_not_calendar_day():
-    sat, sun = team("2", "Algemeen/Zaterdag"), team("2", "Algemeen/Zondag", "SYNTHETIC-P2")
-    # Synthetic fixtures: 8 Saturday competition, 6 Sunday competition, 1 Sunday cup.
-    descriptions = ["0213 Mannen Zaterdag reserve (A-cat)"] * 8 + ["0519 Mannen Zondag reserve"] * 6 + ["B1620 Mannen beker reserve zondag 2e ronde"]
-    rows = [row("CKC 2", wedstrijdcode=f"SYNTHETIC-2-{i}", competitie=description,
-                competitiesoort="beker" if i == 14 else "regulier", thuisteamid=f"COMP-{i}",
-                wedstrijddatum="2026-11-01T12:30:00Z" if i < 8 else "2026-10-31T12:30:00Z")
-            for i, description in enumerate(descriptions)]
-    result = adapter(sat, sun).import_rows(rows)
-    assert len(result.matches) == 15
-    assert [m.team_id for m in result.matches] == ["2 / Algemeen/Zaterdag"] * 8 + ["2 / Algemeen/Zondag"] * 7
-    assert {m.team_id for m in result.matches} == {m.team_id for m in result.team_memberships}
-    assert [link.competition for link in result.links] == descriptions
+@pytest.mark.parametrize(("description", "match_date", "expected_day"), [
+    ("Zaterdag", "2026-10-31T12:30:00Z", "Zaterdag"),
+    ("Zondag", "2026-11-01T12:30:00Z", "Zondag"),
+    ("Zaterdag", "2026-11-01T12:30:00Z", "Zondag"),
+    ("Zondag", "2026-10-31T12:30:00Z", "Zaterdag"),
+    ("", "2026-10-31T12:30:00Z", "Zaterdag"),
+    ("", "2026-11-01T12:30:00Z", "Zondag"),
+    ("Reserve", "2026-10-31T12:30:00Z", "Zaterdag"),
+    ("Zaterdag en zondag", "2026-10-31T12:30:00Z", "Zaterdag"),
+    (None, "2026-10-31T23:30:00Z", "Zondag"),
+    ("", "2026-11-04T12:30:00Z", None),
+])
+@pytest.mark.parametrize("away", [False, True])
+@pytest.mark.parametrize("kind", ["regulier", "Oefenwedstrijd"])
+def test_team_2_uses_local_match_day_independent_of_competition(description, match_date, expected_day, away, kind):
+    sat = team("2", "Algemeen/Zaterdag")
+    sun = team("2", "Algemeen/Zondag", "SYNTHETIC-P2")
+    source = row("CKC 2", competitie=description, wedstrijddatum=match_date, competitiesoort=kind)
+    if description is None:
+        del source["competitie"]
+    if away:
+        source.update(thuisteam="Andere club", thuisteamclubrelatiecode="OTHER",
+                      uitteam="CKC 2", uitteamclubrelatiecode="BBDZ08H", uitteamid="-1")
+    result = adapter(sat, sun).import_rows([source])
+    link, = result.links
+    assert link.competition == (description or "")
+    assert link.side == ("AWAY" if away else "HOME")
+    if expected_day is None:
+        assert link.status == "ambiguous" and link.method == "unresolved"
+        assert "lokale wedstrijddag" in link.reason
+        assert result.signals[0].code == "PROGRAM_TEAM_AMBIGUOUS"
+        with pytest.raises(UnresolvedProgramTeamsError):
+            _ = result.matches
+    else:
+        match, = result.matches
+        assert match.team_id == f"2 / Algemeen/{expected_day}"
+        assert link.method == "name_and_match_day"
+        assert not result.signals
 
 
-@pytest.mark.parametrize("description", ["", "Reserve", "Zaterdag en zondag"])
-def test_team_2_missing_or_ambiguous_competition_is_explicit_and_not_first_match(description):
-    result = adapter(team("2", "Algemeen/Zaterdag"), team("2", "Algemeen/Zondag")).import_rows([
-        row("CKC 2", competitie=description),
-    ])
-    assert result.links[0].status == "ambiguous"
-    assert result.signals[0].code == "PROGRAM_TEAM_AMBIGUOUS"
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.matches
+@pytest.mark.parametrize("description", ["", "Mannen zondag"])
+def test_single_team_2_links_even_on_a_different_match_day(description):
+    result = adapter(team("2", "Algemeen/Zaterdag")).import_rows([row("CKC 2", competitie=description)])
+    assert result.matches[0].team_id == "2 / Algemeen/Zaterdag"
+    assert result.links[0].method == "unique_name"
 
 
-def test_team_2_requires_matching_export_matchday_even_if_only_one_team_is_available():
-    result = adapter(team("2", "Algemeen/Zaterdag")).import_rows([row("CKC 2", competitie="Mannen zondag")])
-    assert result.links[0].status == "unmatched"
+def test_team_2_still_requires_valid_export_matchday():
     result = adapter(team("2")).import_rows([])
     assert result.signals[0].code == "CKC_TEAM_MEMBERSHIP_UNRESOLVED"
     with pytest.raises(UnresolvedProgramTeamsError):
@@ -179,7 +199,10 @@ def test_all_team_and_match_permutations_have_same_links():
 def test_unknown_team_results_are_order_independent_too():
     catalog = [CkcTeamIdentity("2", "Algemeen/Zaterdag"), CkcTeamIdentity("2", "Algemeen/Zondag")]
     for ordered in permutations(catalog):
-        link = link_program_team(row("CKC 2"), ordered, record_key="synthetic")
+        link = link_program_team(
+            row("CKC 2", wedstrijddatum=""), ordered, record_key="synthetic",
+            parse_match_datetime=adapter()._parse_sportlink_datetime,
+        )
         assert link.status == "ambiguous"
         assert link.candidates == tuple(sorted(catalog))
 
@@ -231,7 +254,7 @@ def validation_command():
 @pytest.mark.parametrize("name,matchday,competition,exit_code", [
     ("O17-1", "", "", 0),
     ("2", "Algemeen/Zaterdag", "Mannen zaterdag", 0),
-    ("2", "Algemeen/Zaterdag", "", 2),
+    ("2", "Algemeen/Zaterdag", "", 0),
     ("2", "", "Mannen zaterdag", 2),
 ])
 def test_local_validation_command_is_read_only_and_prints_no_personal_values(
@@ -265,3 +288,23 @@ def test_transport_error_does_not_print_credentials(tmp_path, monkeypatch, capsy
     monkeypatch.setattr(command.SportlinkProgrammaClient, "fetch_rows", lambda self, **kwargs: fail())
     assert command.main(["--teams", str(path)]) == 1
     assert "SYNTHETIC-SECRET" not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("status", ["Afgelast", "Uitgesteld", "Gestaakt"])
+def test_unlinked_non_operational_rows_stay_in_audit_and_do_not_block(status):
+    excluded = row("CKC Onbekend", status=status, wedstrijdcode="EXCLUDED", wedstrijddatum="")
+    result = adapter().import_rows([row(), excluded])
+    assert len(result.matches) == len(result.team_memberships) == 1
+    link = result.links[1]
+    assert (link.status, link.method, link.operational) == ("unmatched", "unresolved", False)
+    assert link.record_key == "EXCLUDED" and link.source_status == status
+    assert [(s.code, s.severity) for s in result.signals] == [("NON_OPERATIONAL_PROGRAM_MATCH", "INFO")]
+
+
+@pytest.mark.parametrize("status", [None, "", "Onbekend", "Te spelen"])
+def test_unlinked_matches_still_block_unless_status_proves_exclusion(status):
+    result = adapter().import_rows([row("CKC Onbekend", status=status)])
+    assert result.links[0].operational
+    assert result.signals[0].code == "PROGRAM_TEAM_UNMATCHED"
+    with pytest.raises(UnresolvedProgramTeamsError):
+        _ = result.team_memberships

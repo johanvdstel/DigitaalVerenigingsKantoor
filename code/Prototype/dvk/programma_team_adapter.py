@@ -29,7 +29,9 @@ class LinkedProgramImportResult:
     _unresolved_memberships: bool
 
     def _require_team_links(self) -> None:
-        if self._unresolved_memberships or any(link.status != "matched" for link in self.links):
+        if self._unresolved_memberships or any(
+            link.operational and link.status != "matched" for link in self.links
+        ):
             raise UnresolvedProgramTeamsError(
                 "Teamkoppeling ontbreekt of is ambigu; beoordeel de bronmeldingen vóór kandidaatselectie"
             )
@@ -77,9 +79,20 @@ class CkcProgrammaAdapter(SportlinkProgrammaAdapter):
         linked_rows = []
         links = []
         for index, row in enumerate(rows, 1):
-            link = link_program_team(row, catalog, record_key=self._record_key(row, index))
+            status = self._value(row, "status") or None
+            link = link_program_team(
+                row, catalog, record_key=self._record_key(row, index),
+                parse_match_datetime=self._parse_sportlink_datetime,
+                operational=self._is_operational(status),
+            )
             links.append(link)
             if link.identity is None:
+                if not link.operational:
+                    signals.append(DataQualitySignal(
+                        "NON_OPERATIONAL_PROGRAM_MATCH", "INFO", "programma", link.record_key,
+                        f"Wedstrijd buiten kandidaatscontext vanwege status {status!r}. {link.reason}",
+                    ))
+                    continue
                 signals.append(DataQualitySignal(
                     "PROGRAM_TEAM_AMBIGUOUS" if link.status == "ambiguous" else "PROGRAM_TEAM_UNMATCHED",
                     "ERROR", "programma", link.record_key, link.reason,
