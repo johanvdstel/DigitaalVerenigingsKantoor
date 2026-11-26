@@ -97,15 +97,16 @@ def test_w09_previous_season_backlog_breaks_equal_e_before_december():
     assert ranked[0].previous_season_backlog == 6
 
 
-def test_w09_previous_season_backlog_is_not_considered_from_december_first():
+def test_w09_previous_season_backlog_is_considered_on_december_first():
     ranked = prioritize_candidates(
         (_priority_assessment("W09P"), _priority_assessment("W07P")),
         (W_CASE_BY_ID["W09"], W_CASE_BY_ID["W07"]),
         date(2026, 12, 1),
         {"W09P": 6, "W07P": 0},
     )
-    assert all(row.previous_season_considered is False for row in ranked)
-    assert all(row.previous_season_backlog == 0 for row in ranked)
+    assert all(row.previous_season_considered is True for row in ranked)
+    assert ranked[0].person_id == "W09P"
+    assert ranked[0].previous_season_backlog == 6
 
 
 def test_w10_away_match_same_day_is_eligible_but_avoided():

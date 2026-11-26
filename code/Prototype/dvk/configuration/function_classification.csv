@@ -1,0 +1,92 @@
+dataset,committee,title,category,self_exempt,household_exempt
+functies,,Ass. Scheidsrechter van vereniging,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Assistenttrainer,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Assistenttrainer Pup.,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Bestuurslid,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Communicatie en PR,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Contributiezaken,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Hoofdtrainer Sen.,Betaalde functie – CKC-afspraak,true,false
+functies,,Keeperstrainer,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Ledenadministrateur,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Penningmeester,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Scheidsrechterscoördinator,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Secretaris,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Sponsorzaken,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Teammanager,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Trainer Junioren,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Trainer Pupillen,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Trainer Senioren,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Trainer Vrouwen,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Verenigingsnieuws beheerder,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Verenigingsscheidsrechter,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Verzorger,Betaalde functie – CKC-afspraak,true,false
+functies,,Vice voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Vice-voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Waarden & Normen,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Wedstrijdsecretaris algemeen,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Wedstrijdsecretaris mDWF Veld,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Activiteiten,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Activiteiten,toernooien,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Beheer & Onderhoud Accommodatie,beheerder,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Beheer & Onderhoud Accommodatie,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Beheer & Onderhoud Accommodatie,werkploeg,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,CKC 100,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,kantine,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,penningmeester,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,PR & communicatie,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,secretaris,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,sponsoring,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,vice-voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,vrijwilligerszaken,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,waarden & Normen,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Bestuur,wedstrijdsecretariaat,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,CKC 100,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,CKC 100,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Dagelijks bestuur,secretaris,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Dagelijks bestuur,vice-voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Dagelijks bestuur,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Jeugd / Technische Commissie,coördinator juniorenteams,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Jeugd / Technische Commissie,coördinator meisjes/vrouwen teams,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Jeugd / Technische Commissie,coördinator pupillenteams,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Kantine,beheerder,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Kantine,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Kantine,kantine,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Kantine,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,lid van verdienste,lid van verdienste,Eretitel,true,false
+commissies,Materialen & Kleding,materialen,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Materialen & Kleding,teamkleding,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Ondersteuning DB,contributie,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Ondersteuning DB,ledenadministratie,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Ondersteuning DB,penningmeester,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Ondersteuning DB,verenigingscoach,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,penaltybokaal,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,penaltybokaal,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,PR & Communicatie,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,PR & Communicatie,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,PR & Communicatie,webmaster,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,junioren,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,pupillen,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,reserve,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,reserve / knvb,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,scheidsrechtersplanning,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,senioren,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Scheidsrechters,senioren / knvb,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Sponsoring,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Sponsoring,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Vertrouwenspersoon,vertrouwenspersoon intern,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,vrijwilligers,activiteiten,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,vrijwilligers,grote clubactie,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,vrijwilligers,werkploeg,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Vrijwilligerzaken,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Vrijwilligerzaken,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Vrijwilligerzaken,vrijwilligerszaken,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Waarden & Normen,commissielid,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Waarden & Normen,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Wedstrijdsecretariaat,commissiekamer,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Wedstrijdsecretariaat,scheidsrechterscoördinator,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Wedstrijdsecretariaat,voorzitter,Erkende onbetaalde vrijwilligersfunctie,true,true
+commissies,Wedstrijdsecretariaat,wedstrijdsecretaris,Erkende onbetaalde vrijwilligersfunctie,true,true
+functies,,Erelid,Eretitel,true,false
+functies,,Lid van verdienste,Eretitel,true,false
