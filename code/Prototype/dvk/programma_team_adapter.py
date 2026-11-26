@@ -2,7 +2,7 @@
 
 The accepted v0.4 transport/date/status adapter remains unchanged. Copies of
 linked rows carry the resolved key internally; original source values are kept
-in links. Unresolved links cannot be consumed as an empty planning context.
+in links. Unresolved matches stay in the audit outside candidate context.
 """
 from __future__ import annotations
 
@@ -14,6 +14,9 @@ from .programma_adapter import ProgramImportResult, SportlinkProgrammaAdapter
 from .real_data_import import DataQualitySignal, RealTeamMembership
 from .team_linking import CKC_CLUB_RELATION_CODE, ProgramTeamLink, link_program_team, membership_identity
 from .workstream_model import Match, TeamMembership
+
+
+TEAM_LINK_SIGNAL_CODES = frozenset({"PROGRAM_TEAM_AMBIGUOUS", "PROGRAM_TEAM_UNMATCHED"})
 
 
 class UnresolvedProgramTeamsError(ValueError):
@@ -28,9 +31,16 @@ class LinkedProgramImportResult:
     _team_memberships: tuple[TeamMembership, ...]
     _unresolved_memberships: bool
 
+    @property
+    def skipped_team_matches(self) -> int:
+        return sum(signal.code in TEAM_LINK_SIGNAL_CODES and signal.severity == "WARNING"
+                   for signal in self.signals)
+
     def _require_team_links(self) -> None:
+        # Older saved contexts can still contain blocking team-link signals.
         if self._unresolved_memberships or any(
-            link.operational and link.status != "matched" for link in self.links
+            signal.code in TEAM_LINK_SIGNAL_CODES and signal.severity == "ERROR"
+            for signal in self.signals
         ):
             raise UnresolvedProgramTeamsError(
                 "Teamkoppeling ontbreekt of is ambigu; beoordeel de bronmeldingen vóór kandidaatselectie"
@@ -95,7 +105,8 @@ class CkcProgrammaAdapter(SportlinkProgrammaAdapter):
                     continue
                 signals.append(DataQualitySignal(
                     "PROGRAM_TEAM_AMBIGUOUS" if link.status == "ambiguous" else "PROGRAM_TEAM_UNMATCHED",
-                    "ERROR", "programma", link.record_key, link.reason,
+                    "WARNING", "programma", link.record_key,
+                    f"Wedstrijd niet meegenomen in de kandidaatcontext. {link.reason}",
                 ))
                 continue
             normalized_row = dict(row)

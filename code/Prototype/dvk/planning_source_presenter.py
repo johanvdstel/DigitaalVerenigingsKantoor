@@ -10,6 +10,12 @@ def _time(value):
     return value.strftime('%d-%m-%Y %H:%M') if value else 'Onbekend'
 
 
+def skipped_team_matches_note(count):
+    if count == 1:
+        return "1 wedstrijd is niet meegenomen wegens een onopgeloste teamkoppeling. Zie Bronmeldingen kandidaatcontext."
+    return f"{count} wedstrijden zijn niet meegenomen wegens onopgeloste teamkoppelingen. Zie Bronmeldingen kandidaatcontext."
+
+
 def planning_source_rows(*, context=None, load_error=None, volunteer_success=None,
                          volunteer_attempt=None, volunteer_matching=False, demo=False, availability=None, volunteer_error=None):
     rows = []
@@ -62,18 +68,21 @@ def planning_source_rows(*, context=None, load_error=None, volunteer_success=Non
         add('Sportlink Programma', 'API', None, 'Aanvraag mislukt' if context else 'Niet opgehaald',
             'Wedstrijdcontext onbekend', context.error if context else 'Nog geen ophaalresultaat beschikbaar.')
     else:
-        # Raw result stays inspectable even when operational team links are invalid.
         count = len(program.program.matches)
-        note = f'Operationele wedstrijden in ontvangen bron: {count}.'
-        if not count:
+        skipped = program.skipped_team_matches
+        note = f'Gekoppelde operationele wedstrijden: {count}.'
+        if skipped:
+            note += ' ' + skipped_team_matches_note(skipped)
+        elif not count and not context.error:
             note += ' Technisch geslaagd; geen operationele wedstrijden aangeleverd.'
         note += f' Aanvragen: {context.stats.calls}; herhalingen: {context.stats.retries}; definitieve fouten: {context.stats.failures}.'
         note += ' Getoond moment is het begin van de DVK-laadactie, vóór de API-aanvraag; niet de actualisatie in Sportlink.'
         if context.error:
             note += ' ' + context.error
         add('Sportlink Programma', 'API', context.fetched_at,
-            'Geslaagd, geen operationele wedstrijden' if not count and not context.error else 'Technisch geslaagd',
-            'Niet bruikbaar; zie bronmeldingen' if context.error else 'Beschikbaar', note)
+            'Geslaagd, geen operationele wedstrijden' if not count and not skipped and not context.error else 'Technisch geslaagd',
+            'Niet bruikbaar; zie bronmeldingen' if context.error else
+            'Beschikbaar met waarschuwingen' if skipped else 'Beschikbaar', note)
     if availability is not None:
         for row in rows:
             if row["Type"] == "CSV":

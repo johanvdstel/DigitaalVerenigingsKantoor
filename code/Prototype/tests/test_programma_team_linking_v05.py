@@ -54,10 +54,9 @@ def test_only_club_code_may_identify_ckc_and_prefix_is_not_processed_before_it(h
     assert not result.links[0].normalizations
     assert result.links[0].home_team_name == "CKC O17-1"
     assert result.signals[0].code == "PROGRAM_TEAM_UNMATCHED"
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.matches
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.team_memberships
+    assert result.signals[0].severity == "WARNING"
+    assert result.matches == ()
+    assert len(result.team_memberships) == 1
 
 
 def test_ckc_away_side_and_original_values_are_preserved_without_mutating_input():
@@ -105,18 +104,16 @@ def test_existing_team_number_is_kept():
 def test_no_fuzzy_or_unapproved_conversions(name, kind):
     result = adapter(team("O13-1")).import_rows([row(name, competitiesoort=kind)])
     assert result.links[0].status == "unmatched"
-    assert any(s.code == "PROGRAM_TEAM_UNMATCHED" for s in result.signals)
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.matches
+    assert [(s.code, s.severity) for s in result.signals] == [("PROGRAM_TEAM_UNMATCHED", "WARNING")]
+    assert result.matches == ()
 
 
-def test_missing_target_cannot_invent_cup_team_or_publish_partial_planning_context():
+def test_missing_cup_target_is_skipped_and_linked_match_is_available():
     result = adapter().import_rows([row(), row("CKC O99", wedstrijdcode="SYNTHETIC-W2", competitiesoort="Rijnmond Cup")])
     assert [link.status for link in result.links] == ["matched", "unmatched"]
     assert result.links[1].normalized_name == "O99-1"
-    assert len(result.program.records) == 1  # audit of the successfully parsed row remains accessible
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.matches
+    assert len(result.program.records) == len(result.matches) == 1
+    assert result.skipped_team_matches == 1
 
 
 @pytest.mark.parametrize(("description", "match_date", "expected_day"), [
@@ -150,8 +147,8 @@ def test_team_2_uses_local_match_day_independent_of_competition(description, mat
         assert link.status == "ambiguous" and link.method == "unresolved"
         assert "lokale wedstrijddag" in link.reason
         assert result.signals[0].code == "PROGRAM_TEAM_AMBIGUOUS"
-        with pytest.raises(UnresolvedProgramTeamsError):
-            _ = result.matches
+        assert result.signals[0].severity == "WARNING"
+        assert result.matches == ()
     else:
         match, = result.matches
         assert match.team_id == f"2 / Algemeen/{expected_day}"
@@ -302,9 +299,10 @@ def test_unlinked_non_operational_rows_stay_in_audit_and_do_not_block(status):
 
 
 @pytest.mark.parametrize("status", [None, "", "Onbekend", "Te spelen"])
-def test_unlinked_matches_still_block_unless_status_proves_exclusion(status):
+def test_unlinked_matches_with_missing_unknown_or_operational_status_warn(status):
     result = adapter().import_rows([row("CKC Onbekend", status=status)])
     assert result.links[0].operational
     assert result.signals[0].code == "PROGRAM_TEAM_UNMATCHED"
-    with pytest.raises(UnresolvedProgramTeamsError):
-        _ = result.team_memberships
+    assert result.signals[0].severity == "WARNING"
+    assert result.matches == ()
+    assert len(result.team_memberships) == 1

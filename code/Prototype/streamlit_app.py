@@ -17,7 +17,7 @@ from dvk.application_services import NoShowApplicationService, PlanningApplicati
 from dvk.local_csv_sources import LocalCsvSourceApplicationService
 from dvk.team_matchday import EMERGENCY_MATCHDAY_REASON
 from dvk.application_version import active_application_version
-from dvk.planning_source_presenter import planning_source_rows
+from dvk.planning_source_presenter import planning_source_rows, skipped_team_matches_note
 from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
 from dvk.new_planning import NewPlanningApplicationService
 from dvk.no_show import NoShowEvent, TZ, season_id
@@ -450,6 +450,8 @@ def _render_planning():
                     st.warning("Programma API tijdelijk instabiel; een herhaalpoging is geslaagd. De wedstrijdcontext is beschikbaar.")
                 else:
                     st.caption("Programma API: technisch geslaagd, ook als Sportlink geen wedstrijden aanlevert.")
+                if candidate_context.program and candidate_context.program.skipped_team_matches:
+                    st.warning(skipped_team_matches_note(candidate_context.program.skipped_team_matches))
                 if candidate_context.signal_counts:
                     if candidate_context.error is None and any(signal.severity in {"ERROR", "WARNING"} for signal in candidate_context.source.signals):
                         st.info("Kandidaatbronnen geladen. Bij enkele personen zijn bronafwijkingen gemeld. Personen met onvoldoende betrouwbare gegevens worden niet voorgesteld; de overige kandidaten worden normaal beoordeeld. U hoeft deze administratieve bijzonderheden niet eerst in Sportlink te corrigeren.")
