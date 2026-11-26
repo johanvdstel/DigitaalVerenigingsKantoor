@@ -445,7 +445,9 @@ def test_repeated_dst_hour_has_distinct_human_booking_choices(tmp_path, monkeypa
         original(self, *args, **kw)
     monkeypatch.setattr(NoShowApplicationService, '__init__', init)
     script = tmp_path/'streamlit_app.py'
-    script.write_text((Path(__file__).parents[1]/'streamlit_app.py').read_text())
+    # Source consultation also uses the UI clock before registration choices are built.
+    script.write_text((Path(__file__).parents[1]/'streamlit_app.py').read_text().replace(
+        'datetime.now(TZ)', f'datetime.fromisoformat({NOW.isoformat()!r}).astimezone(TZ)'))
     ui = AppTest.from_file(str(script), default_timeout=20).run()
     ui.button(key='nav-no-shows').click().run()
     next(b for b in ui.button if b.label == 'Sportlink-diensten raadplegen').click().run()
