@@ -50,6 +50,7 @@ class CandidateAssessment:
     exclusion_reason: str | None = None
     planning_relation: str | None = None
     match_id: str | None = None
+    youth_home_kickoff_in_service: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class CandidatePriority:
     previous_season_considered: bool
     match_preference: str
     explanation: tuple[str, ...]
+    youth_home_kickoff_in_service: bool = False
 
 
 @dataclass(frozen=True)

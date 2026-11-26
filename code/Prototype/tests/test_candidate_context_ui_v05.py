@@ -226,3 +226,17 @@ def test_no_exception_input_and_emergency_visible_with_explicit_approval(
     assert any('Speeldag' in e.value for e in app.error)
     assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
     assert snapshot(db)==before
+
+
+def test_unlinked_program_match_warns_and_does_not_hide_candidates(operational_page, monkeypatch):
+    from test_candidate_context_v05 import context, row
+
+    app, _, _ = operational_page
+    ctx = replace(context(rows=[row('CKC Onbekend')]), period=PERIOD)
+    monkeypatch.setattr(CandidateContextApplicationService, 'load', lambda *a, **k: ctx)
+    refresh_candidate_sources(app)
+    assert not app.exception and not app.error
+    assert table(app).value.Kandidaat.tolist() == ['Synthetisch lid M1']
+    assert any('1 wedstrijd is niet meegenomen' in warning.value for warning in app.warning)
+    assert any('PROGRAM_TEAM_UNMATCHED: 1' in caption.value for caption in app.caption)
+    assert not any('Personen met onvoldoende betrouwbare gegevens' in message.value for message in app.info)

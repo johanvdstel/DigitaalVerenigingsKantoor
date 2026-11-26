@@ -12,8 +12,10 @@ class RecommendationPlan:
 
 
 def _same_priority(a: CandidatePriority, b: CandidatePriority) -> bool:
-    return (a.remaining_hours, a.previous_season_backlog, a.previous_season_considered, a.match_preference) == (
-        b.remaining_hours, b.previous_season_backlog, b.previous_season_considered, b.match_preference
+    return (a.remaining_hours, a.previous_season_backlog, a.previous_season_considered,
+            a.match_preference, a.youth_home_kickoff_in_service) == (
+        b.remaining_hours, b.previous_season_backlog, b.previous_season_considered,
+        b.match_preference, b.youth_home_kickoff_in_service,
     )
 
 

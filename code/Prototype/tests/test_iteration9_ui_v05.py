@@ -21,19 +21,24 @@ def test_real_group_order_ranks_home_facts_and_planning_roundtrip(operational_pa
              if b.service.starts_at.weekday()==5
              and (b.service.starts_at.hour>=13 if afternoon else b.service.starts_at.hour<12))
     teams = ['O17-1','Senioren','Away','None','OtherDay','MO15']
-    members = [dict(pid=f'M{i}',born='01-01-2012' if i in (1,6) else '01-01-1990',team=team,number=str(i))
+    if not afternoon:
+        teams.append('O18-1')
+    members = [dict(pid=f'M{i}',born='01-01-2012' if i in (1,6,7) else '01-01-1990',team=team,number=str(i))
                for i,team in enumerate(teams,1)]
-    data = exports(members=members,hours=[(f'M{i}',10 if i>2 else i,0,0,0,10 if i>2 else i) for i in range(1,7)])
+    data = exports(members=members,hours=[(f'M{i}',10 if i>2 else i,0,0,0,10 if i>2 else i) for i in range(1,len(teams)+1)])
     team_rows = rows(data,'teams')
     team_rows[4]['Speeldag'] = 'Algemeen/Zondag'
     # A second registration must not create a second candidate for M6.
     team_rows.append(dict(team_rows[5],Team='Extra'))
     write_rows(data,'teams',team_rows)
     matches = []
-    for name,side,start in [('O17-1','home',s.starts_at),
+    fixtures = [('O17-1','home',s.starts_at),
                             ('Senioren','home',s.ends_at),
                             ('Away','away',s.ends_at),
-                            ('MO15','home',s.starts_at-timedelta(hours=2))]:
+                            ('MO15','home',s.starts_at-timedelta(hours=2))]
+    if not afternoon:
+        fixtures.append(('O18-1', 'home', s.starts_at - timedelta(minutes=30)))
+    for name,side,start in fixtures:
         values = dict(thuisteam='CKC '+name,wedstrijddatum=start.isoformat(),wedstrijdcode=name)
         if side=='away':
             values.update(thuisteam='Other',uitteam='CKC '+name,
@@ -47,10 +52,17 @@ def test_real_group_order_ranks_home_facts_and_planning_roundtrip(operational_pa
     assert not app.exception
     frame = table(app).value
     # M5 is BL-20 and must not be offered while enough regular candidates exist.
-    expected = ['M2','M4','M6','M3'] if afternoon else ['M1','M2','M4','M6','M3']
+    expected = ['M2','M4','M6','M3'] if afternoon else ['M1','M7','M2','M4','M6','M3']
     assert frame.Kandidaat.tolist() == ['Synthetisch lid '+pid for pid in expected]
     assert frame.Rang.tolist() == list(range(1,len(expected)+1))
     assert frame.loc[frame.Kandidaat=='Synthetisch lid M6','Wedstrijdcontext'].iloc[0] == 'Thuiswedstrijd'
+    if not afternoon:
+        assert 'Aftrap tijdens de dienst geeft voorrang' in frame.loc[
+            frame.Kandidaat == 'Synthetisch lid M1', 'Opmerkingen'
+        ].iloc[0]
+        assert 'Aftrap vóór de dienst geeft lagere prioriteit' in frame.loc[
+            frame.Kandidaat == 'Synthetisch lid M7', 'Opmerkingen'
+        ].iloc[0]
     before = snapshot(db)
     index = expected.index('M6')
     pick(app,index=index)

@@ -229,8 +229,8 @@ def test_duplicate_hours_do_not_choose_a_record():
     assert any(s.code == 'AMBIGUOUS_DUTY_POSITION' for s in result.controls[0].signals)
 
 
-@pytest.mark.parametrize('bad_row', [row(thuisteam='CKC Onbekend'), row(wedstrijddatum='invalid')])
-def test_unresolved_team_or_datetime_blocks_partial_program_context(bad_row):
+@pytest.mark.parametrize('bad_row', [row(wedstrijddatum='invalid'), row(wedstrijdcode='')])
+def test_invalid_linked_match_data_still_blocks_partial_program_context(bad_row):
     ctx = context(rows=[row(wedstrijddatum='2026-10-24T16:00:00+0200'), bad_row])
     assert ctx.error
     with pytest.raises(CandidateSourceError):
@@ -372,3 +372,116 @@ def test_explicit_qualification_remains_person_bound_and_false_excludes():
     assert not assessment.eligible and assessment.exclusion_reason == 'synthetic-exemption'
     with pytest.raises(ValueError, match='different person'):
         assess_candidate(case, service(), (), (), DAY, qualification=replace(no, person_id='OTHER'))
+
+
+def test_friendly_team_2_keeps_program_usable_and_conflicts_on_actual_day():
+    from dvk.planning_source_presenter import planning_source_rows
+    from dvk.team_matchday import other_weekend_persons
+    from test_iteration1_candidates_v05 import team_data
+
+    data = team_data(['Algemeen/Zaterdag', 'Algemeen/Zondag', 'Zaterdag'],
+                     names=['2', '2', 'O17-1'])
+    regular = [row(wedstrijdcode=f'SYN-{i}', wedstrijddatum='2026-10-24T18:00:00+02:00')
+               for i in range(59)]
+    friendly = row('CKC 2', wedstrijdcode='FRIENDLY', wedstrijddatum='2026-10-24T11:00:00+02:00',
+                   competitiesoort='Oefenwedstrijd', thuisteamid='-1')
+    cancelled = row('CKC Onbekend', wedstrijdcode='CANCELLED', status='Afgelast')
+    ctx = context(data, regular + [friendly, cancelled])
+
+    assert ctx.error is None
+    assert len(ctx.program.matches) == 60
+    assert len(ctx.program.links) == 61
+    assert ctx.program.matches[-1].team_id == '2 / Algemeen/Zaterdag'
+    assert other_weekend_persons(ctx.source.team_memberships, service()) == frozenset({'M2'})
+    result = propose(ctx)
+    assessments = {a.person_id: a for a in result.assessments}
+    assert not assessments['M1'].eligible
+    assert assessments['M1'].match_id == 'FRIENDLY'
+    assert assessments['M2'].eligible
+    assert [p.proposal.person_id for p in result.planned] == ['M3']
+    assert any('60' in str(item) and 'Beschikbaar' in str(item)
+               for item in planning_source_rows(context=ctx))
+    assert any(d.code == 'NON_OPERATIONAL_PROGRAM_MATCH'
+               and ('Wedstrijdstatus', 'Afgelast') in d.values for d in ctx.diagnostic_details)
+
+
+def test_candidate_source_snapshots_decode_old_links_and_retain_new_audit():
+    from dvk.persistence.candidate_sources import decode_sources, encode_sources
+    from dvk.planning_session import PlanningCandidateSources
+
+    ctx = context(rows=[row(), row('CKC Onbekend', wedstrijdcode='EXCLUDED', status='Afgelast')])
+    sources = PlanningCandidateSources(ctx)
+    snapshot = encode_sources('synthetic-session', sources)
+    resumed = decode_sources(snapshot, 'synthetic-session').context
+    assert resumed.program.links == ctx.program.links
+    assert resumed.program.matches == ctx.program.matches
+
+    # Legacy snapshots have no linking method or raw status/date fields.
+    legacy = json.loads(snapshot)
+    links = legacy['context']['program']['links']
+    links.pop()
+    for field in ('method', 'operational', 'source_status', 'source_match_datetime'):
+        del links[0][field]
+    previous = decode_sources(json.dumps(legacy), 'synthetic-session').context
+    assert previous.program.links[0].method is None
+    assert previous.program.matches == ctx.program.matches
+
+
+@pytest.mark.parametrize('include_linked', [True, False])
+def test_tuesday_friendly_and_unknown_team_are_omitted_with_diagnostics(include_linked):
+    from dvk.planning_source_presenter import planning_source_rows
+    from test_iteration1_candidates_v05 import team_data
+
+    data = team_data(['Algemeen/Zaterdag', 'Algemeen/Zondag', 'Zaterdag'],
+                     names=['2', '2', 'O17-1'])
+    linked = [row(wedstrijddatum='2026-10-24T11:00:00+0200')] if include_linked else []
+    baseline = context(data, linked)
+    friendly = row('CKC 2', wedstrijdcode='FRIENDLY-TUE', wedstrijddatum='2026-12-01T20:15:00+0100',
+                   competitiesoort='Oefenwedstrijd')
+    unknown = row('CKC Onbekend', wedstrijdcode='UNKNOWN', wedstrijddatum='2026-10-24T11:30:00+0200',
+                  status='Onbekend')
+    ctx = context(data, linked + [friendly, unknown])
+    assert ctx.error is None
+    assert ctx.program.matches == baseline.program.matches
+    assert ctx.program.skipped_team_matches == 2
+    result = propose(ctx)
+    reference = propose(baseline)
+    assert (result.assessments, result.priorities, result.planned) == (
+        reference.assessments, reference.priorities, reference.planned,
+    )
+    assert [link.record_key for link in ctx.program.links[-2:]] == ['FRIENDLY-TUE', 'UNKNOWN']
+    assert [(s.code, s.severity) for s in ctx.program.signals] == [
+        ('PROGRAM_TEAM_AMBIGUOUS', 'WARNING'), ('PROGRAM_TEAM_UNMATCHED', 'WARNING'),
+    ]
+    diagnostic = ctx.diagnostic_details[-2]
+    assert ('Oorspronkelijke teamnaam', 'CKC 2') in diagnostic.values
+    assert ('Wedstrijddatum', '2026-12-01T20:15:00+0100') in diagnostic.values
+    assert ('Competitiesoort', 'Oefenwedstrijd') in diagnostic.values
+    status = next(r for r in planning_source_rows(context=ctx) if r['Databron'] == 'Sportlink Programma')
+    assert status['Status'] == 'Technisch geslaagd'
+    assert status['Bruikbaarheid'] == 'Beschikbaar met waarschuwingen'
+    assert '2 wedstrijden zijn niet meegenomen' in status['Toelichting']
+    assert f'Gekoppelde operationele wedstrijden: {len(linked)}.' in status['Toelichting']
+    assert 'geen operationele wedstrijden aangeleverd' not in status['Toelichting']
+
+
+def test_snapshot_preserves_legacy_block_and_new_skipped_match_warning():
+    from dvk.persistence.candidate_sources import decode_sources, encode_sources
+    from dvk.planning_session import PlanningCandidateSources
+    from dvk.programma_team_adapter import UnresolvedProgramTeamsError
+
+    ctx = context(rows=[row('CKC Onbekend')])
+    snapshot = encode_sources('synthetic-session', PlanningCandidateSources(ctx))
+    restored = decode_sources(snapshot, 'synthetic-session').context
+    assert restored.program.skipped_team_matches == 1
+    assert restored.program.matches == ()
+    assert propose(restored).planned
+
+    legacy = json.loads(snapshot)
+    legacy['context']['program']['signals'][0]['severity'] = 'ERROR'
+    legacy['context']['error'] = 'Wedstrijdcontext niet bruikbaar'
+    restored = decode_sources(json.dumps(legacy), 'synthetic-session').context
+    with pytest.raises(UnresolvedProgramTeamsError):
+        _ = restored.program.matches
+    with pytest.raises(CandidateSourceError):
+        propose(restored)

@@ -1,12 +1,26 @@
 # DVK v0.5 — Teamnaamkoppeling Teams ↔ Programma
 
+**Actueel geaccepteerd contract — Iteraties 10A.1/10A.2 (26 november 2026):** zie de actuele regels hieronder; de beschrijving van PR #41 verderop is een historische momentopname en geldt niet meer waar deze afwijkt. De integrale prototype-v0.5-acceptatie dateert van 9 november 2026. [PR #73](https://github.com/johanvdstel/DigitaalVerenigingsKantoor/pull/73) is lokaal functioneel geaccepteerd, CI #461 groen en nog niet gemerged.
+
+## Actuele teamkoppeling en afhandeling (26 november 2026)
+
+1. **Bronhouders:** Teams.csv bepaalt officiële namen, lidmaatschap en vaste `Speeldag`; Programma API bepaalt CKC-zijde, werkelijke wedstrijddatum/-tijd en wedstrijdstatus. Alleen exact één zijde met CKC-clubcode `BBDZ08H` bewijst CKC; verwijder pas dan het letterlijke `CKC `-voorvoegsel. Geen fuzzy matching. Competitiegebonden team-ID's vormen geen gedeelde teamidentiteit.
+2. **Koppelmethode:** na de reeds geaccepteerde Rijnmond Cup-naamnormalisatie koppelt een **unieke teamnaam rechtstreeks**, ook als de wedstrijd niet op de vaste speeldag valt. Zijn er gelijknamige catalogusteams, dan kiest DVK alleen als de **lokale werkelijke wedstrijddag** exact één team oplevert waarvan de vaste `Speeldag` overeenkomt. De woorden zaterdag/zondag in `competitie` zijn uitsluitend broncontext; ze bepalen de koppeling niet. Het bestaande dubbele naam-`2`-geval gebruikt `2 / Algemeen/Zaterdag` en `2 / Algemeen/Zondag`. Op dinsdag zonder passende vaste speeldag ontstaat geen teamkoppeling.
+3. **Operationeel, onopgelost:** geen willekeurig team kiezen. Niet opnemen in operationele `matches` of kandidaatselectie, wedstrijdconflicten en voorkeuren. Wél `links` en oorspronkelijke brondiagnostiek behouden. `PROGRAM_TEAM_AMBIGUOUS` en `PROGRAM_TEAM_UNMATCHED` hebben niveau **WARNING**; bronstatus **Beschikbaar met waarschuwingen** vermeldt het aantal overgeslagen wedstrijden en verwijst naar **Bronmeldingen kandidaatcontext**. De overige correcte wedstrijden blijven bruikbaar; ook als alle ontvangen wedstrijden worden overgeslagen wordt niet op dit punt geblokkeerd.
+4. **Niet-operationeel, onopgelost:** uitgesloten van kandidaten en gerapporteerd als **INFO**. Status onbekend of ontbrekend blijft volgens het bestaande statusbeleid operationeel en krijgt bij onopgeloste koppeling een **WARNING**.
+5. **Werkelijk blokkerend:** onopgeloste lidmaatschappen in Teams.csv blijven **ERROR**; technische API-/transport-/inhoudelijke validatiefouten buiten de teamkoppeling blijven volgens hun bestaande contract blokkerend. Oudere sessiesnapshots met blokkerende koppel-ERROR blijven blokkerend totdat expliciet bronnen opnieuw zijn geladen. Geen automatische herschrijving van historische context.
+6. **Verantwoording:** per wedstrijd blijven de oorspronkelijke CKC-teamnaam, `competitie`, `competitiesoort`, `status` en `wedstrijddatum` inspecteerbaar; de onopgeloste wedstrijd heeft geen invloed op de overige kandidaatrangschikking. De datum wordt tijdzonebewust naar lokale tijd verwerkt. De bestaande cupnormalisatie, v0.4-transportadapter, datum-/statusverwerking en read-only Sportlink-toegang blijven behouden.
+
+**Geaccepteerde risico's:** (a) een verplaatste wedstrijd van een gelijknamig team kan door de werkelijke wedstrijddag aan het andere gelijknamige team worden gekoppeld; (b) het overslaan van een niet-koppelbare wedstrijd kan een conflict of voorkeurspositie onzichtbaar maken. CKC accepteert dit op 26 november 2026 mede wegens het ene zondagteam en de vaste bezetting van doordeweekse bardiensten. Die praktijkfeiten zijn geen softwarevoorwaarden. De planner blijft verantwoordelijk voor de eindbeoordeling. Zie [functionele acceptatie](DVK-v0.5-iteratie-10a-acceptatie.md).
+
+## Historische teamkoppeling — PR #41 (24 oktober 2026; vervangen waar afwijkend)
 **PR #41 gemerged en functioneel geaccepteerd, inclusief datum-/tijdverwerking.**
 De lokale CSV-padstandaardisatie wordt afzonderlijk beoordeeld.
 Baseline: `prototype-v0.5` commit `1a1cd6b`; inhoudelijke basis: lokale verificatie
 24 oktober en de daaropvolgende expliciete implementatieopdracht. v0.4 blijft de
 geaccepteerde releasebaseline; integrale v0.5- en Programma-schermacceptatie blijven open.
 
-## Contract en bronhouders
+### Historisch contract en bronhouders
 
 De Teams-export is bron voor officiële teamnamen en Speeldag; Programma is bron
 voor wedstrijden, CKC-zijde en competitiecontext. Competitiegebonden Sportlink-ID's
