@@ -12,7 +12,7 @@ from dvk.planning import PlanningPeriod
 @pytest.mark.parametrize('mode,end,expected,label', [
     ('Dag', None, PlanningPeriod(date(2026,10,31),date(2026,10,31)), 'Vanaf'),
     ('Week', None, PlanningPeriod(date(2026,10,26),date(2026,11,1)), 'Week waarin datum valt'),
-    ('Aangepast', date(2026,11,15), PlanningPeriod(date(2026,10,31),date(2026,11,15)), 'Vanaf'),
+    ('Periode', date(2026,11,15), PlanningPeriod(date(2026,10,31),date(2026,11,15)), 'Vanaf'),
 ])
 def test_period_label_and_immediate_range_match_actual_session(tmp_path,mode,end,expected,label):
     script=tmp_path/'streamlit_app.py'
@@ -25,8 +25,8 @@ def test_period_label_and_immediate_range_match_actual_session(tmp_path,mode,end
     app.run()
     assert not app.exception
     assert app.date_input(key='planning-from').label==label
-    assert app.radio(key='planning-mode').options==['Dag','Week','Aangepast']
-    if mode=='Aangepast': assert app.date_input(key='planning-until').label=='Tot en met'
+    assert app.radio(key='planning-mode').options==['Dag','Week','Periode']
+    if mode=='Periode': assert app.date_input(key='planning-until').label=='Tot en met'
     assert not any(w.label=='Aantal weken' for w in app.number_input)
     caption=f'**Roosterperiode: {expected.start:%d-%m-%Y} t/m {expected.end:%d-%m-%Y}**'
     assert caption in [w.value for w in app.markdown]

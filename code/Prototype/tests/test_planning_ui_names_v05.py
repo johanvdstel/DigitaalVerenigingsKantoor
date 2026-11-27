@@ -1,11 +1,9 @@
 """UI-only PR #38: source names and relocated source controls. Synthetic data only."""
-from ui_table_events import table as ui_table
 import ast
 from collections import Counter
 from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
-import json
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -37,7 +35,7 @@ def page(tmp_path, *, automatic=False):
 def helpers():
     tree = ast.parse(SOURCE.read_text())
     module = ast.Module(body=[n for n in tree.body if isinstance(n, ast.FunctionDef)
-                             and n.name == "_sportlink_names"], type_ignores=[])
+                             and n.name == "_sportlink_booking_names"], type_ignores=[])
     ns = dict(same_task_group=same_task_group, overlaps_service_date=overlaps_service_date)
     exec(compile(module, str(SOURCE), "exec"), ns)
     return ns
@@ -53,20 +51,14 @@ def test_service_names_and_totals_with_existing_kies_selection(tmp_path, count):
     seed_work(db, binding.service)
     before = snapshot(db)
     app.run()
-    table = ui_table(app, "services_editor-").value
-    selected = table[table.service_id == binding.service.service_id].iloc[0]
+    app.button(key=f"planner-duty-{binding.service.service_id}").click().run()
+    shown = Counter(item.value for item in app.markdown)
     if count:
-        assert Counter(selected["Sportlink"].split(", ")) == Counter(chr(65 + i) for i in range(count))
+        assert Counter({name: shown[name] for name in (chr(65 + i) for i in range(count))}) == Counter(chr(65 + i) for i in range(count))
     else:
-        assert selected["Sportlink"] == "geen namen"
-    assert selected["Tijdelijk DVK"] == 1
-    assert selected["DVK-bezetting"] == count + 1
-    assert selected["Open minimum"] == max(0, binding.service.required_staff - count - 1)
-    assert "Locatie" not in table.columns
-    app.session_state["selected_service_id"] = binding.service.service_id
-    app.run()
-    assert ui_table(app, "services_editor-").value.query("Kies == '☑'")["service_id"].tolist() == [binding.service.service_id]
-    assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
+        assert shown["Geen boekingen"] == 1
+    assert app.session_state["selected_service_id"] == binding.service.service_id
+    assert any(f"SL {count} · DVK 1 · Vrij" in caption.value for caption in app.caption)
     assert snapshot(db) == before
 
 
@@ -83,55 +75,43 @@ def test_shielded_and_unlinked_original_names_keep_separate_overlapping_rows(tmp
     assert sync(db, catalog, {"741": [raw, second, unknown]}, persons=())[0] is None
     app.session_state["selected_service_id"] = slot.service_id
     app.run()
-    cells = ui_table(app, "services_editor-").value
-    text = cells[cells.service_id == slot.service_id].iloc[0]["Sportlink"]
-    assert Counter(text.split(", ")) == Counter(["Afgeschermd", "Afgeschermd", "Onbekende synthetische naam"])
-    assert cells[cells.service_id == slot.service_id].iloc[0]["DVK-bezetting"] == 3
+    shown = Counter(item.value for item in app.markdown)
+    assert shown["Afgeschermd"] == 2 and shown["Onbekende synthetische naam"] == 1
+    assert any("SL 3 · DVK 0" in caption.value for caption in app.caption)
     ns = helpers()
     source = SimpleNamespace(volunteer_name="Bronnaam", task_code="761", starts_at=slot.starts_at, ends_at=slot.ends_at)
-    assert ns["_sportlink_names"](slot, catalog.bindings(PERIOD), (source,)) == "Bronnaam"
-    assert ns["_sportlink_names"](slot, catalog.bindings(PERIOD), (
+    assert ns["_sportlink_booking_names"](slot, catalog.bindings(PERIOD), (source,)) == ("Bronnaam",)
+    assert ns["_sportlink_booking_names"](slot, catalog.bindings(PERIOD), (
         SimpleNamespace(**(vars(source) | {"task_code": "442"})),
         SimpleNamespace(**(vars(source) | {"starts_at": slot.ends_at, "ends_at": slot.ends_at + timedelta(hours=1)})),
-    )) == "geen namen"
+    )) == ()
 
 
 def test_unknown_source_and_changed_period_never_claim_no_names(tmp_path):
     app, db = page(tmp_path)
-    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"Onbekend"}
+    duty = next(button for button in app.button if (button.key or "").startswith("planner-duty-"))
+    duty.click().run()
+    assert any(item.value == "Onbekend" for item in app.markdown)
+    assert not any(item.value == "Geen boekingen" for item in app.markdown)
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
-    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"geen namen"}
-    app.date_input[0].set_value(PERIOD.start + timedelta(days=7)).run()
-    assert not app.exception
-    app.button(key="confirm-period-change").click().run()
-    assert set(ui_table(app, "services_editor-").value["Sportlink"]) == {"Onbekend"}
+    assert any(item.value == "Geen boekingen" for item in app.markdown)
+    app.button(key="start-new-planning").click().run()
+    assert not app.metric and app.button(key="resume-planning")
 
 
-def test_long_names_remain_complete_in_readonly_cell_with_fixed_size(tmp_path):
+def test_long_names_remain_complete_in_selected_service_details(tmp_path):
     app, db = page(tmp_path)
     catalog = load_shift_catalog()
     binding = catalog.bindings(PERIOD)[0]
     names = ["W" * 60, "Synthetic very long volunteer name " * 4, "Afgeschermd", "Other source name"]
-    assert sync(db, catalog, {binding.task_code: [dict(row(binding.service, people()[0]), naam=n) for n in names]}, persons=())[0] is None
-    app.session_state["selected_service_id"] = binding.service.service_id
+    bookings = [dict(row(binding.service, people()[0]), naam=name) for name in names]
+    assert sync(db, catalog, {binding.task_code: bookings}, persons=())[0] is None
     app.run()
-    table = ui_table(app, "services_editor-")
-    value = table.value[table.value.service_id == binding.service.service_id].iloc[0]["Sportlink"]
-    assert table.proto.row_height == 32
-    config = json.loads(table.proto.columns)
-    assert config["Sportlink"]["width"] == 140
-    assert config["Sportlink"]["type_config"]["type"] == "text"
-    assert config["Sportlink"]["disabled"] is True
-    assert "Dubbelklik" in config["Sportlink"]["help"]
-    with db.unit_of_work() as u:
-        full = ", ".join(b.volunteer_name for b in u.sportlink_bookings.all())
-    assert value == full
-    assert "…" not in value
-    assert not any(t.value.startswith("Sportlink — volledige namenlijst:") for t in app.text)
-    assert not any("Lange namenlijsten zijn afgekort" in c.value for c in app.caption)
-    tree = ast.parse(SOURCE.read_text())
-    assert not any(isinstance(n, ast.FunctionDef) and n.name == "_names_preview" for n in tree.body)
+    app.button(key=f"planner-duty-{binding.service.service_id}").click().run()
+    with db.unit_of_work() as uow:
+        expected = {booking.volunteer_name.strip() for booking in uow.sportlink_bookings.all()}
+    assert expected <= {item.value for item in app.markdown}
 
 
 def test_manual_source_controls_in_databronnen_and_no_show_roundtrip(tmp_path, monkeypatch):

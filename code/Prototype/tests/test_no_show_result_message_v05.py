@@ -63,9 +63,11 @@ def test_first_feedback_is_shown_once_and_history_survives_later_screen_views(tm
     else:
         new_period = PlanningPeriod(PERIOD.start+timedelta(days=7), PERIOD.end+timedelta(days=7))
         app.button(key='nav-planning').click().run()
+        app.button(key='start-new-planning').click().run()
         app.date_input(key='planning-from').set_value(new_period.start).run()
+        app.button(key='activate-planning').click().run()
         assert_no_registration_feedback(app)
-        app.button(key='confirm-period-change').click().run()
+        app.button(key='confirm-close-planning').click().run()
         assert_no_registration_feedback(app)
         assert sync(db, catalog, {}, period=new_period)[0] is None
         app.run()

@@ -16,7 +16,8 @@ class NewPlanningApplicationService:
         self.database = database
         self.identity = identity
 
-    def start(self, *, period, catalog, source_period, client_id, progress):
+    def start(self, *, period, catalog, source_period, client_id, progress,
+              expected_session_id=None):
         source_period = validate_season(source_period)
         catalog.bindings(period)
         # The session service rejects an existing planning under the write lock.
@@ -24,6 +25,7 @@ class NewPlanningApplicationService:
         with self.database.unit_of_work() as uow:
             session = PlanningSessionApplicationService(uow, self.identity).start(
                 period, catalog=catalog, initial_load_pending=True,
+                confirmed=expected_session_id is not None, expected_session_id=expected_session_id,
             )
 
         sources = self._load(session, catalog, source_period, client_id, progress)

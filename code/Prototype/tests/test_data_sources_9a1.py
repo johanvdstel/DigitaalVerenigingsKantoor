@@ -22,7 +22,6 @@ from test_candidate_context_v05 import exports
 from test_navigation_v05 import app_at
 from test_planning_ui_names_v05 import page
 from test_volunteer_planning_integration_v05 import PERIOD, seed_work, snapshot, sync
-from ui_table_events import table
 
 
 def test_configured_path_survives_process_restart_and_is_shared():
@@ -143,5 +142,5 @@ def test_save_and_navigation_keep_validated_source_and_temporary_work(tmp_path, 
     restarted.button(key="nav-planning").click().run()
     restarted.button(key="resume-planning").click().run()
     assert not restarted.exception and not calls
-    assert table(restarted, "services_editor-").value["Tijdelijk DVK"].sum() == 1
+    assert next(metric.value for metric in restarted.metric if metric.label == "Tijdelijk ingedeeld in DVK") == "1"
     assert snapshot(db) == before

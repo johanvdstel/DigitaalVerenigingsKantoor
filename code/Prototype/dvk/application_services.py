@@ -412,7 +412,7 @@ class ProposalDecisionApplicationService:
     def approve(self, proposal: AssignmentProposal, service: DutyService, case: PrototypeCase, *, assignment_id: str, staffing_need: StaffingNeed) -> DashboardActionResult:
         return self.approve_many(((proposal, case, assignment_id),), service, staffing_need)[0]
 
-    def approve_many(self, selections: tuple[tuple[AssignmentProposal, PrototypeCase, str], ...], service: DutyService, staffing_need: StaffingNeed) -> tuple[DashboardActionResult, ...]:
+    def approve_many(self, selections: tuple[tuple[AssignmentProposal, PrototypeCase, str], ...], service: DutyService, staffing_need: StaffingNeed, *, expected_session=None) -> tuple[DashboardActionResult, ...]:
         """Confirm against the latest active queue, atomically with persistence.
 
         staffing_need carries source occupancy and configured bounds. Its cached
@@ -431,6 +431,8 @@ class ProposalDecisionApplicationService:
 
         self.uow.begin_planning_write()
         try:
+            if expected_session is not None and self.uow.planning_sessions.get() != expected_session:
+                raise ValueError("De planning of bronrevisie is gewijzigd. Beoordeel de selectie opnieuw.")
             active = self.uow.temporary_planning.all()
             validate_planning_selection(tuple(p.person_id for p, _, _ in selections), service, staffing_need, active)
             validate_emergency_selection(tuple(p for p, _, _ in selections),

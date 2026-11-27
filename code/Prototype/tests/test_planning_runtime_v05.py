@@ -1,6 +1,4 @@
 """BL-16 replaces PR #35's process-start deletion rule. Synthetic SQLite only."""
-from synthetic_demo_screen import use_synthetic_demo
-from ui_table_events import table as ui_table
 from datetime import date
 from pathlib import Path
 import json
@@ -126,7 +124,6 @@ def ui(tmp_path):
     app.button(key='nav-planning').click().run()
     assert prepare_planning(SQLiteDatabase(tmp_path / 'dvk_v05.sqlite')) is None
     app.button(key='activate-planning').click().run()
-    use_synthetic_demo(app)
     assert not app.exception
     return app, SQLiteDatabase(tmp_path / 'dvk_v05.sqlite'), path
 
@@ -159,30 +156,33 @@ def test_ui_new_planning_cancel_and_confirm(tmp_path):
     app, db, _ = ui(tmp_path); seed_ui(db)
     before = rows(db)
     app.button(key='start-new-planning').click().run()
-    assert 'niet langer nodig' in app.warning[0].value
+    app.button(key='activate-planning').click().run()
+    assert 'niet meer nodig' in app.warning[0].value
     assert 'Sportlink' in app.warning[0].value
     app.button(key='cancel-close-planning').click().run()
     assert rows(db) == before
-    app.button(key='start-new-planning').click().run()
+    previous = current(db)
+    app.button(key='activate-planning').click().run()
     app.button(key='confirm-close-planning').click().run()
-    assert not app.exception and current(db) is None and not work(db)
-    assert app.button(key='activate-planning')
+    assert not app.exception and current(db).session_id != previous.session_id and not work(db)
+    assert app.button(key='start-new-planning')
 
 
 def test_ui_period_cancel_confirm_and_no_work_confirmation(tmp_path):
     app, db, _ = ui(tmp_path)
     before = rows(db)
+    app.button(key='start-new-planning').click().run()
     app.date_input(key='planning-from').set_value(P2.start).run()
+    app.button(key='activate-planning').click().run()
     assert app.warning and prepare_planning(db) == P1
-    app.button(key='cancel-period-change').click().run()
+    app.button(key='cancel-close-planning').click().run()
     assert not app.exception and rows(db) == before
     seed_ui(db)
     before = rows(db)
-    app.date_input(key='planning-from').set_value(P2.start).run()
+    app.button(key='activate-planning').click().run()
     assert rows(db) == before
-    app.button(key='confirm-period-change').click().run()
+    app.button(key='confirm-close-planning').click().run()
     assert not app.exception and prepare_planning(db) == P2 and not work(db)
-    assert set(ui_table(app, "services_editor-").value['Sportlink']) == {'Onbekend'}
 
 
 def test_stale_close_confirmation_cannot_close_another_session(tmp_path):
@@ -201,7 +201,7 @@ def test_new_browser_can_cancel_new_planning_and_still_resume(tmp_path):
     before = rows(db)
     fresh = AppTest.from_file(str(path), default_timeout=20).run()
     fresh.button(key='nav-planning').click().run()
-    fresh.button(key='start-new-planning').click().run()
+    fresh.button(key='activate-planning').click().run()
     assert rows(db) == before
     fresh.button(key='cancel-close-planning').click().run()
     assert rows(db) == before
@@ -212,11 +212,13 @@ def test_new_browser_can_cancel_new_planning_and_still_resume(tmp_path):
 def test_failed_ui_period_delete_retains_old_session_and_navigation(tmp_path, monkeypatch):
     app, db, _ = ui(tmp_path); seed_ui(db)
     before = rows(db)
+    app.button(key='start-new-planning').click().run()
     app.date_input(key='planning-from').set_value(P2.start).run()
+    app.button(key='activate-planning').click().run()
     def fail(*a): raise sqlite3.OperationalError('no such table: synthetic_delete_failure')
     with monkeypatch.context() as patch:
         patch.setattr(SQLiteTemporaryPlanningRepository, 'remove', fail)
-        app.button(key='confirm-period-change').click().run()
+        app.button(key='confirm-close-planning').click().run()
     assert not app.exception and app.error
     assert rows(db) == before
     app.button(key='nav-control').click().run()

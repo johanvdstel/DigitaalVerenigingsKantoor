@@ -52,6 +52,12 @@ from dvk.programma_client import SportlinkProgrammaClient, ProgrammaFetchResult
 from dvk.volunteer_planning import VolunteerPlanningApplicationService
 from dvk.vrijwilligers_client import SportlinkVrijwilligersClient, VrijwilligersFetchResult
 from test_volunteer_planning_integration_v05 import sync, PERIOD, IDENTITY
+from test_programma_team_linking_v05 import row as program_row
+_binding = load_shift_catalog().bindings(PERIOD)[0]
+_match = program_row(thuisteam='CKC O17-1', wedstrijdcode='SYNTH-W1',
+                     wedstrijddatum=_binding.service.starts_at.isoformat())
+_shielded = dict(naam='Afgeschermd', datumvanaf=_binding.service.starts_at.isoformat(),
+                 datumtot=_binding.service.ends_at.isoformat())
 _data=synthetic_exports({count!r}, {mixed!r})
 def _read_source(dataset, explicit_path=None):
     if explicit_path is None or Path(explicit_path).name != 'Overzicht per periode vorig seizoen.csv':
@@ -69,9 +75,9 @@ if 'probe-seeded' not in st.session_state:
     with _db.unit_of_work() as _uow:
         _known=VolunteerPlanningApplicationService(_uow,IDENTITY,load_shift_catalog()).source(PERIOD)[2]
     if not _known:
-        assert sync(_db,load_shift_catalog(),{{}})[0] is None
+        assert sync(_db,load_shift_catalog(),{{_binding.task_code: [_shielded, _shielded]}})[0] is None
     st.session_state.update({{'probe-seeded':True,'dvk-screen':'planning',
-        'planning-resumed':_session.session_id,'planning-mode':'Aangepast',
+        'planning-resumed':_session.session_id,'planning-mode':'Periode',
         'planning-from':PERIOD.start,'planning-until':PERIOD.end}})
 _probe_run=st.session_state.get('probe-run',0)+1
 st.session_state['probe-run']=_probe_run
@@ -79,15 +85,18 @@ _probe_start=probe_time.perf_counter()
 _probe_outcome='rerun-or-error'
 """
         body = body.replace("from __future__ import annotations", "", 1)
-        wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult(())), patch.object(SportlinkVrijwilligersClient,'fetch_rows',lambda self,**kwargs:VrijwilligersFetchResult(kwargs['task_code'],())):
+        wrapper = """with patch('dvk.shift_catalog.load_shift_catalog',_probe_catalog), patch('dvk.local_csv_sources.read_export_text',_read_source), patch.object(SportlinkProgrammaClient,'fetch_rows',lambda self,**kwargs:ProgrammaFetchResult((_match,))), patch.object(SportlinkVrijwilligersClient,'fetch_rows',lambda self,**kwargs:VrijwilligersFetchResult(kwargs['task_code'],())):
     try:
 """
         if "def _render_sources(" in body:
             wrapper += """        if 'candidate-context' not in st.session_state and _probe_run == 1:
             from dvk.candidate_context import CandidateContextApplicationService
-            st.session_state['candidate-context'] = CandidateContextApplicationService(IDENTITY).load(
+            from dvk.planning_session import PlanningCandidateSources
+            context = CandidateContextApplicationService(IDENTITY).load(
                 period=PERIOD, source_period='2026-2027', client_id='synthetic', exports=_data)
-            st.session_state['candidate-session-id'] = _session.session_id
+            with _db.unit_of_work() as _uow:
+                PlanningSessionApplicationService(_uow, IDENTITY).save_candidate_sources(
+                    _session.session_id, PlanningCandidateSources(context))
 """
         footer = r"""
         _probe_outcome='completed'
@@ -105,7 +114,7 @@ _probe_outcome='rerun-or-error'
         subprocess.run([sys.executable,"-B","-m","streamlit","run",str(target),
                         "--server.address","127.0.0.1","--server.port",str(port),
                         "--server.headless","true","--browser.gatherUsageStats","false",
-                        "--server.fileWatcherType","none"],check=True, env=os.environ | {"HOME": directory})
+                        "--server.fileWatcherType","none"],check=True, env=os.environ | {"HOME": directory, "SPORTLINK_CLIENT_ID": "synthetic-browser"})
 
 
 if __name__ == "__main__":

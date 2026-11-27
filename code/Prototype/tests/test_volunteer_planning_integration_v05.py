@@ -1,5 +1,4 @@
 """Synthetic source responses only. CKC catalog configuration contains no people."""
-from ui_table_events import table as ui_table
 from sportlink_fixtures import source_revision
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta, timezone
@@ -230,8 +229,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     app = AppTest.from_file(str(script),default_timeout=20).run()
     app.button(key="nav-planning").click().run()
     assert not app.exception
-    assert app.metric[0].value == "29"
-    assert ui_table(app, "services_editor-").value["Sportlink"].tolist() == ["Onbekend"]*29
+    assert not app.metric and app.button(key="activate-planning")
     assert not app.number_input
     assert not any(x.key and x.key.startswith("sportlink-task") for x in app.text_input)
     db = SQLiteDatabase(tmp_path/"dvk_v05.sqlite")
@@ -241,7 +239,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     app.run()
     app.button(key="resume-planning").click().run()
     assert not app.exception
-    assert ui_table(app, "services_editor-").value["Sportlink"].tolist() == ["geen namen"]*29
+    assert next(metric.value for metric in app.metric if metric.label == "Ingeroosterd in Sportlink") == "0"
     task_table = next(x.value for x in app.dataframe if "Sportlink-taakcode" in x.value.columns)
     assert task_table["Aantal geplande diensten"].sum() == 29
     assert task_table["Aantal Sportlink-inroosteringen"].sum() == 0
@@ -253,7 +251,7 @@ def test_live_dashboard_no_fake_actuality_and_no_request_knobs(tmp_path):
     assert "synthetic-secret" not in " ".join(x.value for x in app.error)
     retained = next(x.value for x in app.dataframe if "Sportlink-taakcode" in x.value.columns)
     assert retained.equals(task_table)
-    assert ui_table(app, "services_editor-").value["Sportlink"].tolist() == ["geen namen"]*29
+    assert next(metric.value for metric in app.metric if metric.label == "Ingeroosterd in Sportlink") == "0"
 
 
 def test_publication_and_planning_removal_rollback_together(db,catalog,monkeypatch):

@@ -206,10 +206,9 @@ def test_local_ui_shows_names_counts_and_excludes_unlinked_no_show_options(tmp_p
     assert any("Afgeschermd" in t and "Nee" in t for t in tables)
     source_table = next(t.value for t in app.table if "No-showregistratie mogelijk" in t.value.columns)
     assert source_table.to_string(index=False).count("Afgeschermd") == shielded_count
-    from ui_table_events import table
-    service_table = table(app, "services_editor-").value
-    assert service_table.loc[service_table["Sportlink"].str.contains("Afgeschermd"), "Sportlink"].iloc[0].count("Afgeschermd") == shielded_count
-    assert "source_occurrence" not in text + "\n".join(tables) + service_table.to_string()
+    next(button for button in app.button if (button.key or '').startswith('planner-duty-')).click().run()
+    assert sum(item.value == "Afgeschermd" for item in app.markdown) == shielded_count
+    assert "source_occurrence" not in text + "\n".join(tables)
     from sportlink_fixtures import open_no_show_ui
     open_no_show_ui(app, database, monkeypatch)
     no_show = next(w for w in app.selectbox if w.label == "Inroostering")
