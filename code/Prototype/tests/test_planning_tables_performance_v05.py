@@ -1,12 +1,8 @@
 """Native-table interactions, synthetic sources and isolated SQLite only."""
-import ast
-import json
-from pathlib import Path
 
-from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
+from test_candidate_context_ui_v05 import candidate_buttons, candidate_checks, duty_buttons, operational_page, refresh_candidate_sources
 from test_candidate_context_v05 import IDENTITY
 from dvk.application_services import PlanningApplicationService
-from ui_table_events import table, edit, pick, choose_service
 
 
 def active(db):
@@ -14,81 +10,43 @@ def active(db):
         return PlanningApplicationService(IDENTITY, uow=uow).active_planning()
 
 
-def test_service_checkbox_switches_directly_and_deselects_previous(operational_page):
+def test_service_selection_switches_directly_and_can_be_cleared(operational_page):
     app, db, observed = operational_page
-    services = table(app, "services_editor-")
-    ids = services.value.service_id.tolist()
-    choose_service(app, 0)
+    duties = duty_buttons(app)
+    duties[0].click().run()
     assert "selected_service_id" not in app.session_state
-    choose_service(app, 0)
-    assert app.session_state["selected_service_id"] == ids[0]
-    first_proposals = table(app).value.proposal_id.tolist()
-    pick(app)  # Choose a candidate, but do not confirm.
-    choose_service(app, 1)
-    assert not app.exception
-    assert app.session_state["selected_service_id"] == ids[1]
-    assert table(app, "services_editor-").value.Kies.tolist() == ["☐", "☑"] + ["☐"] * (len(ids)-2)
-    assert table(app).value.proposal_id.tolist() != first_proposals
-    assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
-    assert not active(db)
-    assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
-    assert len(observed) == 1  # No CSV/API reload on table interaction.
+    duty_buttons(app)[0].click().run()
+    first_keys = [button.key for button in candidate_buttons(app)]
+    candidate_checks(app)[0].check().run()
+    duty_buttons(app)[1].click().run()
+    assert app.session_state["selected_service_id"] == duties[1].key.removeprefix("planner-duty-")
+    assert [button.key for button in candidate_buttons(app)] != first_keys
+    assert app.button(key="planner-assign").disabled
+    assert not active(db) and len(observed) == 1
     app.run()
-    assert (table(app, "services_editor-").value.Kies == "☑").sum() == 1
+    assert app.session_state["selected_service_id"] == duties[1].key.removeprefix("planner-duty-")
 
 
-def test_service_table_native_options_and_compact_numbers(operational_page):
+def test_service_counts_expose_maximum_and_hide_minimum(operational_page):
     app, _, _ = operational_page
-    services = table(app, "services_editor-")
-    config = json.loads(services.proto.columns)
-    assert services.value.columns.tolist() == [
-        "Kies", "service_id", "Datum", "Tijd", "Dienst", "Min", "Max", "Sportlink",
-        "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"]
-    assert config["service_id"]["hidden"] is True
-    for label, width in {"Kies": 55, "Datum": 90, "Tijd": 110, "Dienst": 110}.items():
-        assert config[label]["width"] == width
-    assert config["Kies"]["pinned"] is True
-    for label in ("Min", "Max", "Tijdelijk DVK", "DVK-bezetting", "Open minimum", "Vrije capaciteit"):
-        assert config[label]["width"] == 65
-        assert config[label]["help"] == label
-        assert config[label]["alignment"] == "right"
-        assert config[label]["disabled"] is True
-    assert services.proto.row_height == 32
-    assert config["Sportlink"]["width"] == 140
-    assert table(app).proto.row_height == 32
+    app.button(key="planner-review").click().run()
+    roster = next(node.value for node in app.dataframe if "Max." in node.value.columns)
+    assert roster.columns.tolist() == ["Datum", "Tijd", "Dienst", "Max.", "SL", "DVK", "Vrij"]
+    assert roster.Tijd.str.match(r"^[0-9]{2}:[0-9]{2}–[0-9]{2}:[0-9]{2}$").all()
 
 
-def test_candidate_detail_selects_another_person_without_planning(operational_page):
+def test_candidate_detail_can_be_opened_and_closed_without_planning(operational_page):
     app, db, _ = operational_page
-    assert not any(s.label == "Kandidaat voor toelichting" for s in app.selectbox)
-    pick(app)
-    assert not app.exception
-    assert any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
-    pick(app, value=False)
-    assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
-    assert not any(s.label == "Reden" for s in app.selectbox)
+    name = candidate_buttons(app)[0].label
+    candidate_buttons(app)[0].click().run()
+    assert any(item.value == f"**{name}**" for item in app.markdown)
+    candidate_buttons(app)[0].click().run()
+    assert not any(item.value == f"**{name}**" for item in app.markdown)
+    assert not any(check.value for check in candidate_checks(app))
     assert not active(db)
 
 
-def test_version_feature_fallback_uses_only_supported_arguments():
-    # Exercise pure presentation helpers against 1.40-shaped public signatures.
-    from types import SimpleNamespace
-    source = Path(__file__).parents[1] / "streamlit_app.py"
-    tree = ast.parse(source.read_text())
-    functions = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in
-                 {"_table_column_options", "_table_width_options"}]
-    import inspect
-    def old_column(label=None, *, width=None, help=None):
-        pass
-    def old_editor(data, *, width=None, use_container_width=None):
-        pass
-    scope = {"inspect": inspect, "st": SimpleNamespace(data_editor=old_editor)}
-    exec(compile(ast.Module(body=functions, type_ignores=[]), str(source), "exec"), scope)
-    assert scope["_table_column_options"](old_column, pinned=True, alignment="right") == {}
-    assert scope["_table_width_options"]() == {"use_container_width": True}
-
-
-def test_many_candidates_use_one_editor_and_no_exception_form(operational_page, monkeypatch):
+def test_many_candidates_remain_reachable_in_service_order(operational_page, monkeypatch):
     from dataclasses import replace
     from dvk.candidate_context import CandidateContextApplicationService
     from test_candidate_context_v05 import context, exports
@@ -97,13 +55,16 @@ def test_many_candidates_use_one_editor_and_no_exception_form(operational_page, 
     ctx = replace(context(exports(members=members)), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
     refresh_candidate_sources(app)
-    assert len(table(app).value) == 250
-    assert table(app).value.Rang.tolist() == list(range(1, 251))
-    assert len([t for t in app.dataframe if t.key and t.key.startswith("candidate-table-")]) == 1
+    assert len(candidate_buttons(app)) == 24
+    while len(candidate_buttons(app)) < 250:
+        next(button for button in app.button if button.label.startswith("Meer kandidaten")).click().run()
+    assert len({button.label for button in candidate_buttons(app)}) == 250
     assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
-    pick(app, index=249)
-    assert any(m.value == "#### " + table(app).value.iloc[249].Kandidaat for m in app.markdown)
-    assert not next(b for b in app.button if b.label == "Selectie bevestigen").disabled
+    last = candidate_buttons(app)[249].label
+    candidate_buttons(app)[249].click().run()
+    assert any(item.value == f"**{last}**" for item in app.markdown)
+    assert any("Rang 250" in item.value for item in app.caption)
+    assert app.button(key="planner-assign").disabled
     assert not active(db)
 
 
@@ -115,17 +76,17 @@ def test_changed_candidate_rows_discard_old_positional_edits(operational_page, m
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
     refresh_candidate_sources(app)
-    old_key = table(app).key
-    pick(app)
+    old_key = candidate_checks(app)[0].key
+    candidate_checks(app)[0].check().run()
     original = CandidateContextApplicationService.propose
     def changed(*a, **kw):
         result = original(*a, **kw)
         return replace(result, planned=tuple(reversed(result.planned)))
     monkeypatch.setattr(CandidateContextApplicationService, "propose", changed)
     app.run()
-    assert table(app).key != old_key
+    assert candidate_checks(app)[0].key != old_key
     assert not any("DVK-beleidscontrole taakplicht:" in c.value for c in app.caption)
-    assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
+    assert app.button(key="planner-assign").disabled
     assert not active(db)
 
 
@@ -138,7 +99,7 @@ def test_shared_candidate_detail_never_records_an_exception(operational_page, mo
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
     refresh_candidate_sources(app)
-    pick(app, index=5)
+    candidate_buttons(app)[5].click().run()
     observed = []
     original = ProposalDecisionApplicationService.reject
     def reject(self, proposal, case, **kwargs):
@@ -150,7 +111,7 @@ def test_shared_candidate_detail_never_records_an_exception(operational_page, mo
     assert observed == []
     assert not any(t.label == "Toelichting" for t in app.text_input)
     assert not any(b.label == "Uitzondering vastleggen" for b in app.button)
-    assert any("Openstaande uren:" in c.value for c in app.caption)
+    assert any("Openstaande uren:" in c.value for c in app.markdown)
     assert not active(db)
 
 
@@ -163,11 +124,12 @@ def test_multiple_selected_details_and_deselect_preserve_storage(operational_pag
     ctx = replace(many(), period=app.session_state["candidate-context"].period)
     monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
     refresh_candidate_sources(app)
-    names = table(app).value.Kandidaat.tolist()
+    names = [button.label for button in candidate_buttons(app)]
     before = snapshot(db)
-    edit(app, table(app), {0: {"Kies": True}, 1: {"Kies": True}})
-    assert [m.value for m in app.markdown if m.value.startswith("#### ")] == ["#### " + n for n in names[:2]]
-    assert len([c for c in app.caption if c.value.startswith("Openstaande uren:")]) == 2
-    pick(app, value=False)
-    assert [m.value for m in app.markdown if m.value.startswith("#### ")] == ["#### " + names[1]]
+    candidate_checks(app)[0].check().run()
+    candidate_checks(app)[1].check().run()
+    candidate_buttons(app)[1].click().run()
+    candidate_checks(app)[0].uncheck().run()
+    assert any(item.value == f"**{names[1]}**" for item in app.markdown)
+    assert [check.value for check in candidate_checks(app)][:2] == [False, True]
     assert snapshot(db) == before

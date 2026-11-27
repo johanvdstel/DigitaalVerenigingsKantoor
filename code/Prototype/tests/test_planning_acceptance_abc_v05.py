@@ -1,5 +1,4 @@
 """A/B/C synthetic acceptance; D/E intentionally make no product changes."""
-from ui_table_events import table, edit
 from dataclasses import replace
 from datetime import date
 
@@ -127,10 +126,11 @@ def test_b_ui_rejects_excess_selection_without_writes(operational_page, monkeypa
     ctx=replace(many(),period=app.session_state['candidate-context'].period)
     monkeypatch.setattr(CandidateContextApplicationService,'load',lambda *a,**k:ctx)
     refresh_candidate_sources(app)
-    choices=table(app)
-    assert len(choices.value)==6
-    edit(app, choices, {i: {'Kies': True} for i in range(6)})
-    confirm=next(b for b in app.button if b.label=='Selectie bevestigen')
+    from test_candidate_context_ui_v05 import candidate_checks
+    assert len(candidate_checks(app)) == 6
+    for index in range(6):
+        candidate_checks(app)[index].check().run()
+    confirm = app.button(key='planner-assign')
     assert confirm.disabled
     assert any('meer kandidaten geselecteerd' in w.value for w in app.warning)
     with db.unit_of_work() as uow:

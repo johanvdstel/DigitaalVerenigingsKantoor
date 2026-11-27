@@ -1,7 +1,5 @@
 """Issue #12: FR-02–05; temporary planning never fabricates Sportlink facts."""
-from synthetic_demo_screen import use_synthetic_demo
-from ui_table_events import table as ui_table
-from ui_table_events import table, pick
+
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from datetime import date, datetime, timedelta
@@ -10,6 +8,7 @@ from threading import Barrier
 
 import pytest
 from streamlit.testing.v1 import AppTest
+from test_new_planning_9a2 import sources
 
 from dvk.application_services import PlanningApplicationService, ProposalDecisionApplicationService
 from dvk.candidate_selection import select_candidates
@@ -248,13 +247,16 @@ def test_undo_and_read_require_authorization(tmp_path):
 def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
     script = tmp_path / "streamlit_app.py"
     script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
-    from dvk.demo_data_v05 import demo_planning_data
-    services, needs, _, _ = demo_planning_data(date(2026, 9, 14))
+    from dvk.shift_catalog import load_shift_catalog
+    from dvk.volunteer_planning import VolunteerPlanningApplicationService
+    from test_volunteer_planning_integration_v05 import PERIOD, sync
+    catalog = load_shift_catalog()
     db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
-    # Seed current-process work only after the previous-process cleanup.
-    prepare_planning(db)
-    choose_period(db, PlanningPeriod(date(2026, 9, 14), date(2026, 9, 20)))
-    approve(db, service=services[0], need=needs[0])
+    assert sync(db, catalog, {})[0] is None
+    with db.unit_of_work() as uow:
+        services, needs, _, _ = VolunteerPlanningApplicationService(uow, IDENTITY, catalog).planning_data(PERIOD)
+    service = services[0]
+    approve(db, service=service, need=needs[0])
     for _ in range(2):
         # New session, empty session_state; only SQLite preserves the position.
         app = AppTest.from_file(str(script), default_timeout=15).run()
@@ -263,56 +265,47 @@ def test_streamlit_reload_and_undo_use_persisted_workqueue(tmp_path):
             app.button(key="resume-planning").click().run()
         else:
             app.button(key="activate-planning").click().run()
-        use_synthetic_demo(app)
-        app.date_input[0].set_value(date(2026, 9, 14)).run()
+        app.button(key="planner-review").click().run()
         assert not app.exception
-        selector = next(w for w in app.selectbox if w.label == "Tijdelijke inroostering")
-        assert "wo 16-09 19:00–22:00" in selector.options[0]
-        assert "LOCAL" not in selector.options[0]
-        table = ui_table(app, "services_editor-").value
-        assert table.iloc[0]["Open minimum"] == 0
-        assert table.iloc[0]["Vrije capaciteit"] == 1
-        assert table.iloc[0]["Sportlink"] == "Onbekend"  # Demo supplies counts, not validated source names.
-        assert table.iloc[0]["DVK-bezetting"] == 2
-        assert table.iloc[0]["Tijdelijk DVK"] == 1
-    next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
+        labels = [item.value for item in app.markdown]
+        assert any(f"{service.starts_at:%H:%M}–{service.ends_at:%H:%M}" in label
+                   and service.service_type in label and "LOCAL" not in label for label in labels)
+        assert next(metric.value for metric in app.metric if metric.label == "Tijdelijk ingedeeld in DVK") == "1"
+    next(button for button in app.button if (button.key or "").startswith("planner-undo-review-")).click().run()
     assert not app.exception
-    assert ui_table(app, "services_editor-").value.iloc[0]["Open minimum"] == 1
-    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 2
+    assert next(metric.value for metric in app.metric if metric.label == "Tijdelijk ingedeeld in DVK") == "0"
     assert state(db)[2] == ()
 
 
-def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path):
-    script = tmp_path / "streamlit_app.py"
-    script.write_text((Path(__file__).parents[1] / "streamlit_app.py").read_text())
-    app = AppTest.from_file(str(script), default_timeout=15).run()
+
+def test_streamlit_confirmation_refreshes_staffing_and_candidate_list(tmp_path, monkeypatch, sources):
+    from dataclasses import replace
+    from dvk.candidate_context import CandidateContextApplicationService
+    from test_candidate_context_ui_v05 import candidate_buttons, candidate_checks, duty_buttons
+    from test_new_planning_9a2 import open_page
+    from test_planning_acceptance_abc_v05 import many
+
+    app, db = open_page(tmp_path)
     app.button(key="nav-planning").click().run()
-    use_synthetic_demo(app)
-    # A period change deliberately discards stale service/widget selections.
-    app.date_input[0].set_value(date(2026, 9, 14)).run()
-    app.session_state["selected_service_id"] = "BAR-WO-1"
-    app.run()
-    db = SQLiteDatabase(tmp_path / "dvk_v05.sqlite")
-    pick(app)
-    assert state(db)[2] == ()  # Selecting alone is not human confirmation.
-    next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
-    assert not app.exception
-    assert ui_table(app, "services_editor-").value.iloc[0]["Open minimum"] == 0
-    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 1
-    assert len(state(db)[2]) == 1
-    assert not any("W08P" in pid for pid in table(app).value.proposal_id)
-    # Minimum reached: a second explicit confirmation can still fill maximum.
-    pick(app)
-    next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
-    assert not app.exception
-    assert ui_table(app, "services_editor-").value.iloc[0]["Vrije capaciteit"] == 0
-    assert len(state(db)[2]) == 2
-    assert next(b for b in app.button if b.label == "Selectie bevestigen").disabled
-    next(w for w in app.button if w.label == "Tijdelijke inroostering ongedaan maken").click().run()
-    assert not app.exception
-    assert len(state(db)[2]) == 1
-    assert any("W08P" in pid for pid in table(app).value.proposal_id)
-    pick(app)
-    next(w for w in app.button if w.label == "Selectie bevestigen").click().run()
-    assert not app.exception
-    assert len(state(db)[2]) == 2
+    app.button(key="activate-planning").click().run()
+    context = replace(many(), period=app.session_state["candidate-context"].period)
+    monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *args, **kwargs: context)
+    app.button(key="nav-sources").click().run()
+    app.button(key="load-candidate-sources").click().run()
+    app.button(key="nav-planning").click().run()
+    duty_buttons(app)[1].click().run()
+    initial = [button.label for button in candidate_buttons(app)]
+    assert len(initial) > 1
+    candidate_checks(app)[0].check().run()
+    assert state(db)[2] == ()
+    app.button(key="planner-assign").click().run()
+    assert not app.exception and len(state(db)[2]) == 1
+    assert initial[0] not in [button.label for button in candidate_buttons(app)]
+    candidate_checks(app)[0].check().run()
+    app.button(key="planner-assign").click().run()
+    assert not app.exception and len(state(db)[2]) == 2
+    assert app.button(key="planner-assign").disabled
+    assert not candidate_buttons(app)
+    next(button for button in app.button if (button.key or "").startswith("planner-undo-duty-")).click().run()
+    assert not app.exception and len(state(db)[2]) == 1
+    assert initial[0] in [button.label for button in candidate_buttons(app)]

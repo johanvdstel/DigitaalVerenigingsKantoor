@@ -25,7 +25,7 @@ from test_historical_backlog_v05 import history_row, history_text
 from test_planning_ui_names_v05 import SOURCE
 from test_programma_team_linking_v05 import row as program_row
 from test_volunteer_planning_integration_v05 import IDENTITY, PERIOD, people, row, seed_work, snapshot
-from ui_table_events import table
+
 
 
 def open_page(tmp_path):
@@ -98,7 +98,9 @@ def test_current_week_and_one_ordered_load_cycle(sources, tmp_path):
         assert source_rows.loc[name, "Status"] == expected_status
     assert source_rows.loc["Sportlink Programma", "Status"] == "Geslaagd, geen operationele wedstrijden"
     assert source_rows.loc["Sportlink Vrijwilligers", "Status"] == "Geslaagd, geen inroosteringen"
-    assert set(table(app, "services_editor-").value["Sportlink"]) == {"geen namen"}
+    assert next(metric.value for metric in app.metric if metric.label == "Ingeroosterd in Sportlink") == "0"
+    next(button for button in app.button if (button.key or "").startswith("planner-duty-")).click().run()
+    assert any(item.value == "Geen boekingen" for item in app.markdown)
 
 
 def test_custom_period_and_durable_resume_with_two_shielded_bookings(sources, tmp_path, monkeypatch):
@@ -120,7 +122,7 @@ def test_custom_period_and_durable_resume_with_two_shielded_bookings(sources, tm
     monkeypatch.setattr(SportlinkProgrammaClient, "fetch_rows", program)
     monkeypatch.setattr(SportlinkVrijwilligersClient, "fetch_rows", volunteers)
     app.button(key="nav-planning").click().run()
-    app.radio(key="planning-mode").set_value("Aangepast").run()
+    app.radio(key="planning-mode").set_value("Periode").run()
     app.date_input(key="planning-from").set_value(PERIOD.start).run()
     app.date_input(key="planning-until").set_value(PERIOD.end).run()
     assert not calls
@@ -147,7 +149,7 @@ def test_custom_period_and_durable_resume_with_two_shielded_bookings(sources, tm
     assert set(statuses(fresh).loc[["Sportlink Programma", "Sportlink Vrijwilligers"], "Status"]) == {
         "Technisch geslaagd",
     }
-    assert table(fresh, "services_editor-").value["Tijdelijk DVK"].sum() == 1
+    assert next(metric.value for metric in fresh.metric if metric.label == "Tijdelijk ingedeeld in DVK") == "1"
     assert snapshot(database) == before and calls == before_calls
     child = subprocess.check_output([
         sys.executable, "-c", """
@@ -218,13 +220,13 @@ def test_partial_sources_stay_explicit_and_only_safe_results_are_used(sources, t
         assert program == "Geslaagd, geen operationele wedstrijden"
         assert "Geen gevalideerde bron gepubliceerd" in rows.loc["Sportlink Vrijwilligers", "Toelichting"]
     has_valid_occupancy = fault not in {"missing-members", "vrijwilligers"}
-    service_rows = table(app, "services_editor-").value
-    assert set(service_rows["Sportlink"]) == ({"geen namen"} if has_valid_occupancy else {"Onbekend"})
-    app.session_state["selected_service_id"] = service_rows.iloc[0].service_id
-    app.run()
+    assert next(metric.value for metric in app.metric if metric.label == "Ingeroosterd in Sportlink") == (
+        "0" if has_valid_occupancy else "Onbekend")
+    next(button for button in app.button if (button.key or "").startswith("planner-duty-")).click().run()
+    assert any(item.value == ("Geen boekingen" if has_valid_occupancy else "Onbekend") for item in app.markdown)
     assert not app.exception
     assert any("Kandidaten zijn beschikbaar na een geslaagde bronimport" in item.value for item in app.info)
-    assert not any(frame.key and frame.key.startswith("candidate-table-") for frame in app.dataframe)
+    assert not any((widget.key or "").startswith("candidate-pick-") for widget in app.checkbox)
     assert not any("eerste automatische bronlading" in item.value for item in app.warning)
     with database.unit_of_work() as uow:
         sessions = PlanningSessionApplicationService(uow, IDENTITY)

@@ -265,6 +265,8 @@ def test_reload_ui_cancel_confirm_invalid_and_unknown_source(operational_page):
     app,db,_ = operational_page
     with db.unit_of_work() as u:
         old = u.planning_sessions.get()
+    assert not any(button.key == 'reload-catalog' for button in app.button)
+    app.button(key='nav-sources').click().run()
     app.button(key='reload-catalog').click().run()
     assert any('beëindigt' in w.value for w in app.warning)
     app.button(key='cancel-reload-catalog').click().run()
@@ -276,8 +278,7 @@ def test_reload_ui_cancel_confirm_invalid_and_unknown_source(operational_page):
         new = u.planning_sessions.get()
         assert new.session_id != old.session_id
         assert new.source_revision is None
-    assert any("De Sportlink-bezetting is onbekend" in w.value and "Databronnen" in w.value
-               for w in app.warning)
+    assert any("bezetting" in w.value and "nog niet beschikbaar" in w.value for w in app.warning)
     (default_export_directory()/'shift_definitions.csv').unlink()
     app.button(key='reload-catalog').click().run()
     assert app.error and not app.exception
@@ -314,7 +315,7 @@ def test_reload_then_refresh_and_failed_refresh_keep_correct_session(db,catalog)
 
 
 def test_additional_service_operational_ui_candidates_confirmation_and_undo(operational_page):
-    from ui_table_events import table, pick
+    from test_candidate_context_ui_v05 import candidate_buttons, candidate_checks
     app,db,_ = operational_page
     catalog=load_shift_catalog()
     original=catalog.bindings(PERIOD)[0].service
@@ -326,15 +327,15 @@ def test_additional_service_operational_ui_candidates_confirmation_and_undo(oper
     app.session_state['selected_service_id']=extra.service_id
     app.run()
     assert not app.exception
-    assert 'Synthetisch lid M1' in table(app).value.Kandidaat.tolist()
-    pick(app)
-    next(b for b in app.button if b.label=='Selectie bevestigen').click().run()
+    assert 'Synthetisch lid M1' in [button.label for button in candidate_buttons(app)]
+    candidate_checks(app)[0].check().run()
+    app.button(key='planner-assign').click().run()
     assert not app.exception
     with db.unit_of_work() as u:
         entry=u.temporary_planning.all()[0]
         assert entry.service.service_id==extra.service_id
         assert entry.assignment.scheduled_hours==0.75
-    next(b for b in app.button if b.label=='Tijdelijke inroostering ongedaan maken').click().run()
+    next(b for b in app.button if (b.key or '').startswith('planner-undo-duty-')).click().run()
     assert not app.exception
     with db.unit_of_work() as u: assert not u.temporary_planning.all()
 
@@ -349,6 +350,7 @@ def test_legacy_session_requires_reload_without_deleting_work(operational_page):
     assert not app.exception
     assert any('nog geen ingelezen lokale catalogus' in w.value for w in app.warning)
     with db.unit_of_work() as u: assert u.planning_sessions.get().session_id==current.session_id
+    app.button(key='nav-sources').click().run()
     app.button(key='reload-catalog').click().run()
     app.button(key='confirm-reload-catalog').click().run()
     assert not app.exception

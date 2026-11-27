@@ -72,7 +72,7 @@ def test_valid_database_preserves_planning_and_no_show_screen(tmp_path):
     app.session_state['dvk-screen'] = 'planning'
     app.run(timeout=20)
     assert not app.error
-    assert any(item.label == 'Diensten' for item in app.metric)
+    assert app.button(key='activate-planning') and not app.metric
     assert not any(item.value == '### No-shows' for item in app.markdown)
     assert db_path.read_bytes() == before
     app.button(key='nav-control').click().run(timeout=20)
@@ -118,6 +118,7 @@ def test_programming_errors_are_not_hidden(tmp_path, monkeypatch, failure):
     app = AppTest.from_file(str(local_app(tmp_path)))
     app.session_state['dvk-screen'] = 'planning'
     app.run(timeout=20)
+    app.button(key="activate-planning").click().run(timeout=20)
     assert len(app.exception) == 1
     assert str(failure) in app.exception[0].message
     assert not app.error

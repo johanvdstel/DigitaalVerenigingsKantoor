@@ -48,7 +48,7 @@ def test_available_screens_and_roundtrip_leave_database_unchanged(tmp_path):
     for _ in range(2):
         app.button(key='nav-planning').click().run()
         assert not app.exception
-        assert any(x.label == 'Diensten' for x in app.metric)
+        assert app.button(key='activate-planning') and not app.metric
         assert not any(x.key and x.key.startswith('duty-control-') for x in app.get('file_uploader'))
         app.button(key='nav-control').click().run()
         assert not app.exception
@@ -142,16 +142,11 @@ def test_function_settings_are_directly_under_main_screen_title(tmp_path):
     app.button(key='nav-planning').click().run()
     assert not app.exception
     children = list(app.main.children.values())
-    assert [x.type for x in children[:4]] == ['title', 'caption', 'subheader', 'expander']
+    assert [x.type for x in children[:4]] == ['title', 'caption', 'subheader', 'radio']
     assert children[1].value.startswith('Actieve codeversie:')
-    settings = children[3]
-    assert settings.markdown[0].value == '## 1 — Instellingen'
-    assert settings.radio(key='planning-mode').value == 'Week'
-    assert settings.label == 'Instellingen'
-    assert settings.proto.expanded is False
     assert app.main.radio(key='planning-mode').value == 'Week'
     assert app.main.date_input(key='planning-from').value == date.today()
-    app.main.radio(key='planning-mode').set_value('Aangepast').run()
+    app.main.radio(key='planning-mode').set_value('Periode').run()
     assert app.main.date_input(key='planning-until').value > app.main.date_input(key='planning-from').value
     assert not app.sidebar.radio and not app.sidebar.date_input
     app.button(key='nav-control').click().run()

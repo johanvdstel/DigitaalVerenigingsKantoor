@@ -1,44 +1,24 @@
-"""BL-18 presentation and preserved native service selection; synthetic only."""
-from synthetic_demo_screen import use_synthetic_demo
+"""Planner panel placement and source controls with synthetic data."""
 from dataclasses import replace
 
-from test_candidate_context_ui_v05 import operational_page, refresh_candidate_sources
+from dvk.candidate_context import CandidateContextApplicationService, CandidateSourceError
+from dvk.shift_catalog import load_shift_catalog
+from test_candidate_context_ui_v05 import candidate_buttons, operational_page, refresh_candidate_sources
 from test_candidate_context_v05 import context
 from test_candidate_person_issues_v05 import data_with_two, rows, write_rows
-from dvk.candidate_context import CandidateContextApplicationService
-from ui_table_events import table, choose_service, pick
+from test_planning_ui_names_v05 import page
+from test_volunteer_planning_integration_v05 import sync
 
 
-HEADINGS = [f"## {i} — {name}" for i, name in enumerate(
-    ("Instellingen", "Wedstrijden", "Diensten", "Kandidaten"), 1)]
-
-
-def sections(app):
-    return [block for block in app.main.children.values()
-            if block.type == "expander" and block.markdown and block.markdown[0].value in HEADINGS]
-
-
-def test_four_sections_and_controls_in_agreed_order(operational_page):
+def test_dashboard_panels_and_external_controls(operational_page):
     app, _, _ = operational_page
-    settings, fixtures, duties, candidates = sections(app)
-    assert [block.markdown[0].value for block in sections(app)] == HEADINGS
-    assert settings.radio(key="planning-mode")
-    assert settings.date_input(key="planning-from")
-    assert all(block.proto.expanded is False for block in sections(app))
-    assert not any(r.key == "planning-source-mode" for r in app.radio)
-    assert not any(b.key == "load-candidate-sources" for b in app.button)
-    assert not any(e.label == "Databronnen" for e in app.expander)
-    assert app.button(key="nav-sources")
-    assert any(m.value == "### Datakwaliteit" for m in candidates.markdown)
-    assert not any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
-    assert table(duties, "services_editor-")
-    assert table(candidates)
-    assert any(m.value == "### Actieve tijdelijke DVK-inroosteringen" for m in candidates.markdown)
-    assert not any(m.value == "### No-shows" for m in candidates.markdown)
-    assert app.button(key="nav-no-shows")
-    assert not fixtures.button
-    assert fixtures.label == "Wedstrijden"
-    assert fixtures.proto.expanded is False
+    assert [item.value for item in app.markdown if item.value in {
+        "### Rooster Ledendiensten", "### Kandidaten", "### Wedstrijden", "### Kandidaatdetails",
+    }] == ["### Rooster Ledendiensten", "### Kandidaten", "### Wedstrijden", "### Kandidaatdetails"]
+    assert app.button(key="nav-sources") and app.button(key="nav-no-shows")
+    assert app.button(key="planner-assign") and app.button(key="planner-review")
+    assert not any(button.key in {"load-candidate-sources", "reload-catalog"} for button in app.button)
+    assert not any(button.label == "Sportlink-inroosteringen synchroniseren" for button in app.button)
 
 
 def test_source_warning_stays_visible_while_detail_is_collapsed(operational_page, monkeypatch):
@@ -48,119 +28,67 @@ def test_source_warning_stays_visible_while_detail_is_collapsed(operational_page
     members[1]["Lidstatus"] = "Onbekende synthetische status"
     write_rows(data, "leden", members)
     ctx = replace(context(data), period=app.session_state["candidate-context"].period)
-    monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *a, **k: ctx)
+    monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *args, **kwargs: ctx)
+    refresh_candidate_sources(app)
+    details = next(item for item in app.expander if item.label == "Bronstatus bekijken")
+    assert not app.exception and not details.proto.expanded
+    diagnostic = next(node.value for node in details.dataframe if "Relatiecode" in node.value.columns)
+    assert diagnostic.Relatiecode.tolist() == ["M2"]
+    assert sum("de overige kandidaten worden normaal beoordeeld" in item.value.lower() for item in app.info) >= 2
+
+
+def test_full_program_remains_available_in_collapsed_section(operational_page, monkeypatch):
+    from test_candidate_context_v05 import row
+    app, _, _ = operational_page
+    ctx = replace(context(rows=[row("CKC O17-1", wedstrijddatum="2026-10-24T11:00:00+02:00")]), period=app.session_state["candidate-context"].period)
+    monkeypatch.setattr(CandidateContextApplicationService, "load", lambda *args, **kwargs: ctx)
     refresh_candidate_sources(app)
     assert not app.exception
-    _, _, _, candidates = sections(app)
-    detail = next(e for e in candidates.expander if e.label == "Bronmeldingen kandidaatcontext")
-    assert detail.proto.expanded is False
-    assert detail.dataframe[0].value.Relatiecode.tolist() == ["M2"]
-    # Direct child: important summary is outside every collapsed expander.
-    assert any(child.type == "info" and "de overige kandidaten" in child.value
-               for block in candidates.children.values() if block.type == "flex_container"
-               for child in block.children.values())
+    program = next(section for section in app.expander if section.label.startswith("Volledig programma"))
+    assert not program.proto.expanded
+    assert any("O17-1" in item.value for item in program.markdown)
 
 
-def test_service_context_and_widget_identity_survive_actions(operational_page):
-    app, _, observed = operational_page
-    original = table(app, "services_editor-").proto.id
-    for index in (1, 2, 0):
-        choose_service(app, index)
-        selected = app.session_state["selected_service_id"]
-        assert table(app, "services_editor-").proto.id == original
-        assert table(app).key.startswith(f"candidate-table-{selected}-")
-        pick(app)
-        assert not next(b for b in app.button if b.label == "Selectie bevestigen").disabled
-    choose_service(app, 0)
-    assert "selected_service_id" not in app.session_state
-    assert not any(t.key and t.key.startswith("candidate-table-") for t in app.dataframe)
-    assert observed == [app.session_state["candidate-context"].period]
-    assert not app.exception
-
-
-def test_matches_table_remains_available_in_collapsed_section(operational_page):
-    app, _, _ = operational_page
-    use_synthetic_demo(app)
-    assert not app.exception
-    fixtures = sections(app)[1]
-    expander = fixtures
-    assert expander.proto.expanded is False
-    assert set(expander.dataframe[0].value.columns) == {"Datum", "Tijd", "Team", "Thuis/uit"}
-    assert len(expander.dataframe[0].value) > 0
-
-
-OCCUPANCY_WARNING = (
-    "De Sportlink-bezetting is onbekend voor deze periode. "
-    "Ga naar Databronnen om feitelijke inroosteringen handmatig op te halen."
-)
-
-
-def test_occupancy_warning_points_to_manual_sync_and_tracks_source(tmp_path):
-    from test_planning_ui_names_v05 import page
-    from test_volunteer_planning_integration_v05 import sync
-    from dvk.shift_catalog import load_shift_catalog
-
+def test_unknown_occupancy_points_to_manual_sync_and_tracks_source(tmp_path):
     app, db = page(tmp_path)
-    _, _, duties, _ = sections(app)
-    assert [w.value for w in duties.warning] == [OCCUPANCY_WARNING]
+    assert any("De Sportlink-bezetting is onbekend" in item.value and "Databronnen" in item.value for item in app.warning)
     assert not any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
     app.button(key="nav-sources").click().run()
     assert any(b.label == "Sportlink-inroosteringen synchroniseren" for b in app.button)
     app.button(key="nav-planning").click().run()
-
     assert sync(db, load_shift_catalog(), {})[0] is None
     app.run()
     assert not app.exception
-    assert not any(w.value == OCCUPANCY_WARNING for w in app.warning)
-
-    # A new period has no validated occupancy; demo must still suppress the warning.
-    from datetime import timedelta
-    selected = app.date_input(key="planning-from").value
-    app.date_input(key="planning-from").set_value(selected + timedelta(days=7)).run()
-    app.button(key="confirm-period-change").click().run()
-    assert any(w.value == OCCUPANCY_WARNING for w in app.warning)
-    use_synthetic_demo(app)
-    assert not app.exception
-    assert not any(w.value == OCCUPANCY_WARNING for w in app.warning)
+    assert not any("De Sportlink-bezetting is onbekend" in item.value for item in app.warning)
 
 
-def test_catalog_controls_position_text_confirmation_and_no_extra_fetch(operational_page):
+def test_catalog_controls_confirmation_and_cancel_do_not_fetch(operational_page):
     app, db, observed = operational_page
-    _, _, duties, _ = sections(app)
-    label = 'Dienstencatalogus (roosterindeling) opnieuw laden'
-    explanation = ('Leest de roosterindeling opnieuw in. Na bevestiging begint een nieuwe '
-                   'planningssessie en vervalt de tijdelijke planning.')
-    assert duties.button(key='reload-catalog').label == label
-    assert any(c.value == explanation for c in duties.caption)
-    children = list(duties.children.values())
-    catalog_index = next(i for i, c in enumerate(children)
-                         if c.type == 'flex_container' and any(b.key == 'reload-catalog' for b in c.button))
-    assert any('Laatste geslaagde bronperiode' in c.value
-               for c in children[catalog_index + 1].caption)
+    app.button(key="nav-sources").click().run()
+    catalog = next(section for section in app.expander if section.label == "Dienstencatalogus")
+    assert catalog.button(key="reload-catalog").label == "Dienstencatalogus (roosterindeling) opnieuw laden"
+    assert any("vervalt de tijdelijke planning" in entry.value for entry in catalog.caption)
     before = len(observed)
-    with db.unit_of_work() as u:
-        session = u.planning_sessions.get()
-    app.button(key='reload-catalog').click().run()
-    duties = sections(app)[2]
-    assert duties.button(key='confirm-reload-catalog')
-    assert duties.button(key='cancel-reload-catalog')
+    with db.unit_of_work() as uow:
+        session = uow.planning_sessions.get()
+    app.button(key="reload-catalog").click().run()
+    assert app.button(key="confirm-reload-catalog")
+    app.button(key="cancel-reload-catalog").click().run()
     assert not app.exception and len(observed) == before
-    app.button(key='cancel-reload-catalog').click().run()
-    assert not app.exception and len(observed) == before
-    with db.unit_of_work() as u:
-        assert u.planning_sessions.get() == session
+    with db.unit_of_work() as uow:
+        assert uow.planning_sessions.get() == session
 
 
 def test_stale_demo_widget_cannot_select_demo_or_avoid_source_validation(operational_page, monkeypatch):
-    from dvk.candidate_context import CandidateSourceError
     app, _, _ = operational_page
-    app.session_state['planning-source-mode'] = 'Demonstratie'
-    def failure(*a, **k):
-        raise CandidateSourceError('Synthetische bronfout; geen demonstratieterugval')
-    monkeypatch.setattr(CandidateContextApplicationService, 'load', failure)
+    app.session_state["planning-source-mode"] = "Demonstratie"
+
+    def failure(*args, **kwargs):
+        raise CandidateSourceError("Synthetische bronfout; geen demonstratieterugval")
+
+    monkeypatch.setattr(CandidateContextApplicationService, "load", failure)
     refresh_candidate_sources(app)
     assert not app.exception
-    assert not any(r.label == 'Gegevens' for r in app.radio)
-    assert not app.session_state['candidate-source-mode']
-    assert any('geen demonstratieterugval' in e.value for e in app.error)
-    assert not any(t.key and t.key.startswith('candidate-table-') for t in app.dataframe)
+    assert not any(widget.label == "Gegevens" for widget in app.radio)
+    assert any("geen demonstratieterugval" in error.value for error in app.error)
+    assert not candidate_buttons(app)
